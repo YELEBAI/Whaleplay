@@ -23,6 +23,9 @@
   --input: 0 0% 89.8%;
   --ring: 0 0% 3.9%;
   --radius: 0.5rem;
+  --scrollbar-track: 0 0% 96.1%;
+  --scrollbar-thumb: 0 0% 72%;
+  --scrollbar-thumb-hover: 0 0% 58%;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,7 +49,48 @@
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
+    --scrollbar-track: 0 0% 7%;
+    --scrollbar-thumb: 0 0% 28%;
+    --scrollbar-thumb-hover: 0 0% 42%;
   }
+}
+
+:root.dark {
+  --scrollbar-track: 0 0% 7%;
+  --scrollbar-thumb: 0 0% 28%;
+  --scrollbar-thumb-hover: 0 0% 42%;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--scrollbar-thumb) / 0.72) hsl(var(--scrollbar-track) / 0.35);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--scrollbar-track) / 0.35);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--scrollbar-thumb) / 0.72);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--scrollbar-thumb-hover) / 0.86);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .neo-summary {

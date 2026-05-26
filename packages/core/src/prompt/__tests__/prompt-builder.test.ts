@@ -52,7 +52,7 @@ describe('buildChatPrompt', () => {
     })
 
     expect(result.messages[0].role).toBe('system')
-    expect(result.messages[0].content).toContain('roleplaying')
+    expect(result.messages[0].content).toContain('扮演')
   })
 
   it('should include character information in system messages', () => {
@@ -212,6 +212,28 @@ describe('buildChatPrompt', () => {
     })
 
     expect(result.messages[0].content).toContain(customRules)
+  })
+
+  it('should inject preset items by injection order', () => {
+    const result = buildChatPrompt({
+      character: mockCharacter,
+      recentMessages: [],
+      userInput: 'Test',
+      presetItems: [
+        { role: 'system', content: 'Third preset card', injectionOrder: 30 },
+        { role: 'user', content: 'Second preset card', injectionOrder: 20 },
+        { role: 'system', content: 'First preset card', injectionOrder: 10 },
+      ],
+    })
+
+    const contents = result.messages.map((m) => m.content)
+    const firstIndex = contents.indexOf('First preset card')
+    const secondIndex = contents.indexOf('Second preset card')
+    const thirdIndex = contents.indexOf('Third preset card')
+
+    expect(firstIndex).toBeGreaterThanOrEqual(0)
+    expect(firstIndex).toBeLessThan(secondIndex)
+    expect(secondIndex).toBeLessThan(thirdIndex)
   })
 })
 

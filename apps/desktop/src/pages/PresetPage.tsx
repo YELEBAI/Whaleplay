@@ -1,20 +1,29 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, Edit, ArrowLeft, Upload, Download, CheckCircle2 } from 'lucide-react'
+import { Plus, Trash2, Edit, ArrowLeft, Upload, Download, CheckCircle2, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
 import { Button, Input, Textarea, Label, ScrollArea, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@neo-tavern/ui'
 import { usePresetStore } from '@/features/preset/preset.store'
 import type { Preset, PresetItem } from '@neo-tavern/shared'
+import { getStorageItem } from '@/db/storage'
 
 function toast(type: 'success' | 'error' | 'info', message: string) {
   const fn = (window as any).__toast
   if (fn) fn(type, message)
 }
 
+function sortPresetItems(items: PresetItem[]) {
+  return [...items].sort((a, b) =>
+    a.injectionOrder - b.injectionOrder
+    || a.createdAt.localeCompare(b.createdAt)
+    || a.id.localeCompare(b.id)
+  )
+}
+
 export function PresetPage() {
   const navigate = useNavigate()
   const store = usePresetStore()
 
-  const [secretUnlocked, setSecretUnlocked] = useState(() => localStorage.getItem('neotavern_secret_unlocked') === '1')
+  const [secretUnlocked, setSecretUnlocked] = useState(false)
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -28,6 +37,10 @@ export function PresetPage() {
   const [itemContent, setItemContent] = useState('')
   const [itemOrder, setItemOrder] = useState(100)
   const [deleteItemTarget, setDeleteItemTarget] = useState<PresetItem | null>(null)
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null)
+  const [dragOverItemId, setDragOverItemId] = useState<string | null>(null)
+  const [dropPlacement, setDropPlacement] = useState<'before' | 'after'>('before')
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const [importOpen, setImportOpen] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
@@ -39,9 +52,18 @@ export function PresetPage() {
   }, [])
 
   useEffect(() => {
-    const onStorage = () => setSecretUnlocked(localStorage.getItem('neotavern_secret_unlocked') === '1')
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    let cancelled = false
+    const refreshSecret = () => {
+      getStorageItem('neotavern_secret_unlocked').then((value) => {
+        if (!cancelled) setSecretUnlocked(value === '1')
+      })
+    }
+    refreshSecret()
+    window.addEventListener('neotavern-secret-changed', refreshSecret)
+    return () => {
+      cancelled = true
+      window.removeEventListener('neotavern-secret-changed', refreshSecret)
+    }
   }, [])
 
   useEffect(() => {
@@ -97,11 +119,13 @@ export function PresetPage() {
   }
 
   const openNewItem = () => {
+    const orderedItems = selected ? sortPresetItems(selected.items) : []
+    const lastOrder = orderedItems[orderedItems.length - 1]?.injectionOrder ?? 0
     setEditingItem(null)
     setItemName('')
     setItemRole('system')
     setItemContent('')
-    setItemOrder(selected ? selected.items.length : 0)
+    setItemOrder(lastOrder + 10)
     setItemDialogOpen(true)
   }
 
@@ -153,6 +177,109 @@ export function PresetPage() {
     await store.toggleItem(selected.id, item.id)
   }
 
+  const handleMoveItem = async (itemId: string, direction: -1 | 1) => {
+    if (!selected) return
+    const orderedItems = sortPresetItems(selected.items)
+    const visibleItems = orderedItems.filter((i) => !i.hidden || secretUnlocked)
+    const visibleIndex = visibleItems.findIndex((i) => i.id === itemId)
+    const targetVisible = visibleItems[visibleIndex + direction]
+    if (!targetVisible) return
+
+    const nextItems = [...orderedItems]
+    const fromIndex = nextItems.findIndex((i) => i.id === itemId)
+    const toIndex = nextItems.findIndex((i) => i.id === targetVisible.id)
+    if (fromIndex < 0 || toIndex < 0) return
+
+    const [moved] = nextItems.splice(fromIndex, 1)
+    nextItems.splice(toIndex, 0, moved)
+    await store.reorderItems(selected.id, nextItems.map((i) => i.id))
+  }
+
+  const handleItemPointerDown = (e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => {
+    if (!selected || e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const presetId = selected.id
+    const orderedItems = sortPresetItems(selected.items)
+    const visibleItems = orderedItems.filter((i) => !i.hidden || secretUnlocked)
+
+    const getDropTarget = (clientY: number) => {
+      if (visibleItems.length === 0) return null
+
+      for (const item of visibleItems) {
+        const el = itemRefs.current.get(item.id)
+        if (!el) continue
+        const rect = el.getBoundingClientRect()
+        if (clientY >= rect.top && clientY <= rect.bottom) {
+          return {
+            itemId: item.id,
+            placement: clientY > rect.top + rect.height / 2 ? 'after' as const : 'before' as const,
+          }
+        }
+      }
+
+      const first = itemRefs.current.get(visibleItems[0].id)
+      const last = itemRefs.current.get(visibleItems[visibleItems.length - 1].id)
+      if (first && clientY < first.getBoundingClientRect().top) {
+        return { itemId: visibleItems[0].id, placement: 'before' as const }
+      }
+      if (last && clientY > last.getBoundingClientRect().bottom) {
+        return { itemId: visibleItems[visibleItems.length - 1].id, placement: 'after' as const }
+      }
+
+      return null
+    }
+
+    const previousUserSelect = document.body.style.userSelect
+    document.body.style.userSelect = 'none'
+    setDraggedItemId(itemId)
+    setDragOverItemId(itemId)
+    setDropPlacement('before')
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const target = getDropTarget(event.clientY)
+      if (!target) return
+      setDragOverItemId(target.itemId)
+      setDropPlacement(target.placement)
+    }
+
+    const finishDrag = async (event: PointerEvent) => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', finishDrag)
+      window.removeEventListener('pointercancel', cancelDrag)
+      document.body.style.userSelect = previousUserSelect
+
+      const target = getDropTarget(event.clientY)
+      setDraggedItemId(null)
+      setDragOverItemId(null)
+      if (!target || target.itemId === itemId) return
+
+      const sourceItem = orderedItems.find((item) => item.id === itemId)
+      if (!sourceItem) return
+
+      const nextItems = orderedItems.filter((item) => item.id !== itemId)
+      const targetIndex = nextItems.findIndex((item) => item.id === target.itemId)
+      if (targetIndex < 0) return
+
+      nextItems.splice(target.placement === 'after' ? targetIndex + 1 : targetIndex, 0, sourceItem)
+      await store.reorderItems(presetId, nextItems.map((item) => item.id))
+    }
+
+    const cancelDrag = () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', finishDrag)
+      window.removeEventListener('pointercancel', cancelDrag)
+      document.body.style.userSelect = previousUserSelect
+      setDraggedItemId(null)
+      setDragOverItemId(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', finishDrag)
+    window.addEventListener('pointercancel', cancelDrag)
+  }
+
   const handleExport = async () => {
     if (!selected) return
     try {
@@ -188,9 +315,8 @@ export function PresetPage() {
   }
 
   const sortedItems = selected
-    ? [...selected.items]
+    ? sortPresetItems(selected.items)
         .filter((i) => !i.hidden || secretUnlocked)
-        .sort((a, b) => a.injectionOrder - b.injectionOrder)
     : []
 
   return (
@@ -293,10 +419,32 @@ export function PresetPage() {
                 </div>
               ) : (
                 <div className="space-y-2 max-w-3xl">
-                  {sortedItems.map((item) => (
-                    <Card key={item.id} className={`transition-opacity ${!item.enabled ? 'opacity-50' : ''}`}>
+                  {sortedItems.map((item, index) => (
+                    <Card
+                      key={item.id}
+                      ref={(node) => {
+                        if (node) itemRefs.current.set(item.id, node)
+                        else itemRefs.current.delete(item.id)
+                      }}
+                      className={`relative transition-all ${!item.enabled ? 'opacity-50' : ''}
+                        ${draggedItemId === item.id ? 'opacity-40' : ''}
+                        ${dragOverItemId === item.id && draggedItemId !== item.id ? 'ring-1 ring-primary/40 bg-accent/20' : ''}`}
+                    >
+                      {dragOverItemId === item.id && draggedItemId !== item.id && (
+                        <div
+                          className={`pointer-events-none absolute left-3 right-3 z-10 h-0.5 rounded-full bg-primary ${dropPlacement === 'before' ? 'top-0' : 'bottom-0'}`}
+                        />
+                      )}
                       <CardHeader className="p-3 pb-0">
                         <div className="flex items-start gap-2">
+                          <button
+                            type="button"
+                            onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) => handleItemPointerDown(e, item.id)}
+                            className="mt-0.5 flex h-7 w-5 shrink-0 touch-none select-none items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground cursor-grab active:cursor-grabbing"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </button>
                           <button
                             type="button"
                             role="switch"
@@ -311,10 +459,30 @@ export function PresetPage() {
                             <div className="flex items-center gap-2">
                               <CardTitle className="text-sm truncate">{item.name}</CardTitle>
                               <span className="text-[10px] uppercase bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground shrink-0">{item.role}</span>
-                              <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground shrink-0">#{item.injectionOrder}</span>
+                              <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground shrink-0">Prompt #{index + 1}</span>
                             </div>
                           </div>
                           <div className="flex gap-0.5 shrink-0">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleMoveItem(item.id, -1)}
+                              disabled={index === 0}
+                              title="Move up"
+                            >
+                              <ArrowUp className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7"
+                              onClick={() => handleMoveItem(item.id, 1)}
+                              disabled={index === sortedItems.length - 1}
+                              title="Move down"
+                            >
+                              <ArrowDown className="h-3 w-3" />
+                            </Button>
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditItem(item)}>
                               <Edit className="h-3 w-3" />
                             </Button>

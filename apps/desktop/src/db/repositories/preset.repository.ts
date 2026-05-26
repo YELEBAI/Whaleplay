@@ -1,13 +1,14 @@
 import { generateId } from '@neo-tavern/shared'
 import type { Preset, PresetItem, CreatePresetInput, UpdatePresetInput, CreatePresetItemInput, UpdatePresetItemInput, RegexPreset, RegexRule } from '@neo-tavern/shared'
+import { getStorageItem, removeStorageItem, setStorageItem } from '../storage'
 
 const STORAGE_KEY = 'neotavern_presets'
 const ACTIVE_KEY = 'neotavern_active_preset_id'
 const REGEX_KEY = 'neotavern_regex_presets'
 
-function loadRegexPresets(): RegexPreset[] {
+async function loadRegexPresets(): Promise<RegexPreset[]> {
   try {
-    const raw = localStorage.getItem(REGEX_KEY)
+    const raw = await getStorageItem(REGEX_KEY)
     if (!raw) return []
     const data = JSON.parse(raw)
     if (!Array.isArray(data)) return []
@@ -15,25 +16,28 @@ function loadRegexPresets(): RegexPreset[] {
   } catch { return [] }
 }
 
-function saveRegexPresets(presets: RegexPreset[]) {
-  try { localStorage.setItem(REGEX_KEY, JSON.stringify(presets)) } catch {}
+async function saveRegexPresets(presets: RegexPreset[]) {
+  await setStorageItem(REGEX_KEY, JSON.stringify(presets))
 }
 
-function loadAll(): Preset[] {
-  try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : [] } catch { return [] }
+async function loadAll(): Promise<Preset[]> {
+  try {
+    const raw = await getStorageItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
 }
 
-function saveAll(presets: Preset[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(presets)) } catch {}
+async function saveAll(presets: Preset[]) {
+  await setStorageItem(STORAGE_KEY, JSON.stringify(presets))
 }
 
 export const presetRepository = {
   async list(): Promise<Preset[]> {
-    return loadAll().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    return (await loadAll()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   },
 
   async getById(id: string): Promise<Preset | null> {
-    return loadAll().find((p) => p.id === id) ?? null
+    return (await loadAll()).find((p) => p.id === id) ?? null
   },
 
   async create(input: CreatePresetInput): Promise<Preset> {
@@ -46,14 +50,14 @@ export const presetRepository = {
       createdAt: now,
       updatedAt: now,
     }
-    const all = loadAll()
+    const all = await loadAll()
     all.push(preset)
-    saveAll(all)
+    await saveAll(all)
     return preset
   },
 
   async update(id: string, input: UpdatePresetInput): Promise<Preset> {
-    const all = loadAll()
+    const all = await loadAll()
     const idx = all.findIndex((p) => p.id === id)
     if (idx === -1) throw new Error(`Preset not found: ${id}`)
     const existing = all[idx]
@@ -61,19 +65,19 @@ export const presetRepository = {
     if (input.description !== undefined) existing.description = input.description
     existing.updatedAt = new Date().toISOString()
     all[idx] = existing
-    saveAll(all)
+    await saveAll(all)
     return existing
   },
 
   async delete(id: string): Promise<void> {
-    saveAll(loadAll().filter((p) => p.id !== id))
+    await saveAll((await loadAll()).filter((p) => p.id !== id))
     if (await this.getActivePresetId() === id) {
       await this.setActivePresetId(null)
     }
   },
 
   async addItem(presetId: string, input: CreatePresetItemInput): Promise<PresetItem> {
-    const all = loadAll()
+    const all = await loadAll()
     const idx = all.findIndex((p) => p.id === presetId)
     if (idx === -1) throw new Error(`Preset not found: ${presetId}`)
     const now = new Date().toISOString()
@@ -90,12 +94,12 @@ export const presetRepository = {
     }
     all[idx].items.push(item)
     all[idx].updatedAt = now
-    saveAll(all)
+    await saveAll(all)
     return item
   },
 
   async updateItem(presetId: string, itemId: string, input: UpdatePresetItemInput): Promise<PresetItem> {
-    const all = loadAll()
+    const all = await loadAll()
     const pIdx = all.findIndex((p) => p.id === presetId)
     if (pIdx === -1) throw new Error(`Preset not found: ${presetId}`)
     const iIdx = all[pIdx].items.findIndex((i) => i.id === itemId)
@@ -109,28 +113,54 @@ export const presetRepository = {
     item.updatedAt = new Date().toISOString()
     all[pIdx].items[iIdx] = item
     all[pIdx].updatedAt = new Date().toISOString()
-    saveAll(all)
+    await saveAll(all)
     return item
   },
 
   async deleteItem(presetId: string, itemId: string): Promise<void> {
-    const all = loadAll()
+    const all = await loadAll()
     const pIdx = all.findIndex((p) => p.id === presetId)
     if (pIdx === -1) throw new Error(`Preset not found: ${presetId}`)
     all[pIdx].items = all[pIdx].items.filter((i) => i.id !== itemId)
     all[pIdx].updatedAt = new Date().toISOString()
-    saveAll(all)
+    await saveAll(all)
+  },
+
+  async reorderItems(presetId: string, orderedItemIds: string[]): Promise<Preset> {
+    const all = await loadAll()
+    const pIdx = all.findIndex((p) => p.id === presetId)
+    if (pIdx === -1) throw new Error(`Preset not found: ${presetId}`)
+
+    const now = new Date().toISOString()
+    const preset = all[pIdx]
+    const byId = new Map(preset.items.map((item) => [item.id, item]))
+    const orderedIds = new Set(orderedItemIds)
+    const orderedItems = orderedItemIds
+      .map((id) => byId.get(id))
+      .filter((item): item is PresetItem => Boolean(item))
+
+    for (const item of preset.items) {
+      if (!orderedIds.has(item.id)) orderedItems.push(item)
+    }
+
+    preset.items = orderedItems.map((item, index) => ({
+      ...item,
+      injectionOrder: (index + 1) * 10,
+      updatedAt: now,
+    }))
+    preset.updatedAt = now
+    all[pIdx] = preset
+    await saveAll(all)
+    return preset
   },
 
   async getActivePresetId(): Promise<string | null> {
-    try { return localStorage.getItem(ACTIVE_KEY) } catch { return null }
+    return getStorageItem(ACTIVE_KEY)
   },
 
   async setActivePresetId(id: string | null): Promise<void> {
-    try {
-      if (id) localStorage.setItem(ACTIVE_KEY, id)
-      else localStorage.removeItem(ACTIVE_KEY)
-    } catch {}
+    if (id) await setStorageItem(ACTIVE_KEY, id)
+    else await removeStorageItem(ACTIVE_KEY)
   },
 
   save: saveAll,
@@ -169,9 +199,9 @@ export const presetRepository = {
       }
       preset.items.push(item)
     }
-    const all = loadAll()
+    const all = await loadAll()
     all.push(preset)
-    saveAll(all)
+    await saveAll(all)
 
     try {
       const regexScripts: Array<{
@@ -186,7 +216,7 @@ export const presetRepository = {
         || []
 
       if (regexScripts.length > 0) {
-        const existingPresets = loadRegexPresets()
+        const existingPresets = await loadRegexPresets()
         const existingPatterns = new Set<string>()
         for (const ep of existingPresets) {
           if (Array.isArray(ep.rules)) {
@@ -240,7 +270,7 @@ export const presetRepository = {
             createdAt: now,
             updatedAt: now,
           }
-          saveRegexPresets([...existingPresets, regexPreset])
+          await saveRegexPresets([...existingPresets, regexPreset])
         }
       }
     } catch (e) {

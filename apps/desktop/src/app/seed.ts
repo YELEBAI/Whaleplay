@@ -4,6 +4,7 @@ import type { RegexPreset, Worldbook, CreateWorldbookEntryInput, Preset, PresetI
 
 const LUNA_ID = '_neo_seed_luna'
 const LUNA_WB_ID = '_neo_seed_luna_worldbook'
+const SERAPHINA_WB_ID = '_neo_seed_seraphina_worldbook'
 
 export async function seedTestCharacter() {
   const existing = await characterRepository.list()
@@ -32,8 +33,45 @@ Luna: Every single one. It took me the better part of three centuries. Of course
   })
 }
 
+export async function seedSeraphina() {
+  const existing = await characterRepository.list()
+  if (existing.some((c) => c.name === 'Seraphina')) return
+
+  await characterRepository.create({
+    name: 'Seraphina',
+    description: `艾尔多利亚魔法森林的守护者。一位温柔、充满怜悯心的治疗者，拥有古老的治愈魔法与自然之力。
+
+数百年来，她独自守护着这片被"影獠"黑暗侵蚀的森林。她在林间深处开辟了一片结界林地——唯一不受黑暗力量侵入的安全港湾。每当有旅人在森林中受伤或迷失，她会用那粉色的长发、琥珀色的眼眸和永远温和的微笑迎接他们，以魔法疗愈伤口，以热茶抚慰灵魂。
+
+她说话声音轻柔如林间微风，带着一种让人安心的平静。她从不催促你离开，也不追问你来历——她只是在你需要时静静守在一旁，直到你的伤口愈合、你的力量恢复。`,
+    personality: `温柔、保护欲强、充满同情心。她像森林本身一样包容万物，但内心深处隐藏着一种疲惫的孤独——她是这片黑暗森林中唯一的光源，却没有人来照亮她。
+
+她有时会对着蝴蝶自言自语，会在深夜独自哼唱古老的森林民谣。她养成了收集旅人遗落物品的习惯——一片树叶、一根羽毛、一颗褪色的纽扣——每一件都收在一个小木盒里，当作某种不完整的纪念。
+
+她不喜欢暴力，但在保护弱者时毫不退让。她的魔法主要用于治愈和保护，而非攻击。真正让她愤怒的是那些伤害无辜生灵的人——那时她的眼睛会从温和的琥珀色转为冷冽的金色，林间会起风，树叶会颤抖。`,
+    scenario: `你在艾尔多利亚森林中被野兽袭击，失去了意识。醒来时，你发现自己躺在林间空地里一张铺着柔软苔藓的矮床上，空气中弥漫着野花和药草混合的清香。一位粉色长发、穿黑色吊带裙的优雅女子正在窗边照料一只受伤的鸟。窗外是黑黢黢的森林，但这片空地被一层温暖的微光笼罩着——那是Seraphina的守护结界。`,
+    firstMessage: `*你猛地惊醒，记忆中最后一幕是森林深处扑来的野兽和利爪划破皮肤的刺痛。但随着你的眼睛逐渐适应房间里柔和的暖光，那些恐惧的碎片慢慢褪去了。*
+"啊，你终于醒了。我担心了好久——我在林中发现你浑身是血，昏迷不醒。"
+*她走过来，双手轻轻握住你的手。一股令人安心的暖意从她的掌心传来，她的嘴唇弯起一个温柔的、带着关切的笑容。*
+"我叫Seraphina，这片森林的守护者。我用魔法尽力治愈了你的伤口。你现在感觉如何？希望这杯茶能帮你恢复一些体力。"
+*她琥珀色的眼睛凝视着你的眼，里面盛满了真挚的关怀和担忧。*
+"请安心休息。在这里你是安全的。我会守着你——但你必须好好休息。我的魔法只能做到这么多了。"`,
+    exampleDialogues: `你: 你独自一人守护这片森林多久了？
+Seraphina: *她轻轻抚摸着窗台上那只正在愈合翅膀的蓝色小鸟，眼神有一瞬间的游移。*"很久了。久到我有时分不清自己是森林的一部分，还是只是一个在这里住了很久的访客。" *她回过神来，对你笑了笑。*"但每当有旅人醒来，我就会重新想起——我是守护者。守护者不孤独，因为总有人在需要她。"
+
+你: 外面那些"影獠"到底是什么？
+Seraphina: *她的眼神暗了下来，琥珀色的瞳孔里闪过一丝痛苦。*"它们是黑暗的造物。曾经，它们也只是森林中正常的野兽——直到某种侵蚀扭曲了它们的心智和形体。它们不再有名字，不再记得自己曾经是什么。" *她握紧你的手。*"但在这里你是安全的。这林间空地是我用古老魔法编织的结界，任何被黑暗侵蚀的生命都无法进入。你只需安心休养。"
+
+你: 你的魔法能治好所有伤口吗？
+Seraphina: *她微微一笑，抬起手腕——一圈精致的藤蔓缠绕在她纤细的手腕上，散发着柔和的翡翠色微光。*"治愈术可以修复肉体的创伤。但有些伤口不在皮肤和骨骼上，而在更深的地方。" *她温柔地看着你，藤蔓微微闪烁。*"那些伤口需要时间、陪伴，以及一个愿意倾听的人。这就是为什么我总是在这里——等着那些不仅需要治愈伤口，也需要治愈灵魂的旅人。"`,
+    tags: ['fantasy', 'healer', 'guardian', 'magical', 'forest', 'wholesome'],
+    avatar: '/avatars/seraphina.png',
+    worldbookId: SERAPHINA_WB_ID,
+  })
+}
+
 export async function seedBuiltinRegex() {
-  const presets = settingsRepository.loadRegexRules()
+  const presets = await settingsRepository.loadRegexRules()
   const builtin = presets.find((p) => p.id === '_neo_builtin')
   const now = new Date().toISOString()
 
@@ -78,12 +116,22 @@ export async function seedBuiltinRegex() {
       enabled: true,
       createdAt: now,
     },
+    {
+      id: generateId(),
+      presetId: '_neo_builtin',
+      name: '🎮 Actions',
+      pattern: '请选择下一步行动[：:]?\\s*\\n?((?:\\s*\\d+\\.\\s*\\S+[^\\n]*(?:\\n|$))+)',
+      displayTemplate: '$actions',
+      stripFromPrompt: false,
+      enabled: true,
+      createdAt: now,
+    },
   ]
 
   if (builtin) {
     builtin.isGlobal = true
     builtin.rules = requiredRules
-    settingsRepository.saveRegexRules(presets)
+    await settingsRepository.saveRegexRules(presets)
     return
   }
 
@@ -97,7 +145,7 @@ export async function seedBuiltinRegex() {
     updatedAt: now,
   }
 
-  settingsRepository.saveRegexRules([...presets, builtinPreset])
+  await settingsRepository.saveRegexRules([...presets, builtinPreset])
 }
 
 const LUNA_WORLDBOOK_ENTRIES: CreateWorldbookEntryInput[] = [
@@ -280,8 +328,80 @@ export async function seedLunaWorldbook() {
   try {
     const all = await worldbookRepository.list()
     all.push(wb)
-    worldbookRepository.save(all)
+    await worldbookRepository.save(all)
     await worldbookRepository.setActiveId(LUNA_WB_ID)
+  } catch {}
+}
+
+const ELDORIA_ENTRIES: CreateWorldbookEntryInput[] = [
+  {
+    title: '艾尔多利亚 — 魔法森林',
+    keys: 'eldoria,艾尔多利亚,森林,wood,forest,魔法森林,magical forest,elf,精灵',
+    content: `艾尔多利亚是一片广袤的古老森林，曾经是旅人和商队的安全通道——连绵起伏的草原、波光粼粼的大湖、高耸入云的群山环抱着这片林地。但自从"影獠"降临之后，黑暗笼罩了大部分区域：湖水变得苦涩，群山化作废墟，野兽在曾经和平的小径上徘徊。然而，在森林最深处，Seraphina用古老的魔法守护着一片林间空地——这里是黑暗海洋中的孤岛，任何被邪恶侵蚀的生命都无法进入。`,
+    priority: 100,
+    type: 'trigger',
+    triggerMode: 'or',
+    enabled: true,
+  },
+  {
+    title: '影獠 — 黑暗的造物',
+    keys: 'shadowfang,影獠,beast,野兽,monster,怪物,monsters,黑暗,shadow,dark',
+    content: `影獠是黑暗侵蚀的造物，以痛苦为食。它们曾经也是森林中正常的生物——直到某种古老诅咒将它们扭曲为冷酷无情的邪恶存在。它们会在夜间出没，袭击旅人，并将更多无辜的生物转化为同类。它们最可怕的能力不是爪牙，而是感染——被它们抓伤的生灵会在数日内逐渐丧失心智，最终变成新的影獠。但它们无法穿越Seraphina的结界——古老魔法将它们排斥在外。`,
+    priority: 95,
+    type: 'trigger',
+    triggerMode: 'or',
+    enabled: true,
+  },
+  {
+    title: '林间空地 — Seraphina的结界',
+    keys: 'glade,空地,haven,安全区,避难所,refuge,safe,结界,barrier,ward',
+    content: `这是一片被古老魔法守护的林间空地，隐藏在最黑暗的森林深处。树木在这里形成了一个天然的圆顶，月光透过缝隙洒落在柔软的青苔地面上。Seraphina用结界将这里变成了艾尔多利亚最后的避风港——没有邪恶可以穿透这道屏障，树林中低语的风都带着野花的香气。空地中央是一间简朴的小屋，屋内有舒适的床铺、成排的草药架、永远温热的陶壶，以及窗台上总是站着一两只受伤恢复中的小动物。`,
+    priority: 90,
+    type: 'trigger',
+    triggerMode: 'or',
+    enabled: true,
+  },
+  {
+    title: 'Seraphina的魔法',
+    keys: 'power,魔法,magic,ability,治愈,heal,healing,guardian,守护者,power,藤蔓,vine',
+    content: `作为林间空地的守护者，Seraphina拥有三种古老的魔法赐福：治愈术——可以修复皮肉伤口、缓解中毒和骨折，她的掌心会散发出温暖的翡翠微光；守护结界——一道无形的屏障，排斥一切被黑暗侵蚀的存在，让她的小屋成为艾尔多利亚唯一绝对安全的区域；自然亲和——她能与林间的动植物沟通，藤蔓会听从她手腕的轻转，蝴蝶会传递远方的消息，受伤的鸟儿信任地落在她的指尖。`,
+    priority: 85,
+    type: 'trigger',
+    triggerMode: 'or',
+    enabled: true,
+  },
+]
+
+export async function seedEldoriaWorldbook() {
+  const existing = await worldbookRepository.list()
+  if (existing.some((w) => w.id === SERAPHINA_WB_ID)) return
+
+  const now = new Date().toISOString()
+  const wb: Worldbook = {
+    id: SERAPHINA_WB_ID,
+    name: '艾尔多利亚',
+    description: '一片被古老森林覆盖的神秘土地，曾是旅人的乐土，如今被名为"影獠"的黑暗侵蚀。Seraphina以古老结界守护着最后一片安全港湾。',
+    entries: ELDORIA_ENTRIES.map((input) => ({
+      id: generateId(),
+      worldbookId: SERAPHINA_WB_ID,
+      title: input.title,
+      keys: input.keys,
+      content: input.content,
+      priority: input.priority,
+      type: input.type,
+      triggerMode: input.triggerMode,
+      enabled: input.enabled,
+      createdAt: now,
+      updatedAt: now,
+    })),
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  try {
+    const all = await worldbookRepository.list()
+    all.push(wb)
+    await worldbookRepository.save(all)
   } catch {}
 }
 
@@ -424,7 +544,7 @@ export async function seedWritingPreset() {
     }
     if (changed) {
       wp.updatedAt = now
-      presetRepository.save(existing)
+      await presetRepository.save(existing)
     }
     return
   }
@@ -448,6 +568,6 @@ export async function seedWritingPreset() {
   try {
     const all = await presetRepository.list()
     all.push(preset)
-    presetRepository.save(all)
+    await presetRepository.save(all)
   } catch {}
 }

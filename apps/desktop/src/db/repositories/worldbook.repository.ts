@@ -7,13 +7,14 @@ import type {
   CreateWorldbookEntryInput,
   UpdateWorldbookEntryInput,
 } from '@neo-tavern/shared'
+import { getStorageItem, removeStorageItem, setStorageItem } from '../storage'
 
 const STORAGE_KEY = 'neotavern_worldbooks'
 const ACTIVE_KEY = 'neotavern_active_worldbook_id'
 
-function loadAll(): Worldbook[] {
+async function loadAll(): Promise<Worldbook[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = await getStorageItem(STORAGE_KEY)
     if (!raw) return []
     const data = JSON.parse(raw)
     if (!Array.isArray(data)) return []
@@ -23,19 +24,17 @@ function loadAll(): Worldbook[] {
   }
 }
 
-function saveAll(wbs: Worldbook[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(wbs))
-  } catch {}
+async function saveAll(wbs: Worldbook[]) {
+  await setStorageItem(STORAGE_KEY, JSON.stringify(wbs))
 }
 
 export const worldbookRepository = {
   async list(): Promise<Worldbook[]> {
-    return loadAll().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    return (await loadAll()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   },
 
   async getById(id: string): Promise<Worldbook | null> {
-    return loadAll().find((w) => w.id === id) ?? null
+    return (await loadAll()).find((w) => w.id === id) ?? null
   },
 
   async create(input: CreateWorldbookInput): Promise<Worldbook> {
@@ -48,14 +47,14 @@ export const worldbookRepository = {
       createdAt: now,
       updatedAt: now,
     }
-    const all = loadAll()
+    const all = await loadAll()
     all.push(wb)
-    saveAll(all)
+    await saveAll(all)
     return wb
   },
 
   async update(id: string, input: UpdateWorldbookInput): Promise<Worldbook> {
-    const all = loadAll()
+    const all = await loadAll()
     const idx = all.findIndex((w) => w.id === id)
     if (idx === -1) throw new Error(`Worldbook not found: ${id}`)
     const existing = all[idx]
@@ -63,19 +62,19 @@ export const worldbookRepository = {
     if (input.description !== undefined) existing.description = input.description
     existing.updatedAt = new Date().toISOString()
     all[idx] = existing
-    saveAll(all)
+    await saveAll(all)
     return existing
   },
 
   async delete(id: string): Promise<void> {
-    saveAll(loadAll().filter((w) => w.id !== id))
+    await saveAll((await loadAll()).filter((w) => w.id !== id))
     if ((await this.getActiveId()) === id) {
       await this.setActiveId(null)
     }
   },
 
   async addEntry(worldbookId: string, input: CreateWorldbookEntryInput): Promise<WorldbookEntry> {
-    const all = loadAll()
+    const all = await loadAll()
     const idx = all.findIndex((w) => w.id === worldbookId)
     if (idx === -1) throw new Error(`Worldbook not found: ${worldbookId}`)
     const now = new Date().toISOString()
@@ -94,7 +93,7 @@ export const worldbookRepository = {
     }
     all[idx].entries.push(entry)
     all[idx].updatedAt = now
-    saveAll(all)
+    await saveAll(all)
     return entry
   },
 
@@ -103,7 +102,7 @@ export const worldbookRepository = {
     entryId: string,
     input: UpdateWorldbookEntryInput,
   ): Promise<WorldbookEntry> {
-    const all = loadAll()
+    const all = await loadAll()
     const wIdx = all.findIndex((w) => w.id === worldbookId)
     if (wIdx === -1) throw new Error(`Worldbook not found: ${worldbookId}`)
     const eIdx = all[wIdx].entries.findIndex((e) => e.id === entryId)
@@ -119,35 +118,29 @@ export const worldbookRepository = {
     entry.updatedAt = new Date().toISOString()
     all[wIdx].entries[eIdx] = entry
     all[wIdx].updatedAt = new Date().toISOString()
-    saveAll(all)
+    await saveAll(all)
     return entry
   },
 
   async deleteEntry(worldbookId: string, entryId: string): Promise<void> {
-    const all = loadAll()
+    const all = await loadAll()
     const wIdx = all.findIndex((w) => w.id === worldbookId)
     if (wIdx === -1) throw new Error(`Worldbook not found: ${worldbookId}`)
     all[wIdx].entries = all[wIdx].entries.filter((e) => e.id !== entryId)
     all[wIdx].updatedAt = new Date().toISOString()
-    saveAll(all)
+    await saveAll(all)
   },
 
   async getActiveId(): Promise<string | null> {
-    try {
-      return localStorage.getItem(ACTIVE_KEY)
-    } catch {
-      return null
-    }
+    return getStorageItem(ACTIVE_KEY)
   },
 
   async setActiveId(id: string | null): Promise<void> {
-    try {
-      if (id) localStorage.setItem(ACTIVE_KEY, id)
-      else localStorage.removeItem(ACTIVE_KEY)
-    } catch {}
+    if (id) await setStorageItem(ACTIVE_KEY, id)
+    else await removeStorageItem(ACTIVE_KEY)
   },
 
-  save(wbs: Worldbook[]): void {
-    saveAll(wbs)
+  async save(wbs: Worldbook[]): Promise<void> {
+    await saveAll(wbs)
   },
 }

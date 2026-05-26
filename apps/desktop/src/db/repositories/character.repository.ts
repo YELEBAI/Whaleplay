@@ -1,22 +1,26 @@
 import { generateId } from '@neo-tavern/shared'
 import type { Character, CreateCharacterInput, UpdateCharacterInput } from '@neo-tavern/shared'
+import { getStorageItem, setStorageItem } from '../storage'
 
 const STORAGE_KEY = 'neotavern_characters'
 
-function loadAll(): Character[] {
-  try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : [] } catch { return [] }
+async function loadAll(): Promise<Character[]> {
+  try {
+    const raw = await getStorageItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
 }
-function saveAll(chars: Character[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(chars)) } catch {}
+async function saveAll(chars: Character[]) {
+  await setStorageItem(STORAGE_KEY, JSON.stringify(chars))
 }
 
 export const characterRepository = {
   async list(): Promise<Character[]> {
-    return loadAll().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    return (await loadAll()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   },
 
   async getById(id: string): Promise<Character | null> {
-    return loadAll().find((c) => c.id === id) ?? null
+    return (await loadAll()).find((c) => c.id === id) ?? null
   },
 
   async create(input: CreateCharacterInput): Promise<Character> {
@@ -36,14 +40,14 @@ export const characterRepository = {
       createdAt: now,
       updatedAt: now,
     }
-    const all = loadAll()
+    const all = await loadAll()
     all.push(char)
-    saveAll(all)
+    await saveAll(all)
     return char
   },
 
   async update(id: string, input: UpdateCharacterInput): Promise<Character> {
-    const all = loadAll()
+    const all = await loadAll()
     const idx = all.findIndex((c) => c.id === id)
     if (idx === -1) throw new Error(`Character not found: ${id}`)
     const existing = all[idx]
@@ -59,11 +63,11 @@ export const characterRepository = {
     if (input.worldbookId !== undefined) existing.worldbookId = input.worldbookId
     existing.updatedAt = new Date().toISOString()
     all[idx] = existing
-    saveAll(all)
+    await saveAll(all)
     return existing
   },
 
   async delete(id: string): Promise<void> {
-    saveAll(loadAll().filter((c) => c.id !== id))
+    await saveAll((await loadAll()).filter((c) => c.id !== id))
   },
 }

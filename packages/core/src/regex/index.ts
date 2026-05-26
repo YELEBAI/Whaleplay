@@ -3,6 +3,7 @@ import type { RegexRule } from '@neo-tavern/shared'
 export interface SideBlock {
   name: string
   content: string
+  actions?: string[]
 }
 
 export interface DisplayBlock {
@@ -42,9 +43,11 @@ function buildDisplayBlocks(content: string, regex: RegExp): DisplayBlock[] {
 export function applyRegexRules(content: string, rules: RegexRule[]): SplitResult {
   const enabled = rules.filter((r) => r.enabled)
   const sideBlocks: SideBlock[] = []
+  let pendingActions: SideBlock | null = null
 
   const promptStripRules: RegexRule[] = []
   const unwrapRules: RegexRule[] = []
+  const actionRules: RegexRule[] = []
   const dialogueRules: RegexRule[] = []
   const templateRules: RegexRule[] = []
 
@@ -55,6 +58,8 @@ export function applyRegexRules(content: string, rules: RegexRule[]): SplitResul
       promptStripRules.push(rule)
     } else if (rule.displayTemplate === '$1') {
       unwrapRules.push(rule)
+    } else if (rule.displayTemplate === '$actions') {
+      actionRules.push(rule)
     } else if (!rule.displayTemplate) {
       promptStripRules.push(rule)
     } else {
@@ -69,6 +74,30 @@ export function applyRegexRules(content: string, rules: RegexRule[]): SplitResul
 
   for (const rule of unwrapRules) {
     try { displayContent = displayContent.replace(new RegExp(rule.pattern, 'gs'), '$1') } catch { continue }
+  }
+
+  for (const rule of actionRules) {
+    try {
+      const regex = new RegExp(rule.pattern, 'gs')
+      const matches = [...content.matchAll(regex)]
+      if (matches.length === 0) continue
+      const actions: string[] = []
+      for (const match of matches) {
+        for (let i = 1; i < match.length; i++) {
+          const block = match[i]
+          if (!block) continue
+          const lines = block.split('\n').filter(Boolean)
+          for (const line of lines) {
+            const cleaned = line.replace(/^\s*\d+\.\s*/, '').trim()
+            if (cleaned) actions.push(cleaned)
+          }
+        }
+      }
+      if (actions.length > 0) {
+          pendingActions = { name: rule.name, content: '', actions }
+        }
+      displayContent = displayContent.replace(regex, '')
+    } catch { continue }
   }
 
   const promptContent = displayContent.trim()
@@ -109,6 +138,10 @@ export function applyRegexRules(content: string, rules: RegexRule[]): SplitResul
         block.content = block.content.replace(regex, '')
       }
     } catch { continue }
+  }
+
+  if (pendingActions) {
+    sideBlocks.push(pendingActions)
   }
 
   return {

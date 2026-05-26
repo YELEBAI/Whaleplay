@@ -1,20 +1,19 @@
 import type { BuildPromptInput, BuiltPrompt, GenerateMessage, ContextBlock } from '@neo-tavern/shared'
 
 const DEFAULT_SYSTEM_RULES = [
-  'You are roleplaying as the selected character.',
-  'Stay consistent with the character profile and scenario.',
-  'Do not speak or act for the user unless explicitly requested.',
-  'Keep the conversation coherent with recent messages.',
-  'Follow applicable safety rules and avoid disallowed content.',
+  '你正在扮演所选角色。',
+  '始终与角色设定和场景保持一致。',
+  '除非用户明确要求，否则不要替用户说话或行动。',
+  '保持与最近的对话消息一致。',
+  '遵守适用的安全规则，避免不当内容。',
 ].join('\n')
 
 const DIALOGUE_FORMAT_RULES = [
   '',
-  'Formatting for dialogue:',
-  'When a character speaks dialogue, prefix each spoken line with their name and a colon, like:',
-  'Name: "their spoken words"',
-  'Put each dialogue line on its own line, separate from narration.',
-  'Only use this format for actual spoken words. Narration and internal thoughts stay as normal text.',
+  '对话格式要求：',
+  '当角色说话时，在每句对话前加上角色名和冒号，格式如：角色名："对话内容"',
+  '每句对话独占一行，与叙述文字分开。',
+  '此格式仅用于实际说出声的对话。叙述和内心活动保持普通文本格式。',
 ].join('\n')
 
 function estTokens(text: string): number {
@@ -39,7 +38,7 @@ export function buildChatPrompt(input: BuildPromptInput): BuiltPrompt {
   const messages: GenerateMessage[] = []
   const uname = input.userName || 'User'
 
-  const safeReplace = (s: string) => s.replace(/\{\{user\}\}/gi, uname)
+  const safeReplace = (s: string) => s.replace(/\{\{user\}\}/gi, uname).replace(/<user>/gi, uname)
 
   const systemRules = input.systemRules ?? DEFAULT_SYSTEM_RULES
   const characterBlock = safeReplace([
@@ -69,26 +68,8 @@ export function buildChatPrompt(input: BuildPromptInput): BuiltPrompt {
     })
   }
 
-  let appendedDialogueRules = false
-
   for (const item of sortedPresetItems) {
-    if (item.role === 'system' && !appendedDialogueRules) {
-      appendedDialogueRules = true
-      messages.push({
-        role: 'system',
-        content: safeReplace(item.content + DIALOGUE_FORMAT_RULES),
-      })
-      continue
-    }
     messages.push({ role: item.role, content: safeReplace(item.content) })
-  }
-
-  if (hasSystemPreset && !appendedDialogueRules) {
-    appendedDialogueRules = true
-    messages.push({
-      role: 'system',
-      content: safeReplace(DIALOGUE_FORMAT_RULES.trim()),
-    })
   }
 
   messages.push({ role: 'system', content: characterBlock })
@@ -122,16 +103,39 @@ export function buildChatPrompt(input: BuildPromptInput): BuiltPrompt {
     }
   }
 
+  if (input.character.firstMessage && input.recentMessages.length === 0) {
+    messages.push({ role: 'assistant', content: safeReplace(input.character.firstMessage) })
+  }
+
   for (const block of sortedContextBlocks) {
     messages.push({ role: 'system', content: safeReplace(`[${block.source}] ${block.title}\n${block.content}`) })
   }
 
-  messages.push({ role: 'system', content: 'REMINDER: Use Name: "dialogue" format for all spoken lines.' })
+  messages.push({
+    role: 'system',
+    content: [
+      '【关键格式规则 — 必须遵守】',
+      '1. 角色说话时必须使用：角色名："对话内容"',
+      '2. 叙述与描述保持普通文本，只有对话内容放在双引号里跟在角色名后',
+      '3. 每句对话独占一行',
+      '4. 内心活动与叙述描述绝对不要加角色名前缀',
+    ].join('\n'),
+  })
 
   messages.push({
-    role: 'user',
-    content: userInputMsg.content + '\n\n[Reasoning Effort: Absolute maximum with no shortcuts permitted.\nYou MUST be very thorough in your thinking and comprehensively decompose the problem to resolve the root cause, rigorously stress-testing your logic against all potential paths, edge cases, and adversarial scenarios.\nExplicitly write out your entire deliberation process, documenting every intermediate step, considered alternative, and rejected hypothesis to ensure absolutely no assumption is left unchecked.]',
+    role: 'system',
+    content: [
+      '在撰写回复之前，请重新回顾上述所有系统指令。',
+      '重点检查：角色设定、写作规则、禁用词汇、输出格式要求。',
+      '如果任何系统规则与你将要写的内容冲突，以系统规则为准。',
+      '',
+      '[推理强度：绝对最大化，不允许任何走捷径。',
+      '你必须极其彻底地思考，全面拆解问题以解决根源，严格对照所有可能的路径、边缘情况和对抗性场景来检验你的逻辑。',
+      '完整写出你的整套思考过程，记录每一个中间步骤、考虑过的替代方案和被否决的假设，确保绝对没有任何假设未经审查。]',
+    ].join('\n'),
   })
+
+  messages.push(userInputMsg)
 
   const previewText = messages
     .map((message) => `## ${message.role}\n${message.content}`)

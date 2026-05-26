@@ -18,8 +18,20 @@ interface ChatState {
   addMessage: (input: CreateMessageInput) => Promise<Message>
   updateMessage: (id: string, content: string) => Promise<void>
   deleteMessage: (id: string) => Promise<void>
+  deleteMessages: (ids: string[]) => Promise<void>
   setSending: (sending: boolean) => void
   clearError: () => void
+}
+
+function sortChats(chats: Chat[]): Chat[] {
+  return [...chats].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+function applyTouchedChat(state: Pick<ChatState, 'chats' | 'currentChat'>, chat: Chat) {
+  return {
+    chats: sortChats(state.chats.map((c) => (c.id === chat.id ? chat : c))),
+    currentChat: state.currentChat?.id === chat.id ? chat : state.currentChat,
+  }
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -41,7 +53,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadChat: async (id: string) => {
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, sending: false })
     try {
       const chat = await chatRepository.getById(id)
       if (chat) {
@@ -58,10 +70,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   createOrGetChat: async (input: CreateChatInput) => {
     set({ loading: true, error: null })
     try {
+      const previousId = get().currentChat?.id
       const inMemory = get().chats.find((c) => c.characterId === input.characterId)
       if (inMemory) {
         const messages = await messageRepository.listByChatId(inMemory.id)
-        set({ currentChat: inMemory, messages, loading: false })
+        set({ currentChat: inMemory, messages, loading: false, sending: inMemory.id !== previousId ? false : get().sending })
         return inMemory
       }
       const existing = await chatRepository.getByCharacterId(input.characterId)
@@ -69,7 +82,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const chat = existing[0]
         const messages = await messageRepository.listByChatId(chat.id)
         const state = get()
-        set({ currentChat: chat, messages, chats: state.chats, loading: false })
+        set({ currentChat: chat, messages, chats: state.chats, loading: false, sending: chat.id !== previousId ? false : get().sending })
         return chat
       }
       const chat = await chatRepository.create(input)
@@ -78,6 +91,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         currentChat: chat,
         messages: [],
         loading: false,
+        sending: false,
       }))
       return chat
     } catch (err) {
@@ -115,8 +129,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   addMessage: async (input: CreateMessageInput) => {
     try {
       const message = await messageRepository.create(input)
+      const chat = await chatRepository.update(input.chatId, {})
       set((state) => ({
-        messages: [...state.messages, message],
+        messages: state.currentChat?.id === input.chatId
+          ? [...state.messages, message]
+          : state.messages,
+        ...applyTouchedChat(state, chat),
       }))
       return message
     } catch (err) {
@@ -132,8 +150,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   updateMessage: async (id: string, content: string) => {
     try {
       const updated = await messageRepository.update(id, content)
+      const chat = await chatRepository.update(updated.chatId, {})
       set((state) => ({
         messages: state.messages.map((m) => (m.id === id ? updated : m)),
+        ...applyTouchedChat(state, chat),
       }))
     } catch (err) {
       set({ error: (err as Error).message })
@@ -143,9 +163,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   deleteMessage: async (id: string) => {
     try {
+      const target = get().messages.find((m) => m.id === id)
       await messageRepository.deleteMessage(id)
+      const chat = target ? await chatRepository.update(target.chatId, {}) : null
       set((state) => ({
         messages: state.messages.filter((m) => m.id !== id),
+        ...(chat ? applyTouchedChat(state, chat) : {}),
+      }))
+    } catch (err) {
+      set({ error: (err as Error).message })
+      throw err
+    }
+  },
+
+  deleteMessages: async (ids: string[]) => {
+    if (ids.length === 0) return
+    try {
+      const idSet = new Set(ids)
+      const targets = get().messages.filter((m) => idSet.has(m.id))
+      await messageRepository.deleteMessages(ids)
+      const chatId = targets[0]?.chatId
+      const chat = chatId ? await chatRepository.update(chatId, {}) : null
+      set((state) => ({
+        messages: state.messages.filter((m) => !idSet.has(m.id)),
+        ...(chat ? applyTouchedChat(state, chat) : {}),
       }))
     } catch (err) {
       set({ error: (err as Error).message })

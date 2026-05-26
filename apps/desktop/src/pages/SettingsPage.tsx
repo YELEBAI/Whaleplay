@@ -4,6 +4,7 @@ import { ArrowLeft, Save, Plug, Sun, Moon, Monitor, Palette, Trash2, Plus, Regex
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, ScrollArea, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@neo-tavern/ui'
 import { useSettingsStore } from '@/features/settings/settings.store'
 import { useTheme } from '@/app/theme'
+import { getStorageItem, setStorageItem } from '@/db/storage'
 
 function toast(type: 'success' | 'error' | 'info', message: string) {
   const fn = (window as any).__toast
@@ -90,7 +91,7 @@ export function SettingsPage() {
   const [fetchingModels, setFetchingModels] = useState(false)
   const [availableModels, setAvailableModels] = useState<string[]>([])
   const [easterEggClicks, setEasterEggClicks] = useState(0)
-  const [secretUnlocked, setSecretUnlocked] = useState(() => localStorage.getItem('neotavern_secret_unlocked') === '1')
+  const [secretUnlocked, setSecretUnlocked] = useState(false)
 
   setFormName = setName
   setFormBaseUrl = setBaseUrl
@@ -129,6 +130,9 @@ export function SettingsPage() {
     }
     load()
     loadRegexRules()
+    getStorageItem('neotavern_secret_unlocked').then((value) => {
+      if (!cancelled) setSecretUnlocked(value === '1')
+    })
     return () => { cancelled = true }
   }, [])
 
@@ -222,8 +226,9 @@ export function SettingsPage() {
     const next = easterEggClicks + 1
     setEasterEggClicks(next)
     if (next >= 10) {
-      localStorage.setItem('neotavern_secret_unlocked', '1')
+      void setStorageItem('neotavern_secret_unlocked', '1')
       setSecretUnlocked(true)
+      window.dispatchEvent(new Event('neotavern-secret-changed'))
       toast('success', '🔓 Secret unlocked! Check the writing preset.')
     }
     setSection('context')

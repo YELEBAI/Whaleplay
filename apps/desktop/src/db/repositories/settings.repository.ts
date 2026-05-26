@@ -1,36 +1,37 @@
 import type { ModelConfig, RegexPreset } from '@neo-tavern/shared'
+import { getStorageEntries, getStorageItem, removeStorageItem, setStorageItem } from '../storage'
 
 const STORAGE_KEY = 'neotavern_model_configs'
 const ACTIVE_KEY = 'neotavern_active_config_id'
 const REGEX_KEY = 'neotavern_regex_presets'
 const REGEX_ACTIVE_KEY = 'neotavern_active_regex_preset_id'
 
-function loadFromStorage(): ModelConfig[] {
+async function loadFromStorage(): Promise<ModelConfig[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = await getStorageItem(STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
   } catch { return [] }
 }
 
-function saveToStorage(configs: ModelConfig[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(configs)) } catch {}
+async function saveToStorage(configs: ModelConfig[]) {
+  await setStorageItem(STORAGE_KEY, JSON.stringify(configs))
 }
 
 export const settingsRepository = {
   async get(key: string): Promise<string | null> {
-    return localStorage.getItem(`neotavern_setting_${key}`)
+    return getStorageItem(`neotavern_setting_${key}`)
   },
 
   async set(key: string, value: string): Promise<void> {
-    try { localStorage.setItem(`neotavern_setting_${key}`, value) } catch {}
+    await setStorageItem(`neotavern_setting_${key}`, value)
   },
 
   async getAll(): Promise<Record<string, string>> {
     const result: Record<string, string> = {}
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i)
+    const entries = await getStorageEntries('neotavern_setting_')
+    for (const k of Object.keys(entries)) {
       if (k?.startsWith('neotavern_setting_')) {
-        result[k.replace('neotavern_setting_', '')] = localStorage.getItem(k) ?? ''
+        result[k.replace('neotavern_setting_', '')] = entries[k] ?? ''
       }
     }
     return result
@@ -41,38 +42,36 @@ export const settingsRepository = {
   },
 
   async getModelConfig(id: string): Promise<ModelConfig | null> {
-    return loadFromStorage().find((c) => c.id === id) ?? null
+    return (await loadFromStorage()).find((c) => c.id === id) ?? null
   },
 
   async saveModelConfig(config: ModelConfig): Promise<void> {
-    const configs = loadFromStorage().filter((c) => c.id !== config.id)
+    const configs = (await loadFromStorage()).filter((c) => c.id !== config.id)
     configs.push(config)
-    saveToStorage(configs)
+    await saveToStorage(configs)
   },
 
   async deleteModelConfig(id: string): Promise<void> {
-    let configs = loadFromStorage()
+    let configs = await loadFromStorage()
     configs = configs.filter((c) => c.id !== id)
-    saveToStorage(configs)
+    await saveToStorage(configs)
     if (await this.getActiveConfigId() === id) {
       await this.setActiveConfigId(configs[0]?.id ?? null)
     }
   },
 
   async getActiveConfigId(): Promise<string | null> {
-    try { return localStorage.getItem(ACTIVE_KEY) } catch { return null }
+    return getStorageItem(ACTIVE_KEY)
   },
 
   async setActiveConfigId(id: string | null): Promise<void> {
-    try {
-      if (id) localStorage.setItem(ACTIVE_KEY, id)
-      else localStorage.removeItem(ACTIVE_KEY)
-    } catch {}
+    if (id) await setStorageItem(ACTIVE_KEY, id)
+    else await removeStorageItem(ACTIVE_KEY)
   },
 
-  loadRegexRules(): RegexPreset[] {
+  async loadRegexRules(): Promise<RegexPreset[]> {
     try {
-      const raw = localStorage.getItem(REGEX_KEY)
+      const raw = await getStorageItem(REGEX_KEY)
       if (!raw) return []
       const data = JSON.parse(raw)
       if (!Array.isArray(data)) return []
@@ -80,30 +79,28 @@ export const settingsRepository = {
     } catch { return [] }
   },
 
-  saveRegexRules(presets: RegexPreset[]): void {
-    try { localStorage.setItem(REGEX_KEY, JSON.stringify(presets)) } catch {}
+  async saveRegexRules(presets: RegexPreset[]): Promise<void> {
+    await setStorageItem(REGEX_KEY, JSON.stringify(presets))
   },
 
   async getActiveRegexPresetId(): Promise<string | null> {
-    try { return localStorage.getItem(REGEX_ACTIVE_KEY) } catch { return null }
+    return getStorageItem(REGEX_ACTIVE_KEY)
   },
 
   async setActiveRegexPresetId(id: string | null): Promise<void> {
-    try {
-      if (id) localStorage.setItem(REGEX_ACTIVE_KEY, id)
-      else localStorage.removeItem(REGEX_ACTIVE_KEY)
-    } catch {}
+    if (id) await setStorageItem(REGEX_ACTIVE_KEY, id)
+    else await removeStorageItem(REGEX_ACTIVE_KEY)
   },
 
-  loadPersona(): { name: string; desc: string } {
+  async loadPersona(): Promise<{ name: string; desc: string }> {
     try {
-      const raw = localStorage.getItem('neotavern_persona')
+      const raw = await getStorageItem('neotavern_persona')
       if (!raw) return { name: 'User', desc: '' }
       return JSON.parse(raw)
     } catch { return { name: 'User', desc: '' } }
   },
 
-  savePersona(persona: { name: string; desc: string }): void {
-    try { localStorage.setItem('neotavern_persona', JSON.stringify(persona)) } catch {}
+  async savePersona(persona: { name: string; desc: string }): Promise<void> {
+    await setStorageItem('neotavern_persona', JSON.stringify(persona))
   },
 }

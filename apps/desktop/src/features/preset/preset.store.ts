@@ -19,6 +19,7 @@ interface PresetState {
   addItem: (presetId: string, input: CreatePresetItemInput) => Promise<PresetItem>
   updateItem: (presetId: string, itemId: string, input: UpdatePresetItemInput) => Promise<PresetItem>
   deleteItem: (presetId: string, itemId: string) => Promise<void>
+  reorderItems: (presetId: string, orderedItemIds: string[]) => Promise<void>
   toggleItem: (presetId: string, itemId: string) => Promise<void>
 
   importPreset: (json: string) => Promise<Preset>
@@ -157,6 +158,20 @@ export const usePresetStore = create<PresetState>((set, get) => ({
     }
   },
 
+  reorderItems: async (presetId, orderedItemIds) => {
+    set({ error: null })
+    try {
+      const preset = await presetRepository.reorderItems(presetId, orderedItemIds)
+      set((state) => ({
+        presets: state.presets.map((p) => (p.id === presetId ? preset : p)),
+        activePreset: state.activePreset?.id === presetId ? preset : state.activePreset,
+      }))
+    } catch (err) {
+      set({ error: (err as Error).message })
+      throw err
+    }
+  },
+
   toggleItem: async (presetId, itemId) => {
     const { presets } = get()
     const preset = presets.find((p) => p.id === presetId)
@@ -188,13 +203,15 @@ export const usePresetStore = create<PresetState>((set, get) => ({
     const data = {
       name: preset.name,
       description: preset.description,
-      prompts: preset.items.map((i) => ({
-        name: i.name,
-        enabled: i.enabled,
-        role: i.role,
-        content: i.content,
-        injection_order: i.injectionOrder,
-      })),
+      prompts: [...preset.items]
+        .sort((a, b) => a.injectionOrder - b.injectionOrder)
+        .map((i) => ({
+          name: i.name,
+          enabled: i.enabled,
+          role: i.role,
+          content: i.content,
+          injection_order: i.injectionOrder,
+        })),
     }
     return JSON.stringify(data, null, 2)
   },

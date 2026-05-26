@@ -223,6 +223,7 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
         model: modelConfig.model,
         temperature: modelConfig.temperature,
         maxTokens: modelConfig.maxTokens,
+        reasoningEffort: modelConfig.reasoningEffort || undefined,
         signal: controller.signal,
       })
       const generateDuration = Date.now() - genStart

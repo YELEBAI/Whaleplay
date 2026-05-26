@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import { getStorageItem, setStorageItem } from '@/db/storage'
 
 type Theme = 'light' | 'dark' | 'system'
 
@@ -21,9 +22,7 @@ function getSystemTheme(): 'light' | 'dark' {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem('neotavern-theme') as Theme) || 'system'
-  })
+  const [theme, setThemeState] = useState<Theme>('system')
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(
     theme === 'system' ? getSystemTheme() : theme
   )
@@ -35,12 +34,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t)
-    localStorage.setItem('neotavern-theme', t)
+    void setStorageItem('neotavern-theme', t)
     if (t === 'system') {
       applyTheme(getSystemTheme())
     } else {
       applyTheme(t)
     }
+  }, [applyTheme])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const saved = await getStorageItem('neotavern-theme')
+      if (cancelled || (saved !== 'light' && saved !== 'dark' && saved !== 'system')) return
+      setThemeState(saved)
+      applyTheme(saved === 'system' ? getSystemTheme() : saved)
+    })()
+    return () => { cancelled = true }
   }, [applyTheme])
 
   useEffect(() => {

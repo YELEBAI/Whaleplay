@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { RouterProvider } from 'react-router-dom'
 import { router } from './router'
-import { seedTestCharacter, seedBuiltinRegex, seedLunaWorldbook, seedWritingPreset } from './seed'
+import { seedTestCharacter, seedBuiltinRegex, seedLunaWorldbook, seedWritingPreset, seedSeraphina, seedEldoriaWorldbook } from './seed'
 import { ToastContainer, useToast } from '@neo-tavern/ui'
 import { useSettingsStore } from '@/features/settings/settings.store'
 import { useWorldbookStore } from '@/features/settings/worldbook.store'
 import { ThemeProvider } from './theme'
+import { migrateLocalStorageToAppStore } from '@/db/storage'
 
 let seeded = false
 
@@ -16,15 +17,20 @@ function AppContent() {
   useEffect(() => {
     if (seeded) return
     seeded = true
-    seedTestCharacter()
-    seedBuiltinRegex()
-    seedLunaWorldbook()
-    seedWritingPreset()
-    useSettingsStore.getState().loadAllConfigs()
-    useSettingsStore.getState().loadContextTokens()
-    useSettingsStore.getState().loadRegexRules()
-    useSettingsStore.getState().loadPersona()
-    useWorldbookStore.getState().loadWorldbooks()
+    void (async () => {
+      await migrateLocalStorageToAppStore()
+      await seedTestCharacter()
+      await seedBuiltinRegex()
+      await seedLunaWorldbook()
+      await seedWritingPreset()
+      await seedSeraphina()
+      await seedEldoriaWorldbook()
+      await useSettingsStore.getState().loadAllConfigs()
+      await useSettingsStore.getState().loadContextTokens()
+      await useSettingsStore.getState().loadRegexRules()
+      await useSettingsStore.getState().loadPersona()
+      await useWorldbookStore.getState().loadWorldbooks()
+    })()
   }, [])
 
   return (

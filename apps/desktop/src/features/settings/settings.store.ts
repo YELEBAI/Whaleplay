@@ -28,7 +28,7 @@ interface SettingsState {
   updateModelConfig: (id: string, input: UpdateModelConfigInput) => Promise<ModelConfig>
   deleteModelConfig: (id: string) => Promise<void>
   testConnection: (baseUrl: string, apiKey: string, model: string) => Promise<TestConnectionResult>
-  loadRegexRules: () => void
+  loadRegexRules: () => Promise<void>
   loadContextTokens: () => Promise<void>
   createRegexPreset: (input: CreateRegexPresetInput) => Promise<RegexPreset>
   updateRegexPreset: (id: string, input: UpdateRegexPresetInput) => Promise<RegexPreset>
@@ -40,7 +40,7 @@ interface SettingsState {
   toggleRegexRule: (presetId: string, ruleId: string) => Promise<void>
   getActiveRegexRules: () => RegexRule[]
   setContextTokens: (tokens: number) => void
-  loadPersona: () => void
+  loadPersona: () => Promise<void>
   savePersona: (name: string, desc: string) => void
   clearError: () => void
 }
@@ -182,8 +182,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  loadRegexRules: () => {
-    const presets = settingsRepository.loadRegexRules()
+  loadRegexRules: async () => {
+    const presets = await settingsRepository.loadRegexRules()
     set({ regexPresets: presets })
   },
 
@@ -216,7 +216,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const now = new Date().toISOString()
       const preset: RegexPreset = { id: generateId(), name: input.name, description: input.description, rules: [], isGlobal: input.isGlobal || false, createdAt: now, updatedAt: now }
       const presets = [...get().regexPresets, preset]
-      settingsRepository.saveRegexRules(presets)
+      await settingsRepository.saveRegexRules(presets)
       set({ regexPresets: presets, loading: false })
       return preset
     } catch (err) { set({ error: (err as Error).message, loading: false }); throw err }
@@ -233,7 +233,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if (input.isGlobal !== undefined) updated.isGlobal = input.isGlobal
         return updated
       })
-      settingsRepository.saveRegexRules(presets)
+      await settingsRepository.saveRegexRules(presets)
       set({ regexPresets: presets, loading: false })
       return presets.find((p) => p.id === id)!
     } catch (err) { set({ error: (err as Error).message, loading: false }); throw err }
@@ -243,7 +243,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const presets = get().regexPresets.filter((p) => p.id !== id)
-      settingsRepository.saveRegexRules(presets)
+      await settingsRepository.saveRegexRules(presets)
       const nextActive = get().activeRegexPresetId === id ? null : get().activeRegexPresetId
       if (get().activeRegexPresetId === id && presets.length > 0) {
         await settingsRepository.setActiveRegexPresetId(presets[0].id)
@@ -269,7 +269,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if (p.id !== presetId) return p
         return { ...p, rules: [...p.rules, rule], updatedAt: now }
       })
-      settingsRepository.saveRegexRules(presets)
+      await settingsRepository.saveRegexRules(presets)
       set({ regexPresets: presets })
       return rule
     } catch (err) { set({ error: (err as Error).message }); throw err }
@@ -292,7 +292,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         })
         return { ...p, rules, updatedAt: new Date().toISOString() }
       })
-      settingsRepository.saveRegexRules(presets)
+      await settingsRepository.saveRegexRules(presets)
       set({ regexPresets: presets })
       const preset = presets.find((p) => p.id === presetId)!
       return preset.rules.find((r) => r.id === ruleId)!
@@ -306,7 +306,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if (p.id !== presetId) return p
         return { ...p, rules: p.rules.filter((r) => r.id !== ruleId), updatedAt: new Date().toISOString() }
       })
-      settingsRepository.saveRegexRules(presets)
+      await settingsRepository.saveRegexRules(presets)
       set({ regexPresets: presets })
     } catch (err) { set({ error: (err as Error).message }); throw err }
   },
@@ -320,17 +320,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   setContextTokens: (tokens: number) => {
-    settingsRepository.set('contextTokens', String(tokens))
+    void settingsRepository.set('contextTokens', String(tokens))
     set({ contextTokens: tokens })
   },
 
-  loadPersona: () => {
-    const persona = settingsRepository.loadPersona()
+  loadPersona: async () => {
+    const persona = await settingsRepository.loadPersona()
     set({ personaName: persona.name, personaDesc: persona.desc })
   },
 
   savePersona: (name: string, desc: string) => {
-    settingsRepository.savePersona({ name, desc })
+    void settingsRepository.savePersona({ name, desc })
     set({ personaName: name, personaDesc: desc })
   },
 }))
