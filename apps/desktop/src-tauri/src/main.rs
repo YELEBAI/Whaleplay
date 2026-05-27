@@ -1,5 +1,5 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// Prevents an extra console window on Windows for both dev and release builds.
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 fn main() {
     neo_tavern_desktop_lib::run()

@@ -1,13 +1,14 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { Send, ChevronDown, ChevronUp, ArrowLeft, Copy, Pencil, Check, X, ScrollText, RotateCcw, CheckCheck, StopCircle, BarChart3, Trash2, Brain } from 'lucide-react'
-import { Button, Input, Card, CardContent, Textarea, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@neo-tavern/ui'
+import { Send, ChevronDown, ChevronUp, ArrowLeft, Copy, Pencil, Check, X, ScrollText, RotateCcw, CheckCheck, StopCircle, BarChart3, Trash2, Brain, Save, FolderOpen } from 'lucide-react'
+import { Button, Input, Card, CardContent, Textarea, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@neo-tavern/ui'
 import { useCharacterStore } from '@/features/character/character.store'
 import { useChatStore } from '@/features/chat/chat.store'
 import { useSendMessage } from '@/features/chat/hooks/useSendMessage'
 import type { GenerationPhase } from '@/features/chat/chat.types'
-import { presetRepository } from '@/db/repositories'
-import { getStorageItem, setStorageItem } from '@/db/storage'
+import { chatRepository, chatSavepointRepository, createDefaultSavepointName, messageRepository, presetRepository } from '@/db/repositories'
+import type { ChatSavepoint } from '@/db/repositories'
+import { getStorageItem, removeStorageItem, setStorageItem } from '@/db/storage'
 import { buildChatPrompt, formatPreview, applyRegexRules, resolveWorldbookEntries } from '@neo-tavern/core'
 import type { DisplayBlock, SideBlock } from '@neo-tavern/core'
 import { useSettingsStore } from '@/features/settings/settings.store'
@@ -36,8 +37,18 @@ function toast(type: 'success' | 'error' | 'info', message: string) {
 
 const DEEPSEEK_CONTEXT_LIMIT = 1_000_000
 const CHAT_FONT_SIZE_KEY = 'neotavern_chat_font_size'
+const CHAT_DRAFT_KEY_PREFIX = 'neotavern_chat_draft'
+const CONTINUE_PROMPT = '继续'
+const CHAT_VISIBLE_TURN_LIMIT = 20
 const CHAT_FONT_SIZE_MIN = 12
 const CHAT_FONT_SIZE_MAX = 22
+
+type PendingSendItem = {
+  chatId: string
+  content: string
+  hiddenUserMessage?: boolean
+  label?: string
+}
 
 const compactTokenFormatter = new Intl.NumberFormat('en', {
   notation: 'compact',
@@ -48,15 +59,53 @@ function formatCompactToken(value: number) {
   return compactTokenFormatter.format(value)
 }
 
+function getChatDraftKey(chatId: string) {
+  return `${CHAT_DRAFT_KEY_PREFIX}_${chatId}`
+}
+
 function clampChatFontSize(value: number) {
   if (!Number.isFinite(value)) return 15
   return Math.min(CHAT_FONT_SIZE_MAX, Math.max(CHAT_FONT_SIZE_MIN, Math.round(value)))
+}
+
+function countUserTurns(messages: Message[]) {
+  return messages.filter((message) => message.role === 'user').length
+}
+
+function getRecentTurnStartIndex(messages: Message[], turnLimit: number) {
+  if (turnLimit <= 0) return messages.length
+
+  let turns = 0
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role !== 'user') continue
+    turns += 1
+    if (turns > turnLimit) {
+      let start = i + 1
+      while (start < messages.length && messages[start].role !== 'user') {
+        start += 1
+      }
+      return start
+    }
+  }
+
+  return 0
 }
 
 function formatDuration(ms: number) {
   if (ms < 1000) return `${ms}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
+}
+
+function formatSavepointDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
 }
 
 function getGenerationStatus(phase: GenerationPhase | null) {
@@ -139,6 +188,8 @@ export function ChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const lastAiMsgRef = useRef<HTMLDivElement>(null)
   const initRef = useRef<string | null>(null)
+  const lastOpenedChatRef = useRef<string | null>(null)
+  const skipNextMessageAutoScrollRef = useRef<string | null>(null)
   const presetItemsRef = useRef<{ role: 'system' | 'user'; content: string; injectionOrder: number }[]>([])
 
   const { characters, loadCharacters } = useCharacterStore()
@@ -161,6 +212,7 @@ export function ChatPage() {
   const [input, setInput] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewText, setPreviewText] = useState('')
+  const [pendingSendQueue, setPendingSendQueue] = useState<PendingSendItem[]>([])
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [promptDialogOpen, setPromptDialogOpen] = useState(false)
@@ -170,6 +222,14 @@ export function ChatPage() {
   const [deleteMsgTarget, setDeleteMsgTarget] = useState<Message | null>(null)
   const [fontSize, setFontSize] = useState(15)
   const [thinkingMsg, setThinkingMsg] = useState<Message | null>(null)
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [loadDialogOpen, setLoadDialogOpen] = useState(false)
+  const [savepointName, setSavepointName] = useState('')
+  const [savepoints, setSavepoints] = useState<ChatSavepoint[]>([])
+  const [savingSavepoint, setSavingSavepoint] = useState(false)
+  const [loadingSavepoints, setLoadingSavepoints] = useState(false)
+  const [restoringSavepointId, setRestoringSavepointId] = useState<string | null>(null)
+  const [showOlderMessages, setShowOlderMessages] = useState(false)
 
   const characterId = searchParams.get('characterId')
   const character = characters.find((c) => c.id === (currentChat?.characterId ?? characterId))
@@ -231,8 +291,16 @@ export function ChatPage() {
   }, [id, characterId, characters.length])
 
   useEffect(() => {
+    setShowOlderMessages(false)
+  }, [currentChat?.id])
+
+  useEffect(() => {
     const lastMsg = messages[messages.length - 1]
     if (!lastMsg) return
+    if (skipNextMessageAutoScrollRef.current === currentChat?.id) {
+      skipNextMessageAutoScrollRef.current = null
+      return
+    }
     if (lastMsg.role === 'assistant' && !sending && lastAiMsgRef.current) {
       const container = messagesContainerRef.current
       if (container) {
@@ -242,7 +310,17 @@ export function ChatPage() {
     } else if (lastMsg.role === 'user') {
       messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
     }
-  }, [messages.length, sending])
+  }, [messages.length, sending, currentChat?.id])
+
+  useLayoutEffect(() => {
+    if (loading || !currentChat?.id || messages.length === 0) return
+    if (lastOpenedChatRef.current === currentChat.id) return
+    lastOpenedChatRef.current = currentChat.id
+    skipNextMessageAutoScrollRef.current = currentChat.id
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' })
+    })
+  }, [currentChat?.id, loading, messages.length])
 
   useEffect(() => {
     if (!character) return
@@ -287,11 +365,43 @@ export function ChatPage() {
     setPreviewText(formatPreview(built))
   }
 
+  useEffect(() => {
+    const chatId = currentChat?.id
+    if (!chatId) {
+      setInput('')
+      return
+    }
+
+    let cancelled = false
+    getStorageItem(getChatDraftKey(chatId)).then((draft) => {
+      if (cancelled) return
+      const next = draft ?? ''
+      setInput(next)
+      if (next) updatePreview(next)
+    })
+    return () => { cancelled = true }
+  }, [currentChat?.id])
+
+  const submitContent = async (content: string, options: Pick<PendingSendItem, 'hiddenUserMessage' | 'label'> = {}) => {
+    if (!content.trim() || !currentChat) return
+    const trimmedContent = content.trim()
+    if (sending) {
+      setPendingSendQueue((queue) => [...queue, { chatId: currentChat.id, content: trimmedContent, ...options }])
+      return
+    }
+    await sendMessage(trimmedContent, { hiddenUserMessage: options.hiddenUserMessage })
+  }
+
   const handleSend = async () => {
-    if (!input.trim() || sending) return
+    if (!input.trim() || !currentChat) return
     const content = input.trim()
     setInput('')
-    await sendMessage(content)
+    if (currentChat?.id) void removeStorageItem(getChatDraftKey(currentChat.id))
+    await submitContent(content)
+  }
+
+  const handleContinue = async () => {
+    await submitContent(CONTINUE_PROMPT, { hiddenUserMessage: true, label: '续写' })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -302,8 +412,14 @@ export function ChatPage() {
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value)
-    updatePreview(e.target.value)
+    const next = e.target.value
+    setInput(next)
+    if (currentChat?.id) {
+      const key = getChatDraftKey(currentChat.id)
+      if (next) void setStorageItem(key, next)
+      else void removeStorageItem(key)
+    }
+    updatePreview(next)
   }
 
   const handleCopy = async (content: string, msgId: string) => {
@@ -361,6 +477,87 @@ export function ChatPage() {
   const isGeneratingCurrentChat = sending && !!currentChat?.id && sendingChatId === currentChat.id
   const hasStreamingMessage = isGeneratingCurrentChat && !!streamingMessageId && messages.some((m) => m.id === streamingMessageId)
   const generationStatus = getGenerationStatus(generationPhase)
+  const pendingSendCount = currentChat
+    ? pendingSendQueue.filter((item) => item.chatId === currentChat.id).length
+    : 0
+
+  useEffect(() => {
+    if (sending || pendingSendQueue.length === 0 || !currentChat) return
+    const nextIndex = pendingSendQueue.findIndex((item) => item.chatId === currentChat.id)
+    if (nextIndex < 0) return
+    const next = pendingSendQueue[nextIndex]
+    setPendingSendQueue((queue) => queue.filter((_, index) => index !== nextIndex))
+    void sendMessage(next.content, { hiddenUserMessage: next.hiddenUserMessage })
+  }, [sending, pendingSendQueue, currentChat?.id, sendMessage])
+
+  const refreshSavepoints = async () => {
+    if (!currentChat) {
+      setSavepoints([])
+      return
+    }
+    setLoadingSavepoints(true)
+    try {
+      setSavepoints(await chatSavepointRepository.listByChatId(currentChat.id))
+    } finally {
+      setLoadingSavepoints(false)
+    }
+  }
+
+  const closeSaveDialog = () => {
+    setSaveDialogOpen(false)
+    setSavepointName('')
+    setSavingSavepoint(false)
+  }
+
+  const handleCreateSavepoint = async () => {
+    if (!currentChat) return
+    setSavingSavepoint(true)
+    try {
+      const latestMessages = await messageRepository.listByChatId(currentChat.id)
+      await chatSavepointRepository.create({
+        chatId: currentChat.id,
+        characterId: currentChat.characterId,
+        name: savepointName,
+        messages: latestMessages,
+      })
+      toast('success', '存档已创建')
+      closeSaveDialog()
+      if (loadDialogOpen) void refreshSavepoints()
+    } catch {
+      toast('error', '创建存档失败')
+      setSavingSavepoint(false)
+    }
+  }
+
+  const openLoadDialog = async () => {
+    if (!currentChat) return
+    setLoadDialogOpen(true)
+    await refreshSavepoints()
+  }
+
+  const handleRestoreSavepoint = async (savepoint: ChatSavepoint) => {
+    if (!currentChat || isGeneratingCurrentChat) return
+    setRestoringSavepointId(savepoint.id)
+    try {
+      await messageRepository.replaceByChatId(currentChat.id, savepoint.messages)
+      await chatRepository.update(currentChat.id, {})
+      await loadChat(currentChat.id)
+      setLoadDialogOpen(false)
+      toast('success', '存档已加载')
+    } catch {
+      toast('error', '加载存档失败')
+    } finally {
+      setRestoringSavepointId(null)
+    }
+  }
+
+  const handleDeleteSavepoint = async (savepointId: string) => {
+    await chatSavepointRepository.delete(savepointId)
+    if (currentChat) {
+      setSavepoints(await chatSavepointRepository.listByChatId(currentChat.id))
+    }
+    toast('info', '存档已删除')
+  }
 
   const isLastAi = (msg: Message) => {
     if (msg.role !== 'assistant') return false
@@ -414,6 +611,13 @@ export function ChatPage() {
   const contextUsageTitle = currentContextTokens > 0
     ? `${currentContextTokens.toLocaleString()} / ${DEEPSEEK_CONTEXT_LIMIT.toLocaleString()} current conversation context tokens`
     : 'No context usage data yet'
+  const recentMessageStartIndex = getRecentTurnStartIndex(messages, CHAT_VISIBLE_TURN_LIMIT)
+  const hasOlderMessages = recentMessageStartIndex > 0
+  const visibleMessages = hasOlderMessages && !showOlderMessages
+    ? messages.slice(recentMessageStartIndex)
+    : messages
+  const hiddenMessages = hasOlderMessages ? messages.slice(0, recentMessageStartIndex) : []
+  const hiddenTurnCount = countUserTurns(hiddenMessages)
 
   return (
     <div className="flex h-full">
@@ -495,9 +699,24 @@ export function ChatPage() {
             </div>
           )}
           <div className="max-w-4xl mx-auto space-y-5">
-            {messages.map((msg, idx) => {
+            {hasOlderMessages && (
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowOlderMessages(!showOlderMessages)}
+                  className="h-8 gap-1.5 text-xs text-muted-foreground"
+                >
+                  {showOlderMessages ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  {showOlderMessages
+                    ? `收起较早消息，保留最近 ${CHAT_VISIBLE_TURN_LIMIT} 轮`
+                    : `显示较早消息：${hiddenTurnCount} 轮 / ${hiddenMessages.length} 条`}
+                </Button>
+              </div>
+            )}
+            {visibleMessages.map((msg) => {
               const isUser = msg.role === 'user'
-              const isFinalAi = !isUser && idx === messages.length - 1
+              const isFinalAi = !isUser && isLastAi(msg)
               const aiName = character?.name ?? 'AI'
               const split = !isUser && activeRegexRules.length > 0 ? applyRegexRules(msg.content, activeRegexRules) : null
               const displayContent = split?.displayContent ?? split?.promptContent ?? msg.content
@@ -593,7 +812,7 @@ export function ChatPage() {
                   <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
                     {isUser && <Avatar name="You" isUser />}
 
-                    <div className={`max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
+                    <div className={`${editingMsgId === msg.id ? 'w-full max-w-[92%]' : 'max-w-[75%]'} min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
                       {isUser && (
                         <div className="flex items-center justify-end gap-1 mb-1.5 px-1 opacity-0 hover:opacity-100 transition-opacity">
                           <Button
@@ -618,16 +837,17 @@ export function ChatPage() {
                       )}
 
                       {editingMsgId === msg.id ? (
-                        <div className="w-full">
+                        <div className="w-full rounded-lg border bg-card p-3 shadow-sm">
                           <Textarea
                             value={editContent}
                             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditContent(e.target.value)}
                             onKeyDown={handleEditKeyDown}
-                            className="min-h-[80px] text-sm font-mono"
+                            className="min-h-[260px] max-h-[60vh] resize-y overflow-y-auto leading-relaxed"
+                            style={{ fontSize: `${fontSize}px` }}
                             autoFocus
                           />
-                          <div className="flex gap-1 mt-1 justify-end">
-                            <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                          <div className="mt-2 flex gap-2 justify-end">
+                            <Button variant="outline" size="sm" onClick={cancelEdit}>
                               <X className="h-3.5 w-3.5 mr-1" />Cancel
                             </Button>
                             <Button size="sm" onClick={saveEdit} disabled={!editContent.trim()}>
@@ -728,50 +948,120 @@ export function ChatPage() {
           </div>
         )}
 
-        <div className="border-t p-3">
-          <div className="max-w-4xl mx-auto flex items-center gap-2">
-            <div className="flex-1 flex gap-2">
-              <Input
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder={character ? `Message ${character.name}...` : 'Type a message...'}
-                disabled={sending || !currentChat}
-              />
-              <Button onClick={handleSend} disabled={!input.trim() || sending || !currentChat} size="icon">
-                <Send className="h-4 w-4" />
-              </Button>
-              {sending && (
-                <Button variant="destructive" size="icon" onClick={abort} title="Stop generating">
-                  <StopCircle className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPreviewOpen(!previewOpen)
-                  if (!previewOpen && input.trim()) updatePreview(input.trim())
-                }}
-                className="shrink-0"
-              >
-                {previewOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                Preview
-              </Button>
-            </div>
-            <div className="flex items-center gap-1 shrink-0 px-1">
-              <span className="text-[10px] text-muted-foreground leading-none">A</span>
-              <input
-                type="range"
-                min="12"
-                max="22"
-                value={fontSize}
-                onInput={(e) => handleFontSizeChange(Number(e.currentTarget.value))}
-                onChange={(e) => handleFontSizeChange(Number(e.target.value))}
-                className="w-12 h-1 accent-primary cursor-pointer"
-                title={`Font size: ${fontSize}px`}
-              />
-              <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>
+        <div className="border-t bg-background/95 p-3">
+          <div className="max-w-4xl mx-auto space-y-2 2xl:-translate-x-[6.25rem]">
+            {pendingSendCount > 0 && currentChat && (
+              <div className="rounded-md border border-primary/20 bg-primary/5 p-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">待发送 {pendingSendCount}</span>
+                </div>
+                <div className="max-h-32 space-y-1.5 overflow-y-auto pr-1">
+                  {pendingSendQueue
+                    .map((item, index) => ({ ...item, index }))
+                    .filter((item) => item.chatId === currentChat.id)
+                    .map((item) => (
+                      <div key={`${item.chatId}-${item.index}`} className="flex items-start gap-2 rounded-md border bg-background/85 px-2 py-1.5">
+                        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">{item.label ?? item.content}</p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                          title="取消待发送"
+                          onClick={() => setPendingSendQueue((queue) => queue.filter((_, index) => index !== item.index))}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg border bg-card/70 p-2 shadow-sm">
+              <div className="grid grid-cols-[minmax(0,12rem)_minmax(20rem,1fr)_minmax(0,12rem)] items-center gap-2">
+                <div className="flex min-w-0 items-center justify-end gap-2">
+                  <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-md border bg-background/70 px-2">
+                    <span className="text-[10px] text-muted-foreground leading-none">A</span>
+                    <input
+                      type="range"
+                      min="12"
+                      max="22"
+                      value={fontSize}
+                      onInput={(e) => handleFontSizeChange(Number(e.currentTarget.value))}
+                      onChange={(e) => handleFontSizeChange(Number(e.target.value))}
+                      className="h-1 w-12 accent-primary cursor-pointer"
+                      title={`Font size: ${fontSize}px`}
+                    />
+                    <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      setPreviewOpen(!previewOpen)
+                      if (!previewOpen && input.trim()) updatePreview(input.trim())
+                    }}
+                    className="h-10 w-10 shrink-0"
+                    title="Preview prompt"
+                  >
+                    {previewOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleContinue}
+                    disabled={!currentChat || messages.length === 0}
+                    className="h-10 w-10 shrink-0"
+                    title="隐藏发送续写请求"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Input
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder={character ? `Message ${character.name}...` : 'Type a message...'}
+                  disabled={!currentChat}
+                  className="h-10 min-w-0 w-full"
+                />
+                <div className="flex min-w-0 items-center justify-start gap-1.5">
+                  <Button
+                    onClick={handleSend}
+                    disabled={!input.trim() || !currentChat}
+                    size="icon"
+                    title={sending ? 'Add to pending send' : 'Send'}
+                    className="h-10 w-10 shrink-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSaveDialogOpen(true)}
+                    disabled={!currentChat || isGeneratingCurrentChat}
+                    className="h-10 w-10 shrink-0"
+                    title="创建当前聊天存档"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={openLoadDialog}
+                    disabled={!currentChat || isGeneratingCurrentChat}
+                    className="h-10 w-10 shrink-0"
+                    title="加载聊天存档"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                  {sending && (
+                    <Button variant="destructive" size="icon" onClick={abort} title="Stop generating" className="h-10 w-10 shrink-0">
+                      <StopCircle className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -797,6 +1087,84 @@ export function ChatPage() {
             <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>Close</Button>
             <Button variant="outline" onClick={() => { navigator.clipboard.writeText(previewText); toast('success', 'Copied') }}>
               <Copy className="h-3.5 w-3.5 mr-1" />Copy Prompt
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={saveDialogOpen} onOpenChange={(open) => open ? setSaveDialogOpen(true) : closeSaveDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>创建存档点</DialogTitle>
+            <DialogDescription>
+              保存当前聊天的消息快照。名字可以留空，系统会自动生成。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={savepointName}
+              onChange={(event) => setSavepointName(event.target.value)}
+              placeholder={createDefaultSavepointName()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeSaveDialog}>Cancel</Button>
+            <Button onClick={handleCreateSavepoint} disabled={savingSavepoint || !currentChat}>
+              {savingSavepoint ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>加载存档</DialogTitle>
+            <DialogDescription>
+              加载后会用存档内容替换当前聊天消息。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[48vh] space-y-2 overflow-y-auto pr-1">
+            {loadingSavepoints && (
+              <p className="py-6 text-center text-sm text-muted-foreground">Loading...</p>
+            )}
+            {!loadingSavepoints && savepoints.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">还没有存档点。</p>
+            )}
+            {!loadingSavepoints && savepoints.map((savepoint) => (
+              <div key={savepoint.id} className="flex items-center gap-3 rounded-lg border bg-card/60 p-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{savepoint.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatSavepointDate(savepoint.createdAt)} · {savepoint.messageCount} messages
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRestoreSavepoint(savepoint)}
+                  disabled={!!restoringSavepointId || isGeneratingCurrentChat}
+                >
+                  {restoringSavepointId === savepoint.id ? 'Loading...' : '加载'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleDeleteSavepoint(savepoint.id)}
+                  disabled={!!restoringSavepointId}
+                  title="删除存档"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLoadDialogOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={refreshSavepoints} disabled={loadingSavepoints || !currentChat}>
+              Refresh
             </Button>
           </DialogFooter>
         </DialogContent>

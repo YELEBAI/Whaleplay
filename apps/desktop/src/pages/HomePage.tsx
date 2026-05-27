@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Settings, Trash2 } from 'lucide-react'
-import { Button, Card, CardHeader, CardTitle, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@neo-tavern/ui'
+import { Plus, Save, Settings, Trash2 } from 'lucide-react'
+import { Button, Card, CardHeader, CardTitle, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Input } from '@neo-tavern/ui'
 import { useCharacterStore } from '@/features/character/character.store'
 import { useChatStore } from '@/features/chat/chat.store'
+import { chatSavepointRepository, createDefaultSavepointName, messageRepository } from '@/db/repositories'
 import type { Character, Chat } from '@neo-tavern/shared'
 import { CharacterAvatarTile } from '@/components'
 
@@ -11,11 +12,19 @@ type HomeContextMenu =
   | { type: 'character'; x: number; y: number; character: Character }
   | { type: 'chat'; x: number; y: number; chat: Chat; character?: Character }
 
+function toast(type: 'success' | 'error' | 'info', message: string) {
+  const fn = (window as any).__toast
+  if (fn) fn(type, message)
+}
+
 export function HomePage() {
   const navigate = useNavigate()
   const { characters, loading: charsLoading, loadCharacters } = useCharacterStore()
   const { chats, loading: chatsLoading, loadChats, deleteChat } = useChatStore()
   const [deleteTarget, setDeleteTarget] = useState<Chat | null>(null)
+  const [saveTarget, setSaveTarget] = useState<Chat | null>(null)
+  const [savepointName, setSavepointName] = useState('')
+  const [savingSavepoint, setSavingSavepoint] = useState(false)
   const [contextMenu, setContextMenu] = useState<HomeContextMenu | null>(null)
   const charactersById = useMemo(() => new Map(characters.map((char) => [char.id, char])), [characters])
 
@@ -72,6 +81,31 @@ export function HomePage() {
     if (!deleteTarget) return
     await deleteChat(deleteTarget.id)
     setDeleteTarget(null)
+  }
+
+  const closeSaveDialog = () => {
+    setSaveTarget(null)
+    setSavepointName('')
+    setSavingSavepoint(false)
+  }
+
+  const handleCreateSavepoint = async () => {
+    if (!saveTarget) return
+    setSavingSavepoint(true)
+    try {
+      const messages = await messageRepository.listByChatId(saveTarget.id)
+      await chatSavepointRepository.create({
+        chatId: saveTarget.id,
+        characterId: saveTarget.characterId,
+        name: savepointName,
+        messages,
+      })
+      toast('success', '存档已创建')
+      closeSaveDialog()
+    } catch {
+      toast('error', '创建存档失败')
+      setSavingSavepoint(false)
+    }
   }
 
   return (
@@ -166,7 +200,7 @@ export function HomePage() {
           className="fixed z-50 min-w-44 overflow-hidden rounded-md border bg-popover p-1 text-sm text-popover-foreground shadow-lg"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 190),
-            top: Math.min(contextMenu.y, window.innerHeight - 120),
+            top: Math.min(contextMenu.y, window.innerHeight - 160),
           }}
           onClick={(event) => event.stopPropagation()}
         >
@@ -220,6 +254,17 @@ export function HomePage() {
               )}
               <button
                 type="button"
+                className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-accent"
+                onClick={() => {
+                  closeContextMenu()
+                  setSaveTarget(contextMenu.chat)
+                }}
+              >
+                <Save className="h-4 w-4" />
+                存档
+              </button>
+              <button
+                type="button"
                 className="w-full rounded px-3 py-2 text-left text-destructive hover:bg-destructive/10"
                 onClick={() => {
                   closeContextMenu()
@@ -244,6 +289,31 @@ export function HomePage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!saveTarget} onOpenChange={closeSaveDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>创建存档点</DialogTitle>
+            <DialogDescription>
+              为 "{saveTarget?.title}" 保存当前消息快照。名字可以留空，系统会自动生成。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={savepointName}
+              onChange={(event) => setSavepointName(event.target.value)}
+              placeholder={createDefaultSavepointName()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeSaveDialog}>Cancel</Button>
+            <Button onClick={handleCreateSavepoint} disabled={savingSavepoint}>
+              {savingSavepoint ? 'Saving...' : 'Save'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

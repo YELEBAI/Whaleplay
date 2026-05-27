@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { chatRepository, messageRepository } from '@/db/repositories'
+import { chatRepository, chatSavepointRepository, messageRepository } from '@/db/repositories'
 import type { Chat, Message, CreateChatInput, CreateMessageInput } from '@neo-tavern/shared'
 import type { GenerationPhase } from './chat.types'
 
@@ -119,6 +119,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       await chatRepository.delete(id)
       await messageRepository.deleteByChatId(id)
+      await chatSavepointRepository.deleteByChatId(id)
       set((state) => ({
         chats: state.chats.filter((c) => c.id !== id),
         currentChat: state.currentChat?.id === id ? null : state.currentChat,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Save, Plug, Sun, Moon, Monitor, Palette, Trash2, Plus, Regex, SlidersHorizontal, CheckCircle2, Globe, Download, KeyRound, Server, Zap } from 'lucide-react'
+import { ArrowLeft, Save, Plug, Sun, Moon, Monitor, Palette, Trash2, Plus, Regex, SlidersHorizontal, CheckCircle2, Globe, Download, KeyRound, Server, Zap, BookOpen } from 'lucide-react'
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, ScrollArea, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@neo-tavern/ui'
 import { useSettingsStore } from '@/features/settings/settings.store'
 import { useTheme } from '@/app/theme'
@@ -23,6 +23,7 @@ const sections: { key: Section; icon: typeof Plug; label: string }[] = [
 const themes = [
   { value: 'light' as const, icon: Sun, label: 'Light' },
   { value: 'dark' as const, icon: Moon, label: 'Dark' },
+  { value: 'sepia' as const, icon: BookOpen, label: 'Eye Care' },
   { value: 'system' as const, icon: Monitor, label: 'System' },
 ]
 
@@ -101,7 +102,7 @@ function SwitchButton({
 
 export function SettingsPage() {
   const navigate = useNavigate()
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, resolvedTheme } = useTheme()
   const [section, setSection] = useState<Section>('api')
 
   const modelConfigs = useSettingsStore((s) => s.modelConfigs)
@@ -684,16 +685,23 @@ export function SettingsPage() {
               <CardTitle className="flex items-center gap-2">
                 {theme === 'dark' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}Appearance
               </CardTitle>
-              <CardDescription>Choose your preferred color scheme. Changes apply instantly.</CardDescription>
+              <CardDescription>Choose your color scheme. Changes apply instantly and are saved for restart.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-3 gap-2">
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                 {themes.map((t) => (
                   <button key={t.value} onClick={() => setTheme(t.value)}
-                    className={`flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors
+                    className={`relative flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors
                       ${theme === t.value ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-accent hover:text-accent-foreground'}`}
-                  ><t.icon className="h-5 w-5" /><span className="text-sm font-medium">{t.label}</span></button>
+                  >
+                    {theme === t.value && <CheckCircle2 className="absolute right-2 top-2 h-3.5 w-3.5" />}
+                    <t.icon className="h-5 w-5" />
+                    <span className="text-sm font-medium">{t.label}</span>
+                  </button>
                 ))}
+              </div>
+              <div className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
+                Active appearance: <span className="font-medium text-foreground">{theme === 'system' ? `System (${resolvedTheme})` : theme === 'sepia' ? 'Eye Care' : theme}</span>
               </div>
             </CardContent>
           </Card>

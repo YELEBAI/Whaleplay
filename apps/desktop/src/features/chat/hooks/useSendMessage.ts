@@ -13,8 +13,12 @@ interface UseSendMessageOptions {
   onPromptBuilt?: (built: BuiltPrompt) => void
 }
 
+interface SendMessageOptions {
+  hiddenUserMessage?: boolean
+}
+
 interface UseSendMessageReturn {
-  sendMessage: (content: string) => Promise<void>
+  sendMessage: (content: string, options?: SendMessageOptions) => Promise<void>
   regenerate: () => Promise<void>
   abort: () => void
   sending: boolean
@@ -98,18 +102,21 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
     })
   }
 
-  const sendMessage = useCallback(async (content: string) => {
-    if (!content.trim() || !chatId || !character) return
+  const sendMessage = useCallback(async (content: string, options: SendMessageOptions = {}) => {
+    const trimmedContent = content.trim()
+    if (!trimmedContent || !chatId || !character) return
 
     const controller = new AbortController()
     const generationId = beginGeneration(chatId, controller)
 
     try {
-      await addMessage({
-        chatId,
-        role: 'user',
-        content: content.trim(),
-      })
+      if (!options.hiddenUserMessage) {
+        await addMessage({
+          chatId,
+          role: 'user',
+          content: trimmedContent,
+        })
+      }
 
       const { messages: recentMessages } = useChatStore.getState()
       const contextTokens = useSettingsStore.getState().contextTokens || 64000
@@ -129,15 +136,15 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
         }
       }
 
-      const historyMessages = recentMessages.slice(0, -1)
+      const historyMessages = options.hiddenUserMessage ? recentMessages : recentMessages.slice(0, -1)
 
       const built = buildChatPrompt({
         character,
         recentMessages: stripMessages(historyMessages) as Message[],
-        userInput: content.trim(),
+        userInput: trimmedContent,
         maxTotalTokens: contextTokens,
         presetItems,
-        contextBlocks: await getWorldbookContextBlocks(content.trim(), recentMessages),
+        contextBlocks: await getWorldbookContextBlocks(trimmedContent, recentMessages),
         userName: useSettingsStore.getState().personaName,
       })
 

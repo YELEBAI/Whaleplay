@@ -31,6 +31,20 @@ export const messageRepository = {
     await saveAll((await loadAll()).filter((m) => m.chatId !== chatId))
   },
 
+  async replaceByChatId(chatId: string, messages: Message[]): Promise<Message[]> {
+    const restored = messages.map((message) => ({
+      ...message,
+      id: generateId(),
+      chatId,
+    }))
+    const all = await loadAll()
+    await saveAll([
+      ...all.filter((m) => m.chatId !== chatId),
+      ...restored,
+    ])
+    return restored.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  },
+
   async update(id: string, content: string): Promise<Message> {
     const all = await loadAll()
     const idx = all.findIndex((m) => m.id === id)

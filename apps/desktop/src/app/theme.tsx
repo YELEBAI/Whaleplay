@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
 import { getStorageItem, setStorageItem } from '@/db/storage'
 
-type Theme = 'light' | 'dark' | 'system'
+type Theme = 'light' | 'dark' | 'sepia' | 'system'
+type ResolvedTheme = 'light' | 'dark' | 'sepia'
 
 interface ThemeContextValue {
   theme: Theme
   setTheme: (theme: Theme) => void
-  resolvedTheme: 'light' | 'dark'
+  resolvedTheme: ResolvedTheme
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
@@ -23,12 +24,14 @@ function getSystemTheme(): 'light' | 'dark' {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system')
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(
     theme === 'system' ? getSystemTheme() : theme
   )
 
-  const applyTheme = useCallback((t: 'light' | 'dark') => {
+  const applyTheme = useCallback((t: ResolvedTheme) => {
     document.documentElement.classList.toggle('dark', t === 'dark')
+    document.documentElement.classList.toggle('sepia', t === 'sepia')
+    document.documentElement.style.colorScheme = t === 'dark' ? 'dark' : 'light'
     setResolvedTheme(t)
   }, [])
 
@@ -46,7 +49,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     void (async () => {
       const saved = await getStorageItem('neotavern-theme')
-      if (cancelled || (saved !== 'light' && saved !== 'dark' && saved !== 'system')) return
+      if (cancelled || (saved !== 'light' && saved !== 'dark' && saved !== 'sepia' && saved !== 'system')) return
       setThemeState(saved)
       applyTheme(saved === 'system' ? getSystemTheme() : saved)
     })()
