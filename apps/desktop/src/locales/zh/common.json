@@ -1,0 +1,22 @@
+{
+  "nav": {
+    "home": "首页",
+    "characters": "角色管理",
+    "builder": "角色生成器",
+    "presets": "预设提示词",
+    "worldbook": "世界书",
+    "persona": "用户人设",
+    "settings": "设置"
+  },
+  "actions": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "confirm": "确认",
+    "edit": "编辑",
+    "create": "新建",
+    "import": "导入",
+    "export": "导出",
+    "back": "返回"
+  }
+}

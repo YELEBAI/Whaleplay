@@ -1,0 +1,72 @@
+{
+  "title": "Presets",
+  "newPreset": "New Preset",
+  "noPresets": "No presets yet",
+  "importPreset": "Import preset",
+  "selectOrCreate": "Select a preset or create a new one",
+  "loading": "Loading...",
+  "save": "Save",
+  "export": "Export",
+  "activate": "Activate",
+  "active": "Active",
+  "deactivated": "Deactivated",
+  "namePlaceholder": "Preset name",
+  "descPlaceholder": "Description (optional)",
+  "items": "{{count}} cards",
+  "itemsEnabled": "{{count}} enabled · drag to reorder",
+  "noItems": "No cards yet. Add a template entry or create a blank card.",
+  "extraPresetEntry": "Extra Preset Entry",
+  "addSelected": "Add Selected",
+  "newCard": "New Card",
+  "editCard": "Edit Card",
+  "blankCard": "Blank Card",
+  "cardDialog": {
+    "description": "Each card is an independent prompt snippet that can be toggled on/off.",
+    "name": "Name",
+    "namePlaceholder": "Card name",
+    "role": "Role",
+    "order": "Order",
+    "content": "Content",
+    "contentPlaceholder": "Enter the prompt content..."
+  },
+  "itemRoles": {
+    "system": "System",
+    "user": "User"
+  },
+  "deleteCard": {
+    "title": "Delete Card",
+    "description": "Delete \"{{name}}\"? This cannot be undone."
+  },
+  "deletePreset": {
+    "title": "Delete Preset",
+    "description": "Delete \"{{name}}\" and all its cards? This cannot be undone."
+  },
+  "importDialog": {
+    "title": "Import Preset",
+    "description": "Select a preset JSON file. Supports NeoTavern and SillyTavern preset formats.",
+    "clickToSelect": "Click to select a .json file",
+    "cancel": "Cancel",
+    "import": "Import",
+    "importing": "Importing..."
+  },
+  "itemBadge": "Prompt #{{index}}",
+  "moveUp": "Move up",
+  "moveDown": "Move down",
+  "enable": "Enable",
+  "disable": "Disable",
+  "dragReorder": "Drag to reorder",
+  "toast": {
+    "presetUpdated": "Preset updated",
+    "activated": "Activated \"{{name}}\"",
+    "deactivated": "Preset deactivated",
+    "deleted": "\"{{name}}\" deleted",
+    "exported": "Exported",
+    "imported": "Imported \"{{name}}\" with {{count}} items",
+    "importFailed": "Invalid JSON or import failed",
+    "alreadyAdded": "\"{{name}}\" is already in this preset.",
+    "itemAdded": "\"{{name}}\" added",
+    "itemUpdated": "\"{{name}}\" updated",
+    "itemDeleted": "\"{{name}}\" deleted",
+    "failed": "Failed"
+  }
+}

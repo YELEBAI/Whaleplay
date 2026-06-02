@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Plug, Sun, Moon, Monitor, Palette, Trash2, Plus, Regex, SlidersHorizontal, CheckCircle2, Globe, KeyRound, Server, Zap, BookOpen, Image as ImageIcon, Upload, Bug, Wallet, Bell } from 'lucide-react'
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, ScrollArea, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, Textarea } from '@neo-tavern/ui'
 import { useSettingsStore } from '@/features/settings/settings.store'
-import { useTheme } from '@/app/theme'
+import { useThemeStore } from '@/app/theme.store'
 import { getStorageItem, setStorageItem } from '@/db/storage'
 import { generateComfyImage, IMAGE_GENERATION_PARAMETER_PRESETS, IMAGE_RESOLUTION_OPTIONS, IMAGE_SAMPLER_OPTIONS, IMAGE_SCHEDULER_OPTIONS, normalizeImageSettings, testComfyConnection } from '@/features/image-generation/image-generation'
 import { fetchDeepSeekBalance, formatCnyCost, formatCnyExact, type DeepSeekBalanceResult } from '@/features/billing/deepseek-billing'
@@ -108,7 +108,9 @@ function SwitchButton({
 
 export function SettingsPage() {
   const navigate = useNavigate()
-  const { theme, setTheme, resolvedTheme } = useTheme()
+  const theme = useThemeStore((s) => s.theme)
+  const setTheme = useThemeStore((s) => s.setTheme)
+  const resolvedTheme = useThemeStore((s) => s.resolvedTheme)
   const [section, setSection] = useState<Section>('api')
 
   const modelConfigs = useSettingsStore((s) => s.modelConfigs)

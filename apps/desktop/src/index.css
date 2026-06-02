@@ -135,7 +135,7 @@
 }
 
 .neo-summary > summary::before {
-  content: '▸ ';
+  content: "▸ ";
   display: inline-block;
   transition: transform 0.15s;
   font-size: 0.75em;
@@ -178,7 +178,7 @@
 }
 
 .neo-thoughts > summary::before {
-  content: '▸ ';
+  content: "▸ ";
   display: inline-block;
   transition: transform 0.15s;
   font-size: 0.75em;
@@ -202,7 +202,10 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
 
   select option {

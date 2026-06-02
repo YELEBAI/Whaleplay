@@ -1,0 +1,31 @@
+{
+  "title": "NeoTavern Demo",
+  "settings": "Settings",
+  "characters": "Characters",
+  "loading": "Loading...",
+  "noCharacters": "No characters yet.",
+  "newCharacter": "New Character",
+  "recentChats": "Recent Chats",
+  "noChats": "No chats yet. Select a character to start.",
+  "deleteChat": {
+    "title": "Delete Chat",
+    "description": "Delete \"{{title}}\"? This will also remove all messages in this conversation. This action cannot be undone."
+  },
+  "savepoint": {
+    "title": "Create Savepoint",
+    "description": "Save a snapshot of current messages for \"{{title}}\". The name can be left blank and will be auto-generated.",
+    "placeholder": "Savepoint name"
+  },
+  "saving": "Saving...",
+  "contextMenu": {
+    "openChat": "Open chat",
+    "manageCharacter": "Manage character",
+    "openCharacterChat": "Open character chat",
+    "savepoint": "Savepoint",
+    "deleteChat": "Delete chat"
+  },
+  "toast": {
+    "savepointCreated": "Savepoint created",
+    "savepointFailed": "Failed to create savepoint"
+  }
+}

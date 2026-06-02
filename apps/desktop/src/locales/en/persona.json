@@ -1,0 +1,21 @@
+{
+  "sidebar": {
+    "title": "Persona",
+    "description": "Your identity in chats. <code>{{user}}</code> in character cards will be replaced with your name."
+  },
+  "card": {
+    "title": "Your Persona",
+    "description": "This name replaces {{user}} in all character descriptions, scenarios, first messages, and dialogue examples."
+  },
+  "form": {
+    "displayName": "Display Name *",
+    "displayNamePlaceholder": "Your name",
+    "displayNameHint": "Default: User",
+    "description": "Persona Description (optional)",
+    "descriptionPlaceholder": "Brief description of your persona... Will be injected into the system prompt."
+  },
+  "toast": {
+    "nameRequired": "Name is required",
+    "saved": "Persona saved"
+  }
+}

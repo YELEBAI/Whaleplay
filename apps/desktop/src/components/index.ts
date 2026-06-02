@@ -1,2 +1,2 @@
-export { Layout } from './Layout'
-export { CharacterAvatarTile } from './CharacterAvatarTile'
+export { Layout } from "./Layout";
+export { CharacterAvatarTile } from "./CharacterAvatarTile";

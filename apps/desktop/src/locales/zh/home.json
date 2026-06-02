@@ -1,0 +1,31 @@
+{
+  "title": "NeoTavern Demo",
+  "settings": "设置",
+  "characters": "角色管理",
+  "loading": "加载中……",
+  "noCharacters": "暂无角色",
+  "newCharacter": "新建角色",
+  "recentChats": "最近对话",
+  "noChats": "暂无对话。选择一个角色开始聊天。",
+  "deleteChat": {
+    "title": "删除对话",
+    "description": "确定要删除\"{{title}}\"吗？这将同时删除该对话中的所有消息。此操作不可撤销。"
+  },
+  "savepoint": {
+    "title": "创建存档点",
+    "description": "为\"{{title}}\"保存当前消息快照。名字可以留空，系统会自动生成。",
+    "placeholder": "存档点名称"
+  },
+  "saving": "保存中……",
+  "contextMenu": {
+    "openChat": "打开对话",
+    "manageCharacter": "管理角色",
+    "openCharacterChat": "打开角色对话",
+    "savepoint": "存档点",
+    "deleteChat": "删除对话"
+  },
+  "toast": {
+    "savepointCreated": "存档已创建",
+    "savepointFailed": "创建存档失败"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "back": "返回",
+  "title": "世界书",
+  "booksAvailable": "{{count}} 本书可用",
+  "loading": "加载中…",
+  "noBooks": "暂无世界书",
+  "newBook": "新建书",
+  "noDescription": "暂无描述",
+  "entries": "条目",
+  "enabledOn": "启用",
+  "selectOrCreate": "选择一个世界书或新建一个",
+  "worldBook": "世界书",
+  "bookNamePlaceholder": "书名",
+  "descPlaceholder": "描述",
+  "save": "保存",
+  "activate": "激活",
+  "active": "已激活",
+  "deactivate": "已停用",
+  "deleteBook": "删除世界书",
+  "stats": {
+    "entries": "条目",
+    "enabled": "启用",
+    "always": "始终",
+    "trigger": "触发"
+  },
+  "entriesSection": {
+    "title": "条目",
+    "description": "按优先级排序，优先级高的条目优先考虑。",
+    "newEntry": "新建条目",
+    "noEntries": "暂无条目"
+  },
+  "entryForm": {
+    "title": "标题",
+    "titlePlaceholder": "条目标题",
+    "injectionType": "注入类型",
+    "always": "始终",
+    "trigger": "触发",
+    "triggerMode": "触发模式",
+    "andAll": "全部 AND",
+    "orAny": "任意 OR",
+    "keywords": "关键词",
+    "keywordsPlaceholder": "逗号分隔的关键词",
+    "content": "内容",
+    "contentPlaceholder": "条目内容…",
+    "priority": "优先级",
+    "priorityPlaceholder": "100",
+    "enabled": "启用",
+    "addEntry": "添加条目",
+    "updateEntry": "更新条目",
+    "cancel": "取消",
+    "newEntry": "新建条目",
+    "editEntry": "编辑条目",
+    "editHint": "正在编辑 {{title}}",
+    "createHint": "为此世界书创建可复用的背景设定",
+    "cancelEdit": "取消编辑"
+  },
+  "entry": {
+    "untitled": "未命名条目",
+    "noKeywords": "无关键词",
+    "noContent": "无内容",
+    "expand": "展开内容",
+    "collapse": "收起内容",
+    "delete": "删除条目"
+  },
+  "deleteDialog": {
+    "title": "删除世界书",
+    "description": "确定删除「{{name}}」及其所有条目？此操作不可撤销。"
+  },
+  "toast": {
+    "saved": "已保存",
+    "saveFailed": "保存失败",
+    "activated": "已激活「{{name}}」",
+    "deactivated": "已停用",
+    "deleted": "已删除「{{name}}」",
+    "entryUpdated": "已更新「{{title}}」",
+    "entryAdded": "已添加「{{title}}」",
+    "entryDeleted": "已删除「{{title}}」",
+    "titleRequired": "标题为必填项"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "title": "角色管理",
+  "newCharacter": "新建角色",
+  "importCard": "导入角色卡",
+  "loading": "加载中……",
+  "noCharacters": "暂无角色",
+  "characterMenu": "角色菜单",
+  "dismiss": "关闭",
+  "contextMenu": {
+    "details": "详情"
+  },
+  "dialog": {
+    "editCharacter": "编辑角色",
+    "newCharacter": "新建角色",
+    "noCharacterSelected": "未选择角色。",
+    "noDetails": "该角色暂无详细信息。"
+  },
+  "form": {
+    "name": "名称 *",
+    "namePlaceholder": "角色名称",
+    "description": "描述",
+    "descriptionPlaceholder": "描述这个角色……",
+    "personality": "人格",
+    "personalityPlaceholder": "人格特征……",
+    "scenario": "场景",
+    "scenarioPlaceholder": "当前场景/情境……",
+    "firstMessage": "开场白",
+    "firstMessagePlaceholder": "角色的第一条消息……",
+    "exampleDialogues": "示例对话",
+    "exampleDialoguesPlaceholder": "示例对话……"
+  },
+  "sections": {
+    "description": "描述",
+    "personality": "人格",
+    "scenario": "场景",
+    "firstMessage": "开场白",
+    "exampleDialogues": "示例对话"
+  },
+  "delete": {
+    "title": "删除角色",
+    "description": "确定要删除\"{{name}}\"吗？这将同时删除所有关联的对话和消息。此操作不可撤销。"
+  },
+  "toast": {
+    "parseFailed": "无法解析角色卡",
+    "importFailed": "导入角色卡失败",
+    "imported": "已导入\"{{name}}\" — {{parts}}",
+    "deleted": "已删除\"{{name}}\""
+  }
+}

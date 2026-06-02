@@ -1,0 +1,22 @@
+{
+  "nav": {
+    "home": "Home",
+    "characters": "Characters",
+    "builder": "Builder",
+    "presets": "Presets",
+    "worldbook": "World Book",
+    "persona": "Persona",
+    "settings": "Settings"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "edit": "Edit",
+    "create": "Create",
+    "import": "Import",
+    "export": "Export",
+    "back": "Back"
+  }
+}

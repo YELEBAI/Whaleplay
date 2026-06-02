@@ -1,0 +1,49 @@
+{
+  "title": "Characters",
+  "newCharacter": "New Character",
+  "importCard": "Import character card",
+  "loading": "Loading...",
+  "noCharacters": "No characters yet.",
+  "characterMenu": "Character menu",
+  "dismiss": "Dismiss",
+  "contextMenu": {
+    "details": "Details"
+  },
+  "dialog": {
+    "editCharacter": "Edit Character",
+    "newCharacter": "New Character",
+    "noCharacterSelected": "No character selected.",
+    "noDetails": "This character has no details yet."
+  },
+  "form": {
+    "name": "Name *",
+    "namePlaceholder": "Character name",
+    "description": "Description",
+    "descriptionPlaceholder": "Describe the character...",
+    "personality": "Personality",
+    "personalityPlaceholder": "Personality traits...",
+    "scenario": "Scenario",
+    "scenarioPlaceholder": "Current scenario / situation...",
+    "firstMessage": "First Message",
+    "firstMessagePlaceholder": "The character's first message...",
+    "exampleDialogues": "Example Dialogues",
+    "exampleDialoguesPlaceholder": "Example conversations..."
+  },
+  "sections": {
+    "description": "Description",
+    "personality": "Personality",
+    "scenario": "Scenario",
+    "firstMessage": "First Message",
+    "exampleDialogues": "Example Dialogues"
+  },
+  "delete": {
+    "title": "Delete Character",
+    "description": "Are you sure you want to delete \"{{name}}\"? This will also delete all associated chats and messages. This action cannot be undone."
+  },
+  "toast": {
+    "parseFailed": "Could not parse character card",
+    "importFailed": "Failed to import character card",
+    "imported": "Imported \"{{name}}\" — {{parts}}",
+    "deleted": "Deleted \"{{name}}\""
+  }
+}

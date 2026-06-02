@@ -1,0 +1,116 @@
+{
+  "back": "返回",
+  "personality": "人格：",
+  "tokenStats": "Token 统计",
+  "fontSize": "字号：{{size}}px",
+  "previewPrompt": "预览提示词",
+  "continue": "隐藏发送续写请求",
+  "continueLabel": "续写",
+  "saving": "保存中……",
+  "inputPlaceholder": "输入消息……",
+  "inputPlaceholderWithChar": "给 {{name}} 发消息……",
+  "sendTitle": "发送",
+  "sendQueuedTitle": "添加到待发送队列",
+  "savepointTitle": "创建当前聊天存档",
+  "loadTitle": "加载聊天存档",
+  "stopTitle": "停止生成",
+  "pendingSend": "待发送 {{count}}",
+  "cancelPending": "取消待发送",
+  "noCharSelected": "选择一个角色开始聊天",
+  "startConversation": "开始与 {{name}} 的对话",
+  "noPromptPreview": "输入消息查看提示词预览",
+  "dismiss": "关闭",
+  "contextUsage": {
+    "title": "当前对话上下文 Token：{{current}} / {{limit}}",
+    "noData": "暂无上下文使用数据"
+  },
+  "messageActions": {
+    "copy": "复制",
+    "edit": "编辑",
+    "viewFullPrompt": "查看完整提示词",
+    "viewReasoning": "查看创作过程",
+    "regenerate": "重新生成",
+    "delete": "删除"
+  },
+  "editing": {
+    "cancel": "取消",
+    "save": "保存 (Ctrl+Enter)"
+  },
+  "deleteMessage": {
+    "title": "删除消息",
+    "description": "删除这条消息？如果是用户消息后面跟着AI回复，AI回复也会被一并删除。"
+  },
+  "savepointDialog": {
+    "title": "创建存档点",
+    "description": "保存当前聊天的消息快照。名字可以留空，系统会自动生成。",
+    "placeholder": "存档点名称"
+  },
+  "loadDialog": {
+    "title": "加载存档",
+    "description": "加载后会用存档内容替换当前聊天消息。",
+    "loading": "加载中……",
+    "noSavepoints": "还没有存档点。",
+    "messages": "{{count}} 条消息",
+    "load": "加载",
+    "delete": "删除存档",
+    "refresh": "刷新",
+    "close": "关闭"
+  },
+  "promptDialog": {
+    "title": "完整提示词",
+    "noData": "（无提示词数据）",
+    "copyPrompt": "复制提示词"
+  },
+  "thinkingDialog": {
+    "title": "创作过程",
+    "noData": "（暂无创作过程数据）"
+  },
+  "tokenDialog": {
+    "title": "Token 用量与缓存命中",
+    "noData": "暂无用量数据。发送消息后可查看统计。",
+    "columns": {
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "总计",
+      "cacheHit": "缓存命中",
+      "hitRate": "命中率",
+      "context": "1M 上下文"
+    },
+    "tableHeaders": [
+      "#",
+      "Prompt",
+      "Completion",
+      "总计",
+      "🔥 命中",
+      "📉 未命中",
+      "命中率"
+    ],
+    "cacheHint": "⚠ 缓存命中数据不可用——你的 API 可能不支持提示缓存（Ollama/vLLM 大多数实例不支持）。受 DeepSeek、OpenAI 最新模型、Anthropic 支持。"
+  },
+  "generationStatus": {
+    "writing": "正文落笔中",
+    "writingTag": "writing",
+    "writingDetail": "正在把这一幕写成角色回复",
+    "thinking": "剧情构思中",
+    "thinkingTag": "thinking",
+    "thinkingDetail": "正在整理角色动机、场景节奏与下一步推进"
+  },
+  "toast": {
+    "copyFailed": "复制失败",
+    "messageUpdated": "消息已更新",
+    "updateFailed": "更新失败",
+    "savepointCreated": "存档已创建",
+    "savepointFailed": "创建存档失败",
+    "savepointLoaded": "存档已加载",
+    "savepointLoadFailed": "加载存档失败",
+    "savepointDeleted": "存档已删除",
+    "messagesDeleted": "消息已删除",
+    "messageDeleted": "消息已删除",
+    "deleteFailed": "删除失败",
+    "copied": "已复制"
+  },
+  "oldMessages": {
+    "collapse": "收起较早消息，保留最近 {{limit}} 轮",
+    "show": "显示较早消息：{{count}} 轮 / {{messages}} 条"
+  }
+}

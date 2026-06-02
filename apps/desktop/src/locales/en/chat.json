@@ -1,0 +1,116 @@
+{
+  "back": "Back",
+  "personality": "Personality:",
+  "tokenStats": "Token Stats",
+  "fontSize": "Font size: {{size}}px",
+  "previewPrompt": "Preview prompt",
+  "continue": "Send continue request (hidden)",
+  "continueLabel": "Continue writing",
+  "saving": "Saving...",
+  "inputPlaceholder": "Type a message...",
+  "inputPlaceholderWithChar": "Message {{name}}...",
+  "sendTitle": "Send",
+  "sendQueuedTitle": "Add to pending send",
+  "savepointTitle": "Create savepoint",
+  "loadTitle": "Load savepoint",
+  "stopTitle": "Stop generating",
+  "pendingSend": "Queued ({{count}})",
+  "cancelPending": "Cancel queued",
+  "noCharSelected": "Select a character to start chatting",
+  "startConversation": "Start a conversation with {{name}}",
+  "noPromptPreview": "Type a message to see prompt preview",
+  "dismiss": "Dismiss",
+  "contextUsage": {
+    "title": "{{current}} / {{limit}} current conversation context tokens",
+    "noData": "No context usage data yet"
+  },
+  "messageActions": {
+    "copy": "Copy",
+    "edit": "Edit",
+    "viewFullPrompt": "View full prompt",
+    "viewReasoning": "View reasoning",
+    "regenerate": "Regenerate",
+    "delete": "Delete"
+  },
+  "editing": {
+    "cancel": "Cancel",
+    "save": "Save (Ctrl+Enter)"
+  },
+  "deleteMessage": {
+    "title": "Delete Message",
+    "description": "Delete this message? If it's a user message followed by an AI reply, the AI reply will also be deleted."
+  },
+  "savepointDialog": {
+    "title": "Create Savepoint",
+    "description": "Save a snapshot of the current conversation. The name can be left blank and will be auto-generated.",
+    "placeholder": "Savepoint name"
+  },
+  "loadDialog": {
+    "title": "Load Savepoint",
+    "description": "Loading will replace the current chat messages with the savepoint content.",
+    "loading": "Loading...",
+    "noSavepoints": "No savepoints yet.",
+    "messages": "{{count}} messages",
+    "load": "Load",
+    "delete": "Delete savepoint",
+    "refresh": "Refresh",
+    "close": "Close"
+  },
+  "promptDialog": {
+    "title": "Full Prompt",
+    "noData": "(no prompt data)",
+    "copyPrompt": "Copy Prompt"
+  },
+  "thinkingDialog": {
+    "title": "Thinking Process",
+    "noData": "(no thinking data)"
+  },
+  "tokenDialog": {
+    "title": "Token Usage & Cache Hit",
+    "noData": "No usage data yet. Send a message to see stats.",
+    "columns": {
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "Total",
+      "cacheHit": "Cache Hit",
+      "hitRate": "Hit Rate",
+      "context": "1M Context"
+    },
+    "tableHeaders": [
+      "#",
+      "Prompt",
+      "Completion",
+      "Total",
+      "🔥 Hit",
+      "📉 Miss",
+      "Rate"
+    ],
+    "cacheHint": "⚠ Cache hit data unavailable — your API may not support prompt caching (Ollama/vLLM most instances do not). Supported by DeepSeek, OpenAI recent models, Anthropic."
+  },
+  "generationStatus": {
+    "writing": "Writing response",
+    "writingTag": "writing",
+    "writingDetail": "Crafting the character's reply",
+    "thinking": "Thinking",
+    "thinkingTag": "thinking",
+    "thinkingDetail": "Organizing character motivation, pacing, and next moves"
+  },
+  "toast": {
+    "copyFailed": "Failed to copy",
+    "messageUpdated": "Message updated",
+    "updateFailed": "Failed to update",
+    "savepointCreated": "Savepoint created",
+    "savepointFailed": "Failed to create savepoint",
+    "savepointLoaded": "Savepoint loaded",
+    "savepointLoadFailed": "Failed to load savepoint",
+    "savepointDeleted": "Savepoint deleted",
+    "messagesDeleted": "Messages deleted",
+    "messageDeleted": "Message deleted",
+    "deleteFailed": "Failed to delete",
+    "copied": "Copied"
+  },
+  "oldMessages": {
+    "collapse": "Collapse older messages, keep recent {{limit}} turns",
+    "show": "Show older messages: {{count}} turns / {{messages}} messages"
+  }
+}

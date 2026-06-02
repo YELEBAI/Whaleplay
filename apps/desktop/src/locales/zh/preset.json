@@ -1,0 +1,72 @@
+{
+  "title": "预设提示词",
+  "newPreset": "新建预设",
+  "noPresets": "暂无预设",
+  "importPreset": "导入预设",
+  "selectOrCreate": "选择一个预设或新建一个",
+  "loading": "加载中……",
+  "save": "保存",
+  "export": "导出",
+  "activate": "激活",
+  "active": "已激活",
+  "deactivated": "已停用",
+  "namePlaceholder": "预设名称",
+  "descPlaceholder": "描述（可选）",
+  "items": "{{count}} 张卡片",
+  "itemsEnabled": "{{count}} 已启用 · 拖动排序",
+  "noItems": "暂无卡片。添加模板条目或创建空白卡片。",
+  "extraPresetEntry": "额外预设条目",
+  "addSelected": "添加选中项",
+  "newCard": "新建卡片",
+  "editCard": "编辑卡片",
+  "blankCard": "空白卡片",
+  "cardDialog": {
+    "description": "每张卡片是一个独立的提示词片段，可以独立开关。",
+    "name": "名称",
+    "namePlaceholder": "卡片名称",
+    "role": "角色",
+    "order": "顺序",
+    "content": "内容",
+    "contentPlaceholder": "输入提示词内容……"
+  },
+  "itemRoles": {
+    "system": "System",
+    "user": "User"
+  },
+  "deleteCard": {
+    "title": "删除卡片",
+    "description": "确定要删除\"{{name}}\"吗？此操作不可撤销。"
+  },
+  "deletePreset": {
+    "title": "删除预设",
+    "description": "确定要删除\"{{name}}\"及其所有卡片吗？此操作不可撤销。"
+  },
+  "importDialog": {
+    "title": "导入预设",
+    "description": "选择一个预设 JSON 文件。支持 NeoTavern 和 SillyTavern 预设格式。",
+    "clickToSelect": "点击选择 .json 文件",
+    "cancel": "取消",
+    "import": "导入",
+    "importing": "导入中……"
+  },
+  "itemBadge": "提示词 #{{index}}",
+  "moveUp": "上移",
+  "moveDown": "下移",
+  "enable": "启用",
+  "disable": "禁用",
+  "dragReorder": "拖动排序",
+  "toast": {
+    "presetUpdated": "预设已更新",
+    "activated": "已激活\"{{name}}\"",
+    "deactivated": "预设已停用",
+    "deleted": "\"{{name}}\" 已删除",
+    "exported": "已导出",
+    "imported": "已导入\"{{name}}\"，{{count}} 项",
+    "importFailed": "JSON 格式无效或导入失败",
+    "alreadyAdded": "\"{{name}}\" 已在该预设中。",
+    "itemAdded": "\"{{name}}\" 已添加",
+    "itemUpdated": "\"{{name}}\" 已更新",
+    "itemDeleted": "\"{{name}}\" 已删除",
+    "failed": "操作失败"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "back": "Back",
+  "title": "World Books",
+  "booksAvailable": "{{count}} books available",
+  "loading": "Loading...",
+  "noBooks": "No world books",
+  "newBook": "New Book",
+  "noDescription": "No description",
+  "entries": "entries",
+  "enabledOn": "on",
+  "selectOrCreate": "Select a world book or create one",
+  "worldBook": "World book",
+  "bookNamePlaceholder": "Book name",
+  "descPlaceholder": "Description",
+  "save": "Save",
+  "activate": "Activate",
+  "active": "Active",
+  "deactivate": "Deactivated",
+  "deleteBook": "Delete world book",
+  "stats": {
+    "entries": "entries",
+    "enabled": "enabled",
+    "always": "always",
+    "trigger": "trigger"
+  },
+  "entriesSection": {
+    "title": "Entries",
+    "description": "Sorted by priority. Higher entries are considered first.",
+    "newEntry": "New Entry",
+    "noEntries": "No entries yet"
+  },
+  "entryForm": {
+    "title": "Title",
+    "titlePlaceholder": "Entry title",
+    "injectionType": "Injection type",
+    "always": "Always",
+    "trigger": "Trigger",
+    "triggerMode": "Trigger mode",
+    "andAll": "AND all",
+    "orAny": "OR any",
+    "keywords": "Keywords",
+    "keywordsPlaceholder": "Comma-separated keywords",
+    "content": "Content",
+    "contentPlaceholder": "Entry content...",
+    "priority": "Priority",
+    "priorityPlaceholder": "100",
+    "enabled": "Enabled",
+    "addEntry": "Add Entry",
+    "updateEntry": "Update Entry",
+    "cancel": "Cancel",
+    "newEntry": "New Entry",
+    "editEntry": "Edit Entry",
+    "editHint": "Editing {{title}}",
+    "createHint": "Create reusable lore for this world book",
+    "cancelEdit": "Cancel editing"
+  },
+  "entry": {
+    "untitled": "Untitled entry",
+    "noKeywords": "No keywords",
+    "noContent": "No content",
+    "expand": "Expand content",
+    "collapse": "Collapse content",
+    "delete": "Delete entry"
+  },
+  "deleteDialog": {
+    "title": "Delete World Book",
+    "description": "Delete \"{{name}}\" and all entries? This cannot be undone."
+  },
+  "toast": {
+    "saved": "Saved",
+    "saveFailed": "Failed",
+    "activated": "Activated \"{{name}}\"",
+    "deactivated": "Deactivated",
+    "deleted": "\"{{name}}\" deleted",
+    "entryUpdated": "\"{{title}}\" updated",
+    "entryAdded": "\"{{title}}\" added",
+    "entryDeleted": "\"{{title}}\" deleted",
+    "titleRequired": "Title required"
+  }
+}
