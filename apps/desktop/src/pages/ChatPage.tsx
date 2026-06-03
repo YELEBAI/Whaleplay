@@ -1623,20 +1623,22 @@ export function ChatPage() {
           />
         </section>
 
-        <ChatRightPanel
-          messagesCount={messages.length}
-          usageMessagesCount={usageMessages.length}
-          totalPrompt={totalPrompt}
-          totalCompletion={totalCompletion}
-          cacheRate={cacheRate}
-          contextUsageDisplay={contextUsageDisplay}
-          contextUsagePercent={contextUsagePercent}
-          contextUsageBarTone={contextUsageBarTone}
-          onTokenDialogOpen={() => setTokenDialogOpen(true)}
-          agenticPlayEnabled={agenticPlayEnabled}
-          agenticGameState={agenticGameState}
-          isGeneratingCurrentChat={isGeneratingCurrentChat}
-        />
+        <div className="hidden xl:contents">
+          <ChatRightPanel
+            messagesCount={messages.length}
+            usageMessagesCount={usageMessages.length}
+            totalPrompt={totalPrompt}
+            totalCompletion={totalCompletion}
+            cacheRate={cacheRate}
+            contextUsageDisplay={contextUsageDisplay}
+            contextUsagePercent={contextUsagePercent}
+            contextUsageBarTone={contextUsageBarTone}
+            onTokenDialogOpen={() => setTokenDialogOpen(true)}
+            agenticPlayEnabled={agenticPlayEnabled}
+            agenticGameState={agenticGameState}
+            isGeneratingCurrentChat={isGeneratingCurrentChat}
+          />
+        </div>
       </div>
 
       <ImagePromptDialog
