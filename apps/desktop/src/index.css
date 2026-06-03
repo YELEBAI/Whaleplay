@@ -240,4 +240,5 @@
   .info-block { @apply rounded-md border px-3 py-2 text-xs text-muted-foreground; }
   .setting-row { @apply flex items-center justify-between gap-4 rounded-md border px-3 py-3; }
   .card-title-row { @apply flex items-center gap-2; }
+  .chat-grid-cell { @apply min-h-0 min-w-0 overflow-hidden; }
 }

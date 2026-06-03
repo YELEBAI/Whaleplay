@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -438,7 +439,7 @@ function BuilderActivityTimeline({ message }: { message: BuilderMessage }) {
               )}
             </button>
             {thinkingOpen && message.reasoningContent ? (
-              <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
                 {message.reasoningContent}
               </div>
             ) : null}
@@ -477,12 +478,13 @@ function BuilderWorkspaceList({
   onSelect: (record: BuilderWorkspaceRecord) => void;
   onDelete: (record: BuilderWorkspaceRecord) => void;
 }) {
+  const { t } = useTranslation("neo-builder");
   return (
     <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
       <div className="shrink-0 border-b p-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <FileText className="h-4 w-4" />
-          创作记录
+          {t("workspace.title")}
         </div>
       </div>
 
@@ -494,7 +496,7 @@ function BuilderWorkspaceList({
           disabled={disabled}
         >
           <Sparkles className="h-4 w-4 shrink-0" />
-          <span className="min-w-0 truncate">新建创作</span>
+          <span className="min-w-0 truncate">{t("workspace.newWorkspace")}</span>
         </button>
 
         <div className="space-y-1">
@@ -529,8 +531,8 @@ function BuilderWorkspaceList({
                 className="flex w-9 shrink-0 items-center justify-center border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => onDelete(record)}
                 disabled={disabled}
-                title="删除记录"
-                aria-label={`删除创作记录 ${record.title}`}
+                title={t("workspace.delete")}
+                aria-label={t("workspace.deleteAria", { title: record.title })}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -539,7 +541,7 @@ function BuilderWorkspaceList({
         </div>
 
         {!records.length ? (
-          <div className="px-3 py-8 text-center text-xs text-muted-foreground">还没有创作记录</div>
+          <div className="px-3 py-8 text-center text-xs text-muted-foreground">{t("workspace.empty")}</div>
         ) : null}
       </div>
     </aside>
@@ -553,6 +555,7 @@ function BuilderChatMessage({
   message: BuilderMessage;
   onChoice: (choice: NeoBuilderChoice) => void;
 }) {
+  const { t } = useTranslation("neo-builder");
   const isUser = message.role === "user";
   return (
     <div className={`flex min-w-0 gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
@@ -567,9 +570,7 @@ function BuilderChatMessage({
         {!isUser && <BuilderActivityTimeline message={message} />}
 
         {message.content ? (
-          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed [overflow-wrap:anywhere]">
-            {message.content}
-          </div>
+          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{message.content}</div>
         ) : null}
 
         {message.choices?.length ? (
@@ -580,7 +581,7 @@ function BuilderChatMessage({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="max-w-full whitespace-normal break-words text-left [overflow-wrap:anywhere]"
+                className="max-w-full whitespace-normal break-words text-left"
                 onClick={() => onChoice(choice)}
               >
                 {choice.label}
@@ -591,7 +592,7 @@ function BuilderChatMessage({
 
         {message.usage && (
           <div className="mt-3 text-xs text-muted-foreground">
-            {message.usage.totalTokens ? `${message.usage.totalTokens.toLocaleString()} tokens` : "tokens -"}
+            {message.usage.totalTokens ? `${message.usage.totalTokens.toLocaleString()} tokens` : t("chat.tokensDash")}
             {message.usage.costCny ? ` · ${formatCnyCost(message.usage.costCny)}` : ""}
           </div>
         )}
@@ -606,6 +607,7 @@ function BuilderChatMessage({
 }
 
 export function NeoBuilderPage() {
+  const { t } = useTranslation("neo-builder");
   const navigate = useNavigate();
   const { loadCharacters, createCharacter, updateCharacter } = useCharacterStore();
   const [initialSnapshot] = useState(() => readInitialBuilderSnapshot());
@@ -927,7 +929,7 @@ export function NeoBuilderPage() {
       await loadCharacters();
       toast("success", `Saved "${saved.name}"`);
     } catch (err) {
-      const message = (err as Error).message || "Failed to save character";
+      const message = (err as Error).message || t("toast.saveFailed");
       setError(message);
       toast("error", message);
     } finally {
@@ -950,340 +952,361 @@ export function NeoBuilderPage() {
     (entry) => entry.status === "done" || entry.status === "skipped",
   ).length;
   const steps = [
-    { label: "收集方向", done: hasUserMessage, active: running && !hasUserMessage },
+    { label: t("steps.gatherDirection"), done: hasUserMessage, active: running && !hasUserMessage },
     {
-      label: "对齐规划",
+      label: t("steps.alignPlan"),
       done: !!creationPlan || hasOptionPrompt || hasCreationPlan || !!draft,
       active: running && hasUserMessage && !creationPlan && !draft,
     },
-    { label: "检索参考资料", done: hasWebSearch, active: running && webSearchEnabled && !hasWebSearch, optional: true },
     {
-      label: "逐条产出",
+      label: t("steps.searchReference"),
+      done: hasWebSearch,
+      active: running && webSearchEnabled && !hasWebSearch,
+      optional: true,
+    },
+    {
+      label: t("steps.generateEntries"),
       done: planEntries.length ? completedPlanEntries === planEntries.length : !!draft || hasSavedDraftTool,
       active: running && (!!creationPlan || hasUserMessage) && !draft,
     },
-    { label: "生成角色卡", done: !!draft || hasSavedDraftTool, active: running && !draft },
-    { label: "保存到 Whale Play", done: !!savedCharacterId, active: saving },
+    { label: t("steps.generateCharacter"), done: !!draft || hasSavedDraftTool, active: running && !draft },
+    { label: t("steps.saveToWhalePlay"), done: !!savedCharacterId, active: saving },
   ];
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden">
       <div className="shrink-0 border-b px-6 py-4">
         <div className="flex min-w-0 items-center justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold">Whale Builder</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Chat-driven character workflow</p>
+            <h1 className="text-2xl font-bold">{t("title")}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/character")}>
               <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-              Characters
+              {t("backToCharacters")}
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(0,1fr)_minmax(340px,380px)] 2xl:grid-cols-[minmax(0,1fr)_430px]">
-        <div className="grid min-h-0 min-w-0 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[230px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)]">
-          <BuilderWorkspaceList
-            records={workspaceRecords}
-            activeWorkspaceId={builderSessionId}
-            disabled={running || saving}
-            onNew={handleNewWorkspace}
-            onSelect={handleSelectWorkspace}
-            onDelete={handleDeleteWorkspace}
+      <div className="grid grid-cols-1 lg:grid-cols-[230px_1fr] xl:grid-cols-[230px_1fr_340px] gap-4 p-4 flex-1 overflow-hidden">
+        <BuilderWorkspaceList
+          records={workspaceRecords}
+          activeWorkspaceId={builderSessionId}
+          disabled={running || saving}
+          onNew={handleNewWorkspace}
+          onSelect={handleSelectWorkspace}
+          onDelete={handleDeleteWorkspace}
+        />
+
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
+          <VirtualList
+            virtualizer={builderVirtualizer}
+            containerRef={builderScrollRef}
+            onScroll={handleBuilderScroll}
+            containerClassName="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-5"
+            renderItem={(index) => {
+              const message = messages[index];
+              if (!message) return null;
+              return (
+                <div className="mx-auto w-full min-w-0 max-w-4xl pb-5">
+                  <BuilderChatMessage message={message} onChoice={handleChoice} />
+                </div>
+              );
+            }}
           />
 
-          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
-            <VirtualList
-              virtualizer={builderVirtualizer}
-              containerRef={builderScrollRef}
-              onScroll={handleBuilderScroll}
-              containerClassName="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-5"
-              renderItem={(index) => {
-                const message = messages[index];
-                if (!message) return null;
-                return (
-                  <div className="mx-auto w-full min-w-0 max-w-4xl pb-5">
-                    <BuilderChatMessage message={message} onChoice={handleChoice} />
-                  </div>
-                );
-              }}
-            />
+          {error && <div className="mx-5 mb-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
 
-            {error && (
-              <div className="mx-5 mb-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
-            )}
-
-            <div className="shrink-0 border-t bg-card p-4">
-              <div className="mx-auto w-full min-w-0 max-w-4xl">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={webSearchEnabled ? "default" : "outline"}
-                    onClick={() => setWebSearchEnabled((value) => !value)}
-                    disabled={running}
-                  >
-                    <Globe2 className="mr-1 h-3.5 w-3.5" />
-                    联网搜索
-                  </Button>
-                  {lastResult?.draft && (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-500">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      产出物已就绪
-                    </span>
-                  )}
-                </div>
-                <div className="flex min-w-0 items-end gap-2">
-                  <Textarea
-                    value={input}
-                    onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setInput(event.target.value)}
-                    onKeyDown={(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-                        void sendMessage(input);
-                      }
-                    }}
-                    placeholder="输入角色想法、要查的资料、或者直接回答上面的选项..."
-                    rows={3}
-                    disabled={running || saving}
-                    className="min-w-0 flex-1 resize-none"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    className="h-10 w-10 shrink-0"
-                    onClick={() => sendMessage(input)}
-                    disabled={running || saving || !input.trim()}
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
+          <div className="shrink-0 border-t bg-card p-4">
+            <div className="mx-auto w-full min-w-0 max-w-4xl">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={webSearchEnabled ? "default" : "outline"}
+                  onClick={() => setWebSearchEnabled((value) => !value)}
+                  disabled={running}
+                >
+                  <Globe2 className="mr-1 h-3.5 w-3.5" />
+                  {t("chat.webSearch")}
+                </Button>
+                {lastResult?.draft && (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-500">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {t("chat.draftReady")}
+                  </span>
+                )}
+              </div>
+              <div className="flex min-w-0 items-end gap-2">
+                <Textarea
+                  value={input}
+                  onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setInput(event.target.value)}
+                  onKeyDown={(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      void sendMessage(input);
+                    }
+                  }}
+                  placeholder={t("chat.placeholder")}
+                  rows={3}
+                  disabled={running || saving}
+                  className="min-w-0 flex-1 resize-none"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  onClick={() => sendMessage(input)}
+                  disabled={running || saving || !input.trim()}
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-          </section>
-        </div>
-
-        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
-          <div className="shrink-0 border-b p-4">
-            <h2 className="font-semibold">进度与产出物</h2>
           </div>
+        </section>
 
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
-            <section>
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                <CheckCircle2 className="h-4 w-4" />
-                进度
-              </div>
-              <div className="space-y-2">
-                {steps.map((step, index) => (
-                  <div
-                    key={step.label}
-                    className={`flex items-center gap-3 rounded-md border bg-background p-3 ${
-                      step.active ? "border-primary/60 bg-primary/5" : ""
-                    }`}
-                  >
+        <div className="hidden xl:contents">
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
+            <div className="shrink-0 border-b p-4">
+              <h2 className="font-semibold">{t("sidebar.progressAndArtifacts")}</h2>
+            </div>
+
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
+              <section>
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {t("sidebar.progress")}
+                </div>
+                <div className="space-y-2">
+                  {steps.map((step, index) => (
                     <div
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${
-                        step.done
-                          ? "bg-emerald-500 text-white"
-                          : step.active
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground"
+                      key={step.label}
+                      className={`flex items-center gap-3 rounded-md border bg-background p-3 ${
+                        step.active ? "border-primary/60 bg-primary/5" : ""
                       }`}
                     >
-                      {step.done ? (
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      ) : step.active ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        index + 1
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{step.label}</div>
-                      {step.optional && !step.done ? <div className="text-xs text-muted-foreground">可选</div> : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {planEntries.length ? (
-                <div className="mt-3 rounded-md border bg-background p-3">
-                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                    <span>创作规划条目</span>
-                    <span>
-                      {completedPlanEntries}/{planEntries.length}
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {planEntries.slice(0, 10).map((entry) => (
-                      <div key={entry.id} className="flex min-w-0 items-center gap-2 text-xs">
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            entry.status === "done"
-                              ? "bg-emerald-500"
-                              : entry.status === "in_progress"
-                                ? "bg-primary"
-                                : entry.status === "skipped"
-                                  ? "bg-amber-500"
-                                  : "bg-muted-foreground/40"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                        <span className="shrink-0 text-muted-foreground">{entry.status}</span>
+                      <div
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${
+                          step.done
+                            ? "bg-emerald-500 text-white"
+                            : step.active
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {step.done ? (
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        ) : step.active ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          index + 1
+                        )}
                       </div>
-                    ))}
-                  </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{step.label}</div>
+                        {step.optional && !step.done ? (
+                          <div className="text-xs text-muted-foreground">{t("sidebar.optional")}</div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ) : null}
-            </section>
-
-            <section className="mt-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                <Sparkles className="h-4 w-4" />
-                产出物
-              </div>
-              <div className="space-y-3">
-                <div className="rounded-md border bg-background p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <FileText className="h-4 w-4" />
-                        创作规划.yaml
-                      </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {creationPlan ? `${creationPlan.entries.length} 个条目` : "尚未生成"}
-                      </p>
+                {planEntries.length ? (
+                  <div className="mt-3 rounded-md border bg-background p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                      <span>{t("planEntries.title")}</span>
+                      <span>
+                        {completedPlanEntries}/{planEntries.length}
+                      </span>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setArtifactView("plan")}
-                      disabled={!creationPlan}
-                    >
-                      <Eye className="mr-1 h-3.5 w-3.5" />
-                      查看
-                    </Button>
+                    <div className="space-y-1">
+                      {planEntries.slice(0, 10).map((entry) => (
+                        <div key={entry.id} className="flex min-w-0 items-center gap-2 text-xs">
+                          <span
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              entry.status === "done"
+                                ? "bg-emerald-500"
+                                : entry.status === "in_progress"
+                                  ? "bg-primary"
+                                  : entry.status === "skipped"
+                                    ? "bg-amber-500"
+                                    : "bg-muted-foreground/40"
+                            }`}
+                          />
+                          <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                          <span className="shrink-0 text-muted-foreground">{entry.status}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : null}
+              </section>
 
-                <div className="rounded-md border bg-background p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <Brain className="h-4 w-4" />
-                        性格调色盘
-                      </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {personalityPalette
-                          ? `${personalityPalette.base || "无底色"} · ${personalityPalette.derivatives.length} 组衍生`
-                          : "尚未生成"}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setArtifactView("palette")}
-                      disabled={!personalityPalette}
-                    >
-                      <Eye className="mr-1 h-3.5 w-3.5" />
-                      查看
-                    </Button>
-                  </div>
+              <section className="mt-5">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                  <Sparkles className="h-4 w-4" />
+                  {t("sidebar.artifacts")}
                 </div>
-
-                <div className="rounded-md border bg-background p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <FileText className="h-4 w-4" />
-                        角色卡
+                <div className="space-y-3">
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <FileText className="h-4 w-4" />
+                          {t("artifacts.plan.title")}
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {creationPlan
+                            ? t("artifacts.plan.entries", { count: creationPlan.entries.length })
+                            : t("status.generated")}
+                        </p>
                       </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">{draft ? draft.name : "尚未生成"}</p>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={() => setArtifactView("character")} disabled={!draft}>
-                      <Eye className="mr-1 h-3.5 w-3.5" />
-                      查看
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-md border bg-background p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <BookOpen className="h-4 w-4" />
-                        世界书
-                      </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {worldbookDraft?.entries.length ? `${worldbookDraft.entries.length} 条细则` : "尚未生成"}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setArtifactView("worldbook")}
-                      disabled={!worldbookDraft?.entries.length}
-                    >
-                      <Eye className="mr-1 h-3.5 w-3.5" />
-                      查看
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="rounded-md border bg-background p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        <CheckCircle2 className="h-4 w-4" />
-                        评估报告
-                      </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {evaluationReport ? `${evaluationReport.issues.length} 个问题` : "尚未评估"}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setArtifactView("evaluation")}
-                        disabled={!evaluationReport}
+                        onClick={() => setArtifactView("plan")}
+                        disabled={!creationPlan}
                       >
                         <Eye className="mr-1 h-3.5 w-3.5" />
-                        查看
+                        {t("view")}
                       </Button>
                     </div>
                   </div>
+
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <Brain className="h-4 w-4" />
+                          {t("artifacts.palette.title")}
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {personalityPalette
+                            ? t("artifacts.palette.summary", {
+                                base: personalityPalette.base || t("artifacts.palette.noBase"),
+                                count: personalityPalette.derivatives.length,
+                              })
+                            : t("status.generated")}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setArtifactView("palette")}
+                        disabled={!personalityPalette}
+                      >
+                        <Eye className="mr-1 h-3.5 w-3.5" />
+                        {t("view")}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <FileText className="h-4 w-4" />
+                          {t("artifacts.character.title")}
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {draft ? draft.name : t("status.generated")}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setArtifactView("character")}
+                        disabled={!draft}
+                      >
+                        <Eye className="mr-1 h-3.5 w-3.5" />
+                        {t("view")}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <BookOpen className="h-4 w-4" />
+                          {t("artifacts.worldbook.title")}
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {worldbookDraft?.entries.length
+                            ? t("artifacts.worldbook.entries", { count: worldbookDraft.entries.length })
+                            : t("status.generated")}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setArtifactView("worldbook")}
+                        disabled={!worldbookDraft?.entries.length}
+                      >
+                        <Eye className="mr-1 h-3.5 w-3.5" />
+                        {t("view")}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <CheckCircle2 className="h-4 w-4" />
+                          {t("artifacts.evaluation.title")}
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {evaluationReport
+                            ? t("artifacts.evaluation.issues", { count: evaluationReport.issues.length })
+                            : t("status.evaluated")}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setArtifactView("evaluation")}
+                          disabled={!evaluationReport}
+                        >
+                          <Eye className="mr-1 h-3.5 w-3.5" />
+                          {t("view")}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      sendMessage(
+                        "请评估当前 Whale Builder 草稿，检查角色卡、性格调色盘、世界书条目、创作规划.yaml 是否完整，并给出可执行修改建议。",
+                      )
+                    }
+                    disabled={running || saving || (!draft && !creationPlan)}
+                  >
+                    <CheckCircle2 className="mr-1 h-4 w-4" />
+                    {t("evaluate")}
+                  </Button>
+
+                  <Button
+                    className="w-full"
+                    onClick={handleSave}
+                    disabled={!draft?.name.trim() || running || saving || !!savedCharacterId}
+                  >
+                    <Save className="mr-1 h-4 w-4" />
+                    {savedCharacterId ? t("save.saved") : saving ? t("save.saving") : t("save.create")}
+                  </Button>
                 </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() =>
-                    sendMessage(
-                      "请评估当前 Whale Builder 草稿，检查角色卡、性格调色盘、世界书条目、创作规划.yaml 是否完整，并给出可执行修改建议。",
-                    )
-                  }
-                  disabled={running || saving || (!draft && !creationPlan)}
-                >
-                  <CheckCircle2 className="mr-1 h-4 w-4" />
-                  评估当前草稿
-                </Button>
-
-                <Button
-                  className="w-full"
-                  onClick={handleSave}
-                  disabled={!draft?.name.trim() || running || saving || !!savedCharacterId}
-                >
-                  <Save className="mr-1 h-4 w-4" />
-                  {savedCharacterId ? "已保存" : saving ? "保存中..." : "创建"}
-                </Button>
-              </div>
-            </section>
-          </div>
-        </aside>
+              </section>
+            </div>
+          </aside>
+        </div>
       </div>
 
       <Dialog
@@ -1294,7 +1317,7 @@ export function NeoBuilderPage() {
       >
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>创作规划.yaml</DialogTitle>
+            <DialogTitle>{t("dialogs.creationPlan.title")}</DialogTitle>
             <DialogDescription>Whale Builder 当前工作台的持久创作规划。</DialogDescription>
           </DialogHeader>
           {creationPlan ? (
@@ -1304,7 +1327,7 @@ export function NeoBuilderPage() {
                 <span>条目：{creationPlan.entries.length}</span>
                 <span>更新：{formatCharacterUpdatedAt(creationPlan.updatedAt)}</span>
               </div>
-              <pre className="max-h-[58vh] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-4 font-mono text-xs leading-relaxed [overflow-wrap:anywhere]">
+              <pre className="max-h-[58vh] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-4 font-mono text-xs leading-relaxed">
                 {creationPlan.yaml}
               </pre>
             </div>
@@ -1320,7 +1343,7 @@ export function NeoBuilderPage() {
       >
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>性格调色盘</DialogTitle>
+            <DialogTitle>{t("dialogs.palette.title")}</DialogTitle>
             <DialogDescription>底色、主色调、点缀和具体衍生。</DialogDescription>
           </DialogHeader>
           {personalityPalette ? (
@@ -1328,19 +1351,15 @@ export function NeoBuilderPage() {
               <div className="grid gap-3 sm:grid-cols-3">
                 <section className="rounded-md border bg-background p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">底色</h3>
-                  <p className="mt-2 break-words [overflow-wrap:anywhere]">{personalityPalette.base || "-"}</p>
+                  <p className="mt-2 break-words">{personalityPalette.base || "-"}</p>
                 </section>
                 <section className="rounded-md border bg-background p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">主色调</h3>
-                  <p className="mt-2 break-words [overflow-wrap:anywhere]">
-                    {personalityPalette.main.join("、") || "-"}
-                  </p>
+                  <p className="mt-2 break-words">{personalityPalette.main.join("、") || "-"}</p>
                 </section>
                 <section className="rounded-md border bg-background p-3">
                   <h3 className="text-xs font-semibold text-muted-foreground">点缀</h3>
-                  <p className="mt-2 break-words [overflow-wrap:anywhere]">
-                    {personalityPalette.accents.join("、") || "-"}
-                  </p>
+                  <p className="mt-2 break-words">{personalityPalette.accents.join("、") || "-"}</p>
                 </section>
               </div>
               {personalityPalette.derivatives.map((derivative) => (
@@ -1350,7 +1369,7 @@ export function NeoBuilderPage() {
                     {derivative.items.map((item, index) => (
                       <p
                         key={`${derivative.color}-${index}`}
-                        className="whitespace-pre-wrap break-words text-sm leading-relaxed [overflow-wrap:anywhere]"
+                        className="whitespace-pre-wrap break-words text-sm leading-relaxed"
                       >
                         {index + 1}. {item}
                       </p>
@@ -1363,10 +1382,7 @@ export function NeoBuilderPage() {
                   <h3 className="mb-2 text-sm font-semibold">未来衍生</h3>
                   <div className="space-y-2">
                     {personalityPalette.futureDerivatives.map((item, index) => (
-                      <p
-                        key={`${item}-${index}`}
-                        className="whitespace-pre-wrap break-words text-sm leading-relaxed [overflow-wrap:anywhere]"
-                      >
+                      <p key={`${item}-${index}`} className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                         {item}
                       </p>
                     ))}
@@ -1376,7 +1392,7 @@ export function NeoBuilderPage() {
               {personalityPalette.compiledText ? (
                 <section>
                   <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Compiled Personality</h3>
-                  <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 text-sm leading-relaxed [overflow-wrap:anywhere]">
+                  <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 text-sm leading-relaxed">
                     {personalityPalette.compiledText}
                   </p>
                 </section>
@@ -1394,16 +1410,14 @@ export function NeoBuilderPage() {
       >
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>评估报告</DialogTitle>
+            <DialogTitle>{t("dialogs.evaluation.title")}</DialogTitle>
             <DialogDescription>当前草稿的结构、质量和一致性检查。</DialogDescription>
           </DialogHeader>
           {evaluationReport ? (
             <div className="space-y-4 text-sm">
               <section className="rounded-md border bg-background p-4">
                 <h3 className="mb-2 text-sm font-semibold">摘要</h3>
-                <p className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]">
-                  {evaluationReport.summary}
-                </p>
+                <p className="whitespace-pre-wrap break-words leading-relaxed">{evaluationReport.summary}</p>
                 {typeof evaluationReport.score === "number" ? (
                   <p className="mt-2 text-xs text-muted-foreground">Score {evaluationReport.score}/100</p>
                 ) : null}
@@ -1418,7 +1432,7 @@ export function NeoBuilderPage() {
                           <span>{issue.severity}</span>
                           <span>{issue.target}</span>
                         </div>
-                        <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{issue.message}</p>
+                        <p className="whitespace-pre-wrap break-words">{issue.message}</p>
                       </div>
                     ))}
                   </div>
@@ -1430,7 +1444,7 @@ export function NeoBuilderPage() {
                 <h3 className="mb-2 text-sm font-semibold">修改建议</h3>
                 <div className="space-y-2">
                   {evaluationReport.suggestions.map((item, index) => (
-                    <p key={`${item}-${index}`} className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                    <p key={`${item}-${index}`} className="whitespace-pre-wrap break-words">
                       {index + 1}. {item}
                     </p>
                   ))}
@@ -1449,8 +1463,8 @@ export function NeoBuilderPage() {
       >
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{draft?.name || "角色卡"}</DialogTitle>
-            <DialogDescription>Whale Builder 生成的角色卡产出物。</DialogDescription>
+            <DialogTitle>{draft?.name || t("dialogs.characterCard.defaultTitle")}</DialogTitle>
+            <DialogDescription>{t("dialogs.characterCard.description")}</DialogDescription>
           </DialogHeader>
           {draft ? (
             <div className="space-y-5 text-sm">
@@ -1465,31 +1479,25 @@ export function NeoBuilderPage() {
               ) : null}
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Description</h3>
-                <p className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]">
-                  {draft.description || "-"}
-                </p>
+                <p className="whitespace-pre-wrap break-words leading-relaxed">{draft.description || "-"}</p>
               </section>
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Personality</h3>
-                <p className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]">
-                  {draft.personality || "-"}
-                </p>
+                <p className="whitespace-pre-wrap break-words leading-relaxed">{draft.personality || "-"}</p>
               </section>
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Scenario</h3>
-                <p className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]">
-                  {draft.scenario || "-"}
-                </p>
+                <p className="whitespace-pre-wrap break-words leading-relaxed">{draft.scenario || "-"}</p>
               </section>
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">First Message</h3>
-                <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 leading-relaxed [overflow-wrap:anywhere]">
+                <p className="whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-3 leading-relaxed">
                   {draft.firstMessage || "-"}
                 </p>
               </section>
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Example Dialogues</h3>
-                <p className="whitespace-pre-wrap break-words rounded-md border bg-background p-3 font-mono text-xs leading-relaxed [overflow-wrap:anywhere]">
+                <p className="whitespace-pre-wrap break-words rounded-md border bg-background p-3 font-mono text-xs leading-relaxed">
                   {draft.exampleDialogues || "-"}
                 </p>
               </section>
@@ -1506,17 +1514,15 @@ export function NeoBuilderPage() {
       >
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{worldbookDraft?.name || "世界书"}</DialogTitle>
-            <DialogDescription>{worldbookDraft?.description || "Whale Builder 生成的世界书产出物。"}</DialogDescription>
+            <DialogTitle>{worldbookDraft?.name || t("dialogs.worldbook.defaultTitle")}</DialogTitle>
+            <DialogDescription>{worldbookDraft?.description || t("dialogs.worldbook.description")}</DialogDescription>
           </DialogHeader>
           {worldbookDraft?.entries.length ? (
             <div className="space-y-4">
               {worldbookDraft.entries.map((entry, index) => (
                 <section key={`${entry.title}-${index}`} className="rounded-md border bg-background p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <h3 className="min-w-0 break-words text-sm font-semibold [overflow-wrap:anywhere]">
-                      {entry.title}
-                    </h3>
+                    <h3 className="min-w-0 break-words text-sm font-semibold">{entry.title}</h3>
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span className="rounded bg-muted px-2 py-1">{entry.type}</span>
                       <span className="rounded bg-muted px-2 py-1">{entry.position || "afterHistory"}</span>
@@ -1525,18 +1531,12 @@ export function NeoBuilderPage() {
                     </div>
                   </div>
                   {entry.keys ? (
-                    <p className="mt-3 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                      Keys: {entry.keys}
-                    </p>
+                    <p className="mt-3 break-words text-xs text-muted-foreground">Keys: {entry.keys}</p>
                   ) : null}
                   {entry.secondaryKeys ? (
-                    <p className="mt-1 break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                      Secondary: {entry.secondaryKeys}
-                    </p>
+                    <p className="mt-1 break-words text-xs text-muted-foreground">Secondary: {entry.secondaryKeys}</p>
                   ) : null}
-                  <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed [overflow-wrap:anywhere]">
-                    {entry.content}
-                  </p>
+                  <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed">{entry.content}</p>
                 </section>
               ))}
             </div>

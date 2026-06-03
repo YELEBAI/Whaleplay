@@ -1,0 +1,130 @@
+{
+  "title": "Whale Builder",
+  "subtitle": "对话驱动的角色工作流",
+  "characters": "返回角色管理",
+  "backToCharacters": "返回角色管理",
+  "workspace": {
+    "title": "创作记录",
+    "newWorkspace": "新建创作",
+    "delete": "删除记录",
+    "deleteAria": "删除创作记录 {{title}}",
+    "empty": "还没有创作记录",
+    "status": {
+      "saved": "已保存",
+      "pending": "待保存",
+      "drafting": "构思中",
+      "unnamed": "未命名创作"
+    }
+  },
+  "chat": {
+    "placeholder": "输入角色想法、要查的资料、或者直接回答上面的选项……",
+    "webSearch": "联网搜索",
+    "webSearchOn": "联网搜索",
+    "draftReady": "产出物已就绪",
+    "send": "发送",
+    "tokens": "{{count}} tokens",
+    "tokensDash": "tokens -"
+  },
+  "welcome": {
+    "greeting": "把角色想法直接丢给我就行。我会按 Whale Play 工作流先对齐规划，信息不够时给你几个选项；需要真实资料时可以打开联网搜索。",
+    "choices": {
+      "original": {
+        "label": "原创角色",
+        "value": "我想做一个原创角色，请先帮我确定核心方向。"
+      },
+      "palette": {
+        "label": "先做调色盘",
+        "value": "我想先做角色性格调色盘，请引导我确定底色、主色调、点缀和衍生。"
+      },
+      "research": {
+        "label": "查资料写卡",
+        "value": "我想基于真实资料或已有题材写角色，请先联网搜索并提炼参考。"
+      }
+    }
+  },
+  "activity": {
+    "elapsed": "任务耗时 {{time}}",
+    "thinking": "正在思考",
+    "thinkingDone": "已完成思考",
+    "toolRunning": "正在调用 {{count}} 个工具{{labels}}",
+    "toolDone": "已调用 {{count}} 次工具{{labels}}",
+    "toolFailed": "已调用 {{count}} 次工具，{{failed}} 个失败{{labels}}"
+  },
+  "sidebar": {
+    "progressAndArtifacts": "进度与产出物",
+    "progress": "进度",
+    "optional": "可选",
+    "artifacts": "产出物"
+  },
+  "steps": {
+    "gatherDirection": "收集方向",
+    "alignPlan": "对齐规划",
+    "searchReference": "检索参考资料",
+    "generateEntries": "逐条产出",
+    "generateCharacter": "生成角色卡",
+    "saveToWhalePlay": "保存到 Whale Play"
+  },
+  "planEntries": {
+    "title": "创作规划条目",
+    "count": "{{done}}/{{total}}"
+  },
+  "artifacts": {
+    "plan": {
+      "title": "创作规划.yaml",
+      "entries": "{{count}} 个条目"
+    },
+    "palette": {
+      "title": "性格调色盘",
+      "summary": "{{base}} · {{count}} 组衍生",
+      "noBase": "无底色"
+    },
+    "character": {
+      "title": "角色卡",
+      "name": "{{name}}"
+    },
+    "worldbook": {
+      "title": "世界书",
+      "entries": "{{count}} 条细则"
+    },
+    "evaluation": {
+      "title": "评估报告",
+      "issues": "{{count}} 个问题"
+    }
+  },
+  "view": "查看",
+  "evaluate": "评估当前草稿",
+  "evaluatePrompt": "请评估当前 Whale Builder 草稿，检查角色卡、性格调色盘、世界书条目、创作规划.yaml 是否完整，并给出可执行修改建议。",
+  "save": {
+    "saved": "已保存",
+    "saving": "保存中……",
+    "create": "创建"
+  },
+  "dialogs": {
+    "characterCard": {
+      "title": "{{name}}",
+      "defaultTitle": "角色卡",
+      "description": "Whale Builder 生成的角色卡产出物。"
+    },
+    "worldbook": {
+      "title": "{{name}}",
+      "defaultTitle": "世界书",
+      "description": "Whale Builder 生成的世界书产出物。"
+    },
+    "evaluation": {
+      "title": "评估报告"
+    },
+    "creationPlan": {
+      "title": "创作规划"
+    },
+    "palette": {
+      "title": "性格调色盘"
+    }
+  },
+  "status": {
+    "generated": "尚未生成",
+    "evaluated": "尚未评估"
+  },
+  "toast": {
+    "saveFailed": "保存角色失败"
+  }
+}

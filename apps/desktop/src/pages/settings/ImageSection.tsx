@@ -137,14 +137,14 @@ export function ImageSection({ t }: ImageSectionProps) {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="card-title-row">
                 <ImageIcon className="h-5 w-5" />
                 Image Generation
               </CardTitle>
               <CardDescription>{t("image.description")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-3">
+              <div className="setting-row">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{t("image.enable")}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{t("image.description")}</p>
@@ -202,7 +202,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                     This profile writes image prompts. ComfyUI handles the final image generation.
                   </p>
                 </div>
-                <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-3">
+                <div className="setting-row">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{t("image.worldbookRef")}</p>
                     <p className="mt-1 text-xs text-muted-foreground">

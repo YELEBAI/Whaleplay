@@ -75,14 +75,14 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="card-title-row">
             <Bug className="h-5 w-5" />
             {t("general.title")}
           </CardTitle>
           <CardDescription>{t("general.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-3">
+          <div className="setting-row">
             <div className="min-w-0">
               <p className="text-sm font-medium">{t("general.debugMode")}</p>
               <p className="mt-1 text-xs text-muted-foreground">{t("general.debugHint")}</p>

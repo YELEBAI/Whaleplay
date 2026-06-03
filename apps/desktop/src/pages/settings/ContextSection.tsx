@@ -18,7 +18,7 @@ export function ContextSection({ contextTokens, setContextTokens, t }: ContextSe
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="card-title-row">
           <SlidersHorizontal className="h-5 w-5" />
           {t("context.title")}
         </CardTitle>

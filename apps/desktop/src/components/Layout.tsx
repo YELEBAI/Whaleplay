@@ -1,10 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { NavLink, Outlet } from "react-router-dom";
-import { User, Settings, Home, LayoutTemplate, BookOpen, Sparkles, PenTool } from "lucide-react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { User, Settings, Home, LayoutTemplate, BookOpen, Sparkles, PenTool, History } from "lucide-react";
 import { cn } from "@neo-tavern/ui";
 
 export function Layout() {
   const { t } = useTranslation("common");
+  const navigate = useNavigate();
+
+  const lastChatId = typeof window !== "undefined" ? localStorage.getItem("neo:last-chat-id") : null;
 
   const navItems = [
     { to: "/", icon: Home, label: t("nav.home") },
@@ -34,8 +37,26 @@ export function Layout() {
             <item.icon className="h-5 w-5" />
           </NavLink>
         ))}
+
+        {/* Spacer */}
         <div className="flex-1" />
-        <div className="text-xs text-muted-foreground font-medium -rotate-90 whitespace-nowrap mb-4">WHALE</div>
+
+        {/* Recent chat shortcut */}
+        {lastChatId && (
+          <button
+            onClick={() => navigate(`/chat/${lastChatId}`)}
+            className="flex flex-col items-center justify-center w-12 h-12 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            title={t("nav.recentChat", "最近对话")}
+          >
+            <History className="h-5 w-5" />
+          </button>
+        )}
+
+        <div className="h-12 flex items-center justify-center">
+          <div className="text-xs text-muted-foreground font-medium -rotate-90 whitespace-nowrap leading-none">
+            WHALE
+          </div>
+        </div>
       </aside>
       <main className="flex-1 flex flex-col overflow-hidden">
         <Outlet />

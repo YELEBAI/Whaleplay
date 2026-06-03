@@ -272,7 +272,7 @@ export function ApiSection({ t }: ApiSectionProps) {
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="card-title-row">
               <KeyRound className="h-5 w-5" />
               {t("api.connectionProfile")}
             </CardTitle>
@@ -446,7 +446,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-3">
+                <div className="setting-row">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">Live text</p>
                     <p className="mt-1 text-xs text-muted-foreground">Show output while it is generating.</p>
@@ -484,7 +484,7 @@ export function ApiSection({ t }: ApiSectionProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="card-title-row">
               <Zap className="h-5 w-5" />
               Current Setup
             </CardTitle>

@@ -25,7 +25,7 @@ export function AppearanceSection({ themes, t }: AppearanceSectionProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="card-title-row">
           <TitleIcon className="h-5 w-5" />
           {t("appearance.title")}
         </CardTitle>
@@ -47,7 +47,7 @@ export function AppearanceSection({ themes, t }: AppearanceSectionProps) {
           ))}
         </div>
 
-        <div className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
+        <div className="info-block">
           {t("appearance.activeAppearance", {
             value:
               theme === "system"
