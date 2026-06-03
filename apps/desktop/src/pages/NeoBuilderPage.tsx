@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -22,7 +22,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Textarea } from "@neo-tavern/ui";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useVirtualList, VirtualList } from "@/components";
 import { generateId } from "@neo-tavern/shared";
 import type {
   Character,
@@ -45,6 +45,7 @@ import {
   type NeoPersonalityPalette,
 } from "@/features/character/neo-character-builder";
 import { searchWeb } from "@/features/character/web-search";
+import { toast } from "@/utils/toast";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
@@ -607,9 +608,7 @@ function BuilderChatMessage({
 export function NeoBuilderPage() {
   const navigate = useNavigate();
   const { loadCharacters, createCharacter, updateCharacter } = useCharacterStore();
-  const initialSnapshotRef = useRef<BuilderWorkspaceSnapshot | null | undefined>(undefined);
-  if (initialSnapshotRef.current === undefined) initialSnapshotRef.current = readInitialBuilderSnapshot();
-  const initialSnapshot = initialSnapshotRef.current;
+  const [initialSnapshot] = useState(() => readInitialBuilderSnapshot());
   const [targetId, setTargetId] = useState<BuilderTarget>(() => initialSnapshot?.targetId ?? NEW_TARGET);
   const [messages, setMessages] = useState<BuilderMessage[]>(() => initialSnapshot?.messages ?? initialMessages());
   const [input, setInput] = useState(() => initialSnapshot?.input ?? "");
@@ -637,42 +636,35 @@ export function NeoBuilderPage() {
     readInitialBuilderRecords(initialSnapshot ?? null),
   );
   const [builderSessionId, setBuilderSessionId] = useState(() => initialSnapshot?.builderSessionId ?? generateId());
-  const builderScrollRef = useRef<HTMLDivElement>(null);
 
-  const builderVirtualizer = useVirtualizer({
+  const {
+    virtualizer: builderVirtualizer,
+    containerRef: builderScrollRef,
+    isNearBottomRef,
+    handleScroll: handleBuilderScroll,
+    scrollToIndex: builderScrollToIndex,
+  } = useVirtualList({
     count: messages.length,
-    getScrollElement: () => builderScrollRef.current,
-    estimateSize: () => 240,
     getItemKey: (index) => messages[index]?.id ?? `msg-${index}`,
+    estimateSize: () => 240,
     overscan: 6,
   });
-
-  const toast = (type: "success" | "error" | "info", msg: string) => {
-    const fn = (window as any).__toast;
-    if (fn) fn(type, msg);
-  };
 
   useEffect(() => {
     loadCharacters();
   }, [loadCharacters]);
 
-  const isNearBottomRef = useRef(true);
-
-  const handleBuilderScroll = useCallback(() => {
-    const el = builderScrollRef.current;
-    if (!el) return;
-    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 120;
-  }, []);
-
   useLayoutEffect(() => {
     if (messages.length === 0) return;
     if (isNearBottomRef.current) {
-      builderVirtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+      builderScrollToIndex(messages.length - 1);
     }
-  }, [messages, builderVirtualizer]);
+    // isNearBottomRef is a ref — intentionally excluded from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, builderScrollToIndex]);
 
   useLayoutEffect(() => {
-    builderVirtualizer.scrollToIndex(messages.length - 1, { align: "end" });
+    builderScrollToIndex(messages.length - 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [builderSessionId]);
 
@@ -697,6 +689,7 @@ export function NeoBuilderPage() {
     };
     writeBuilderWorkspaceSnapshot(snapshot);
     if (hasWorkspaceProgress(snapshot)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setWorkspaceRecords((records) => upsertWorkspaceRecord(records, createWorkspaceRecord(snapshot)));
     }
   }, [
@@ -1002,42 +995,21 @@ export function NeoBuilderPage() {
           />
 
           <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
-            <div
-              ref={builderScrollRef}
+            <VirtualList
+              virtualizer={builderVirtualizer}
+              containerRef={builderScrollRef}
               onScroll={handleBuilderScroll}
-              className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-5"
-            >
-              <div
-                style={{
-                  height: `${builderVirtualizer.getTotalSize()}px`,
-                  width: "100%",
-                  position: "relative",
-                }}
-              >
-                {builderVirtualizer.getVirtualItems().map((virtualItem) => {
-                  const message = messages[virtualItem.index];
-                  if (!message) return null;
-                  return (
-                    <div
-                      key={virtualItem.key}
-                      data-index={virtualItem.index}
-                      ref={builderVirtualizer.measureElement}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        transform: `translateY(${virtualItem.start}px)`,
-                      }}
-                    >
-                      <div className="mx-auto w-full min-w-0 max-w-4xl pb-5">
-                        <BuilderChatMessage message={message} onChoice={handleChoice} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+              containerClassName="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-5"
+              renderItem={(index) => {
+                const message = messages[index];
+                if (!message) return null;
+                return (
+                  <div className="mx-auto w-full min-w-0 max-w-4xl pb-5">
+                    <BuilderChatMessage message={message} onChoice={handleChoice} />
+                  </div>
+                );
+              }}
+            />
 
             {error && (
               <div className="mx-5 mb-3 rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>

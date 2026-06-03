@@ -1,38 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import {
-  Send,
-  ChevronDown,
-  ChevronUp,
-  ArrowLeft,
-  Copy,
-  Pencil,
-  Check,
-  X,
-  ScrollText,
-  RotateCcw,
-  CheckCheck,
-  StopCircle,
-  BarChart3,
-  Trash2,
-  Brain,
-  Save,
-  FolderOpen,
-  Image as ImageIcon,
-} from "lucide-react";
-import {
-  Button,
-  Input,
-  Card,
-  CardContent,
-  Textarea,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@neo-tavern/ui";
+import { Copy, Pencil, ScrollText, RotateCcw, CheckCheck, Trash2, Brain, Image as ImageIcon } from "lucide-react";
+import { Button, Card, CardContent } from "@neo-tavern/ui";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useChatStore } from "@/features/chat/chat.store";
 import { useSendMessage } from "@/features/chat/hooks/useSendMessage";
@@ -41,17 +10,14 @@ import {
   createMemoryContextBlock,
   splitMessagesByRecentTurns,
 } from "@/features/chat/memory";
-import type { GenerationPhase } from "@/features/chat/chat.types";
+import type { ChatSavepoint, SecondaryApiUsageRecord } from "@/db/repositories";
 import {
   chatRepository,
   chatSavepointRepository,
-  createDefaultSavepointName,
   messageRepository,
   presetRepository,
   secondaryApiUsageRepository,
-  settingsRepository,
 } from "@/db/repositories";
-import type { ChatSavepoint, SecondaryApiUsageRecord } from "@/db/repositories";
 import { getStorageItem, removeStorageItem, setStorageItem } from "@/db/storage";
 import {
   buildChatPrompt,
@@ -61,17 +27,10 @@ import {
   resolveWorldbookEntries,
   stripPromptContent,
 } from "@neo-tavern/core";
-import type { DisplayBlock, SideBlock } from "@neo-tavern/core";
+import type { DisplayBlock } from "@neo-tavern/core";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
-import {
-  generateId,
-  type BuiltPrompt,
-  type ContextBlock,
-  type Message,
-  type MessageImage,
-  type ModelConfig,
-} from "@neo-tavern/shared";
+import { type BuiltPrompt, type ContextBlock, type Message, type MessageImage } from "@neo-tavern/shared";
 import {
   createGeneratingImages,
   extractImageMarkers,
@@ -80,376 +39,51 @@ import {
   planImageMarkersWithModel,
   type ImagePlannerWorldbookReference,
 } from "@/features/image-generation/image-generation";
-import { formatCnyCost, formatCnyExact, withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
+import { withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
 import { recordUsageCostAndWarn } from "@/features/billing/usage-cost";
 import { getChatScopedDeepSeekUserId } from "@/features/settings/model-capabilities";
-import { useVirtualizer } from "@tanstack/react-virtual";
-
-function Avatar({ name, src, isUser }: { name: string; src?: string; isUser?: boolean }) {
-  const initial = name.charAt(0).toUpperCase();
-  const bg = isUser ? "bg-blue-500" : "bg-emerald-500";
-  if (src) {
-    return <img src={src} alt={name} className="w-8 h-8 rounded-full object-cover border border-border/30 shrink-0" />;
-  }
-  return (
-    <div className={`w-8 h-8 rounded-full ${bg} flex items-center justify-center shrink-0`}>
-      <span className="text-white text-xs font-bold">{initial}</span>
-    </div>
-  );
-}
-
-function toast(type: "success" | "error" | "info", message: string) {
-  const fn = (window as any).__toast;
-  if (fn) fn(type, message);
-}
-
-const DEEPSEEK_CONTEXT_LIMIT = 1_000_000;
-const CHAT_FONT_SIZE_KEY = "neotavern_chat_font_size";
-const CHAT_DRAFT_KEY_PREFIX = "neotavern_chat_draft";
-const CONTINUE_PROMPT = "续写剧情";
-const CHAT_FONT_SIZE_MIN = 12;
-const CHAT_FONT_SIZE_MAX = 22;
-
-type PendingSendItem = {
-  chatId: string;
-  content: string;
-  hiddenUserMessage?: boolean;
-  label?: string;
-};
-
-type TokenUsageView = "main" | "secondary";
-
-const compactTokenFormatter = new Intl.NumberFormat("en", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-function formatCompactToken(value: number) {
-  return compactTokenFormatter.format(value);
-}
-
-function getChatDraftKey(chatId: string) {
-  return `${CHAT_DRAFT_KEY_PREFIX}_${chatId}`;
-}
-
-function replaceUserPlaceholders(content: string, userName: string) {
-  return content.replace(/\{\{user\}\}/gi, userName).replace(/<user>/gi, userName);
-}
-
-function clampChatFontSize(value: number) {
-  if (!Number.isFinite(value)) return 15;
-  return Math.min(CHAT_FONT_SIZE_MAX, Math.max(CHAT_FONT_SIZE_MIN, Math.round(value)));
-}
-
-function formatDuration(ms: number) {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
-}
-
-function formatSavepointDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function getGenerationStatus(phase: GenerationPhase | null) {
-  if (phase === "retrying") {
-    return {
-      label: "正文空白，重写中",
-      tag: "retrying",
-      detail: "上一版没有可显示正文，正在重新整理剧情并补写角色回复",
-    };
-  }
-
-  if (phase === "writing") {
-    return {
-      label: "正文落笔中",
-      tag: "writing",
-      detail: "正在把这一幕写成角色回复",
-    };
-  }
-
-  return {
-    label: "剧情构思中",
-    tag: "thinking",
-    detail: "正在整理角色动机、场景节奏与下一步推进",
-  };
-}
-
-function parseSafeDetails(
-  content: string,
-): { className: "neo-summary" | "neo-thoughts"; open: boolean; summary: string; body: string } | null {
-  const trimmed = content.trim();
-  const match = trimmed.match(/^<details([^>]*)><summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>$/);
-  if (!match) return null;
-
-  const attrs = match[1];
-  const className = attrs.match(/\bclass="([^"]*)"/)?.[1];
-  const unsupportedAttrs = attrs
-    .replace(/\bopen\b/g, "")
-    .replace(/\bclass="(?:neo-summary|neo-thoughts)"/g, "")
-    .trim();
-  if ((className && className !== "neo-summary" && className !== "neo-thoughts") || unsupportedAttrs) return null;
-
-  return {
-    className: className === "neo-thoughts" ? "neo-thoughts" : "neo-summary",
-    open: /\bopen\b/.test(attrs),
-    summary: match[2],
-    body: match[3].trim(),
-  };
-}
-
-function SideBlockView({
-  side,
-  fontSize,
-  onAction,
-}: {
-  side: SideBlock;
-  fontSize: number;
-  onAction: (action: string) => void;
-}) {
-  if (side.actions) {
-    return (
-      <div className="flex flex-wrap gap-2 mt-1">
-        {side.actions.map((action, ai) => (
-          <button
-            key={ai}
-            onClick={() => onAction(action)}
-            className="px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-sm hover:bg-primary/10 hover:border-primary/50 transition-colors cursor-pointer"
-            style={{ fontSize: `${fontSize}px` }}
-          >
-            {action}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  const details = parseSafeDetails(side.content);
-  if (details) {
-    return (
-      <details className={details.className} open={details.open || undefined}>
-        <summary>{details.summary}</summary>
-        <p className="whitespace-pre-wrap">{details.body}</p>
-      </details>
-    );
-  }
-
-  return <p className="whitespace-pre-wrap text-muted-foreground mt-1">{side.content}</p>;
-}
-
-function TemplateDisplayBlockView({ block, fontSize }: { block: DisplayBlock; fontSize: number }) {
-  const details = parseSafeDetails(block.content);
-  if (details) {
-    return (
-      <details className={details.className} open={details.open || undefined} style={{ fontSize: `${fontSize}px` }}>
-        <summary>{details.summary}</summary>
-        <p className="whitespace-pre-wrap">{details.body}</p>
-      </details>
-    );
-  }
-
-  return (
-    <p className="whitespace-pre-wrap" style={{ fontSize: `${fontSize}px` }}>
-      {block.content}
-    </p>
-  );
-}
-
-function ImageDisplayBlockView({
-  prompt,
-  image,
-  fontSize,
-  onDelete,
-  onEditPrompt,
-  onRegenerate,
-}: {
-  prompt: string;
-  image?: MessageImage;
-  fontSize: number;
-  onDelete: () => void;
-  onEditPrompt: () => void;
-  onRegenerate: () => void;
-}) {
-  const displayPrompt = image?.prompt?.trim() || prompt;
-  const isGenerating = image?.status === "generating";
-  const isDeleted = image?.status === "deleted";
-  const statusText = isDeleted
-    ? "图片已删除"
-    : image?.status === "error"
-      ? "图片生成失败"
-      : isGenerating
-        ? "ComfyUI 生图中"
-        : "图片尚未生成";
-
-  return (
-    <div className="group relative rounded-lg border border-primary/20 bg-primary/5 p-2">
-      <div className="absolute right-3 top-3 z-10 flex gap-1">
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7 bg-background/90 shadow-sm backdrop-blur"
-          onClick={onEditPrompt}
-          title="修改图片提示词"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7 bg-background/90 shadow-sm backdrop-blur"
-          onClick={onRegenerate}
-          disabled={isGenerating}
-          title="重新生成图片"
-        >
-          <RotateCcw className={`h-3.5 w-3.5 ${isGenerating ? "animate-spin" : ""}`} />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-7 w-7 bg-background/90 text-destructive shadow-sm backdrop-blur hover:text-destructive"
-          onClick={onDelete}
-          disabled={isDeleted}
-          title="删除图片"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      {image?.status === "done" && image.src ? (
-        <img
-          src={image.src}
-          alt={displayPrompt}
-          className="max-h-[520px] w-full rounded-md object-contain bg-background"
-        />
-      ) : (
-        <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed bg-background/50">
-          <div className="space-y-2 text-center">
-            <ImageIconSpinner status={image?.status} />
-            <p className="text-xs text-muted-foreground">{statusText}</p>
-          </div>
-        </div>
-      )}
-      <details className="mt-2 text-muted-foreground">
-        <summary className="cursor-pointer text-xs">Image prompt</summary>
-        <p className="mt-1 whitespace-pre-wrap text-xs" style={{ fontSize: `${Math.max(11, fontSize - 3)}px` }}>
-          {displayPrompt}
-        </p>
-        {image?.error && <p className="mt-1 whitespace-pre-wrap text-xs text-destructive">{image.error}</p>}
-      </details>
-    </div>
-  );
-}
-
-function ImageIconSpinner({ status }: { status?: MessageImage["status"] }) {
-  if (status === "deleted") return <Trash2 className="mx-auto h-5 w-5 text-muted-foreground" />;
-  if (status === "error") return <X className="mx-auto h-5 w-5 text-destructive" />;
-  if (status === "done") return <Check className="mx-auto h-5 w-5 text-green-500" />;
-  return <ImageIcon className="mx-auto h-5 w-5 animate-pulse text-primary" />;
-}
-
-function ensureImageSlots(images: MessageImage[] | undefined, imageIndex: number, prompt: string) {
-  const now = new Date().toISOString();
-  const next = [...(images ?? [])];
-
-  while (next.length <= imageIndex) {
-    next.push({
-      id: generateId(),
-      prompt,
-      status: "deleted",
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  return next;
-}
-
-function clipImageReference(content: string, maxChars: number) {
-  const normalized = content.replace(/\r\n/g, "\n").trim();
-  if (normalized.length <= maxChars) return normalized;
-  return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
-}
-
-async function resolveImagePlannerConfig(configId: string | null): Promise<ModelConfig | null> {
-  if (!configId) return null;
-  const stateConfig = useSettingsStore.getState().modelConfigs.find((config) => config.id === configId);
-  return stateConfig ?? settingsRepository.getModelConfig(configId);
-}
-
-function MessageEditBox({
-  initialContent,
-  fontSize,
-  onCancel,
-  onSave,
-}: {
-  initialContent: string;
-  fontSize: number;
-  onCancel: () => void;
-  onSave: (content: string) => Promise<void>;
-}) {
-  const [draft, setDraft] = useState(initialContent);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setDraft(initialContent);
-  }, [initialContent]);
-
-  const save = async () => {
-    const trimmed = draft.trim();
-    if (!trimmed || saving) return;
-    setSaving(true);
-    try {
-      await onSave(trimmed);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && e.ctrlKey) {
-      e.preventDefault();
-      void save();
-    }
-    if (e.key === "Escape") {
-      onCancel();
-    }
-  };
-
-  return (
-    <div className="w-full rounded-lg border bg-card p-3 shadow-sm">
-      <Textarea
-        value={draft}
-        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(e.target.value)}
-        onKeyDown={handleKeyDown}
-        className="min-h-[260px] max-h-[60vh] resize-y overflow-y-auto leading-relaxed"
-        style={{ fontSize: `${fontSize}px` }}
-        autoFocus
-      />
-      <div className="mt-2 flex gap-2 justify-end">
-        <Button variant="outline" size="sm" onClick={onCancel}>
-          <X className="h-3.5 w-3.5 mr-1" />
-          Cancel
-        </Button>
-        <Button size="sm" onClick={() => void save()} disabled={saving || !draft.trim()}>
-          <Check className="h-3.5 w-3.5 mr-1" />
-          {saving ? "Saving..." : "Save (Ctrl+Enter)"}
-        </Button>
-      </div>
-    </div>
-  );
-}
+import { useVirtualList } from "@/components";
+import { ChatHeader } from "@/pages/chat/ChatHeader";
+import { ChatSidebar } from "@/pages/chat/ChatSidebar";
+import {
+  Avatar,
+  SideBlockView,
+  TemplateDisplayBlockView,
+  CONTINUE_PROMPT,
+  DEEPSEEK_CONTEXT_LIMIT,
+  CHAT_FONT_SIZE_KEY,
+  clampChatFontSize,
+  getChatDraftKey,
+  formatDuration,
+  getGenerationStatus,
+  replaceUserPlaceholders,
+  type PendingSendItem,
+} from "@/pages/chat/utils";
+import {
+  ImageDisplayBlockView,
+  ensureImageSlots,
+  clipImageReference,
+  resolveImagePlannerConfig,
+} from "@/pages/chat/DisplayBlocks";
+import { MessageEditBox } from "@/pages/chat/MessageEditBox";
+import { ChatInputArea } from "@/pages/chat/ChatInputArea";
+import {
+  ImagePromptDialog,
+  PromptDialog,
+  SaveDialog,
+  LoadDialog,
+  TokenDialog,
+  DeleteMessageDialog,
+  ThinkingDialog,
+} from "@/pages/chat/ChatDialogs";
+import { toast } from "@/utils/toast";
+import { useTranslation } from "react-i18next";
+import type { TokenUsageView } from "@/pages/chat/types";
 
 export function ChatPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const initRef = useRef<string | null>(null);
   const lastOpenedChatRef = useRef<string | null>(null);
   const draftReadyChatRef = useRef<string | null>(null);
@@ -591,7 +225,7 @@ export function ChatPage() {
 
     const charName = characters.find((c) => c.id === characterId)?.name ?? "Chat";
     createOrGetChat({ characterId, title: charName }).catch(() => {});
-  }, [id, characterId, characters.length]);
+  }, [id, characterId, characters.length, characters, createOrGetChat, loadChat]);
 
   useEffect(() => {
     wasGeneratingCurrentChatRef.current = false;
@@ -625,7 +259,7 @@ export function ChatPage() {
     if (character.worldbookId && character.worldbookId !== wbState.activeWorldbookId) {
       wbState.setActiveWorldbook(character.worldbookId);
     }
-  }, [character?.id]);
+  }, [character?.id, character?.regexPresetId, character?.worldbookId, character]);
 
   const updatePreview = useCallback(
     (userInput: string) => {
@@ -1062,14 +696,13 @@ export function ChatPage() {
     setPromptDialogOpen(true);
   };
 
-  const displayError = sendError || chatError;
   const isGeneratingCurrentChat = sending && !!currentChat?.id && sendingChatId === currentChat.id;
   const hasStreamingMessage =
     isGeneratingCurrentChat && !!streamingMessageId && messages.some((m) => m.id === streamingMessageId);
   const generationStatus = getGenerationStatus(generationPhase);
   const pendingSendCount = useMemo(
     () => (currentChat ? pendingSendQueue.filter((item) => item.chatId === currentChat.id).length : 0),
-    [currentChat?.id, pendingSendQueue],
+    [currentChat, pendingSendQueue],
   );
 
   useEffect(() => {
@@ -1079,7 +712,7 @@ export function ChatPage() {
     const next = pendingSendQueue[nextIndex];
     setPendingSendQueue((queue) => queue.filter((_, index) => index !== nextIndex));
     void sendMessage(next.content, { hiddenUserMessage: next.hiddenUserMessage });
-  }, [sending, pendingSendQueue, currentChat?.id, sendMessage]);
+  }, [sending, pendingSendQueue, currentChat, sendMessage]);
 
   const refreshSavepoints = async () => {
     if (!currentChat) {
@@ -1285,25 +918,23 @@ export function ChatPage() {
     [activeRegexRules, isGeneratingCurrentChat, lastAssistantId, streamingMessageId, messages],
   );
 
-  const isNearBottomRef = useRef(true);
-
-  const handleChatScroll = useCallback(() => {
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 120;
-  }, []);
-
-  const chatVirtualizer = useVirtualizer({
+  const {
+    virtualizer: chatVirtualizer,
+    containerRef: messagesContainerRef,
+    isNearBottomRef,
+    handleScroll: handleChatScroll,
+    scrollToIndex: chatScrollToIndex,
+    remeasure: chatRemeasure,
+  } = useVirtualList({
     count: renderedMessages.length,
-    getScrollElement: () => messagesContainerRef.current,
-    estimateSize: () => 260,
     getItemKey: (index) => renderedMessages[index]?.msg.id ?? `msg-${index}`,
+    estimateSize: () => 260,
     overscan: 8,
   });
 
   useLayoutEffect(() => {
-    chatVirtualizer.measure();
-  }, [fontSize, chatVirtualizer]);
+    chatRemeasure();
+  }, [fontSize, chatRemeasure]);
 
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
@@ -1332,18 +963,30 @@ export function ChatPage() {
     ) {
       const completedIndex = renderedMessages.findIndex((m) => m.msg.id === completedMessageId);
       if (completedIndex >= 0 && isNearBottomRef.current) {
-        chatVirtualizer.scrollToIndex(completedIndex, { align: "start" });
+        chatScrollToIndex(completedIndex, "start");
       }
       completedScrollMessageRef.current = completedMessageId;
       activeStreamingMessageRef.current = null;
     } else if (lastMsg.role === "user") {
       if (isNearBottomRef.current) {
-        chatVirtualizer.scrollToIndex(renderedMessages.length - 1, { align: "end" });
+        chatScrollToIndex(renderedMessages.length - 1);
       }
     }
 
     wasGeneratingCurrentChatRef.current = isGeneratingThisChat;
-  }, [messages.length, sending, sendingChatId, streamingMessageId, currentChat?.id, renderedMessages, chatVirtualizer]);
+    // isNearBottomRef is a ref — intentionally excluded from deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    messages,
+    messages.length,
+    sending,
+    sendingChatId,
+    streamingMessageId,
+    currentChat?.id,
+    renderedMessages,
+    chatVirtualizer,
+    chatScrollToIndex,
+  ]);
 
   useLayoutEffect(() => {
     if (loading || !currentChat?.id || messages.length === 0) return;
@@ -1351,67 +994,30 @@ export function ChatPage() {
     lastOpenedChatRef.current = currentChat.id;
     skipNextMessageAutoScrollRef.current = currentChat.id;
     requestAnimationFrame(() => {
-      chatVirtualizer.scrollToIndex(renderedMessages.length - 1, { align: "end" });
+      chatScrollToIndex(renderedMessages.length - 1);
     });
-  }, [currentChat?.id, loading, messages.length, renderedMessages.length, chatVirtualizer]);
+  }, [currentChat?.id, loading, messages.length, renderedMessages.length, chatScrollToIndex]);
+
+  const { t } = useTranslation("chat");
 
   return (
     <div className="flex h-full" style={{ "--chat-font-size": fontSize + "px" } as React.CSSProperties}>
-      <div className="w-60 border-r p-4 flex flex-col gap-3 overflow-y-auto shrink-0">
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </button>
-        {character && (
-          <>
-            <h2 className="text-lg font-semibold truncate">{character.name}</h2>
-            <p className="text-xs text-muted-foreground">{character.description}</p>
-            <div className="text-xs text-muted-foreground">
-              <p className="font-medium">Personality:</p>
-              <p>{character.personality}</p>
-            </div>
-          </>
-        )}
-      </div>
+      <ChatSidebar character={character} onBack={() => navigate("/")} t={t} />
 
       <div className="flex-1 flex flex-col">
-        <div className="flex items-center justify-end gap-2 px-4 py-2 border-b shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setTokenDialogOpen(true)}
-            className="text-muted-foreground hover:text-foreground text-xs gap-1"
-          >
-            <BarChart3 className="h-3.5 w-3.5" />
-            {usageMessages.length > 0 ? (
-              <span>
-                P:{totalPrompt} C:{totalCompletion} | 🔥 {cacheRate}%
-              </span>
-            ) : (
-              <span>Token Stats</span>
-            )}
-          </Button>
-          {usageMessages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setTokenDialogOpen(true)}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-              title={contextUsageTitle}
-            >
-              <span className="text-[10px] font-medium">1M</span>
-              <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                <span
-                  className={`block h-full rounded-full transition-[width] ${contextUsageBarTone}`}
-                  style={{ width: `${contextUsagePercent}%` }}
-                />
-              </span>
-              <span className={`w-10 text-right tabular-nums ${contextUsageTone}`}>{contextUsageDisplay}</span>
-            </button>
-          )}
-        </div>
+        <ChatHeader
+          usageMessages={usageMessages}
+          totalPrompt={totalPrompt}
+          totalCompletion={totalCompletion}
+          cacheRate={cacheRate}
+          contextUsageTitle={contextUsageTitle}
+          contextUsagePercent={contextUsagePercent}
+          contextUsageBarTone={contextUsageBarTone}
+          contextUsageTone={contextUsageTone}
+          contextUsageDisplay={contextUsageDisplay}
+          onTokenDialogOpen={() => setTokenDialogOpen(true)}
+          t={t}
+        />
         <div
           ref={messagesContainerRef}
           onScroll={handleChatScroll}
@@ -1766,155 +1372,38 @@ export function ChatPage() {
           </div>
         </div>
 
-        {displayError && (
-          <div className="px-4 py-2 mx-4 mb-2 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between">
-            <span className="truncate">{displayError}</span>
-            <div className="flex gap-1 shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  clearSendError();
-                  clearError();
-                }}
-              >
-                Dismiss
-              </Button>
-            </div>
-          </div>
-        )}
-
-        <div className="border-t bg-background/95 p-3">
-          <div className="max-w-4xl mx-auto space-y-2 2xl:-translate-x-[6.25rem]">
-            {pendingSendCount > 0 && currentChat && (
-              <div className="rounded-md border border-primary/20 bg-primary/5 p-2">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">待发送 {pendingSendCount}</span>
-                </div>
-                <div className="max-h-32 space-y-1.5 overflow-y-auto pr-1">
-                  {pendingSendQueue
-                    .map((item, index) => ({ ...item, index }))
-                    .filter((item) => item.chatId === currentChat.id)
-                    .map((item) => (
-                      <div
-                        key={`${item.chatId}-${item.index}`}
-                        className="flex items-start gap-2 rounded-md border bg-background/85 px-2 py-1.5"
-                      >
-                        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-                          {item.label ?? item.content}
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                          title="取消待发送"
-                          onClick={() =>
-                            setPendingSendQueue((queue) => queue.filter((_, index) => index !== item.index))
-                          }
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-lg border bg-card/70 p-2 shadow-sm">
-              <div className="grid grid-cols-[minmax(0,12rem)_minmax(20rem,1fr)_minmax(0,12rem)] items-center gap-2">
-                <div className="flex min-w-0 items-center justify-end gap-2">
-                  <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-md border bg-background/70 px-2">
-                    <span className="text-[10px] text-muted-foreground leading-none">A</span>
-                    <input
-                      type="range"
-                      min="12"
-                      max="22"
-                      value={fontSize}
-                      onInput={(e) => handleFontSizeChange(Number(e.currentTarget.value))}
-                      onChange={(e) => handleFontSizeChange(Number(e.target.value))}
-                      className="h-1 w-12 accent-primary cursor-pointer"
-                      title={`Font size: ${fontSize}px`}
-                    />
-                    <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => {
-                      const nextOpen = !previewOpen;
-                      setPreviewOpen(nextOpen);
-                      if (nextOpen) updatePreview(input.trim());
-                    }}
-                    className="h-10 w-10 shrink-0"
-                    title="Preview prompt"
-                  >
-                    {previewOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleContinue}
-                    disabled={!currentChat || messages.length === 0}
-                    className="h-10 w-10 shrink-0"
-                    title="隐藏发送续写请求"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </div>
-                <Input
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder={character ? `Message ${character.name}...` : "Type a message..."}
-                  disabled={!currentChat}
-                  className="h-10 min-w-0 w-full"
-                />
-                <div className="flex min-w-0 items-center justify-start gap-1.5">
-                  <Button
-                    onClick={handleSend}
-                    disabled={!input.trim() || !currentChat}
-                    size="icon"
-                    title={sending ? "Add to pending send" : "Send"}
-                    className="h-10 w-10 shrink-0"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setSaveDialogOpen(true)}
-                    disabled={!currentChat || isGeneratingCurrentChat}
-                    className="h-10 w-10 shrink-0"
-                    title="创建当前聊天存档"
-                  >
-                    <Save className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={openLoadDialog}
-                    disabled={!currentChat || isGeneratingCurrentChat}
-                    className="h-10 w-10 shrink-0"
-                    title="加载聊天存档"
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                  </Button>
-                  {sending && (
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      onClick={abort}
-                      title="Stop generating"
-                      className="h-10 w-10 shrink-0"
-                    >
-                      <StopCircle className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ChatInputArea
+          displayError={sendError || chatError}
+          onDismissError={() => {
+            clearSendError();
+            clearError();
+          }}
+          pendingSendCount={pendingSendCount}
+          hasChat={!!currentChat}
+          pendingSendQueue={pendingSendQueue}
+          currentChatId={currentChat?.id}
+          onCancelPending={(index) => setPendingSendQueue((queue) => queue.filter((_, i) => i !== index))}
+          fontSize={fontSize}
+          onFontSizeChange={handleFontSizeChange}
+          previewOpen={previewOpen}
+          onTogglePreview={() => {
+            const nextOpen = !previewOpen;
+            setPreviewOpen(nextOpen);
+            if (nextOpen) updatePreview(input.trim());
+          }}
+          onContinue={handleContinue}
+          messagesLength={messages.length}
+          input={input}
+          onInputChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          placeholder={character ? `Message ${character.name}...` : "Type a message..."}
+          onSend={handleSend}
+          isSending={sending}
+          isGenerating={isGeneratingCurrentChat}
+          onSave={() => setSaveDialogOpen(true)}
+          onLoad={openLoadDialog}
+          onAbort={abort}
+        />
 
         {previewOpen && (
           <div className="border-t p-4 bg-muted/30">
@@ -1927,388 +1416,67 @@ export function ChatPage() {
         )}
       </div>
 
-      <Dialog
+      <ImagePromptDialog
         open={!!imagePromptEditTarget}
         onOpenChange={(open) => {
           if (!open) closeImagePromptEditor();
         }}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>修改图片提示词</DialogTitle>
-            <DialogDescription>保存后会更新这张图片的提示词；也可以直接保存并重新生成。</DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={imagePromptDraft}
-            onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setImagePromptDraft(event.target.value)}
-            rows={8}
-            className="font-mono text-xs"
-            placeholder="English image prompt..."
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={closeImagePromptEditor}>
-              Cancel
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => void saveImagePromptEdit(false)}
-              disabled={!imagePromptDraft.trim()}
-            >
-              保存提示词
-            </Button>
-            <Button onClick={() => void saveImagePromptEdit(true)} disabled={!imagePromptDraft.trim()}>
-              <RotateCcw className="h-3.5 w-3.5 mr-1" />
-              保存并重新生成
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        draft={imagePromptDraft}
+        onDraftChange={setImagePromptDraft}
+        onCancel={closeImagePromptEditor}
+        onSave={() => void saveImagePromptEdit(false)}
+        onSaveAndRegenerate={() => void saveImagePromptEdit(true)}
+      />
 
-      <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Full Prompt</DialogTitle>
-          </DialogHeader>
-          <div className="overflow-y-auto max-h-[60vh]">
-            <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground">
-              {previewText || "(no prompt data)"}
-            </pre>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>
-              Close
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                navigator.clipboard.writeText(previewText);
-                toast("success", "Copied");
-              }}
-            >
-              <Copy className="h-3.5 w-3.5 mr-1" />
-              Copy Prompt
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PromptDialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen} previewText={previewText} />
 
-      <Dialog open={saveDialogOpen} onOpenChange={(open) => (open ? setSaveDialogOpen(true) : closeSaveDialog())}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>创建存档点</DialogTitle>
-            <DialogDescription>保存当前聊天的消息快照。名字可以留空，系统会自动生成。</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Input
-              value={savepointName}
-              onChange={(event) => setSavepointName(event.target.value)}
-              placeholder={createDefaultSavepointName()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={closeSaveDialog}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateSavepoint} disabled={savingSavepoint || !currentChat}>
-              {savingSavepoint ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SaveDialog
+        open={saveDialogOpen}
+        onOpenChange={(open) => (open ? setSaveDialogOpen(true) : closeSaveDialog())}
+        savepointName={savepointName}
+        onSavepointNameChange={setSavepointName}
+        isSaving={savingSavepoint}
+        hasCurrentChat={!!currentChat}
+        onSave={handleCreateSavepoint}
+        onCancel={closeSaveDialog}
+      />
 
-      <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>加载存档</DialogTitle>
-            <DialogDescription>加载后会用存档内容替换当前聊天消息。</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-[48vh] space-y-2 overflow-y-auto pr-1">
-            {loadingSavepoints && <p className="py-6 text-center text-sm text-muted-foreground">Loading...</p>}
-            {!loadingSavepoints && savepoints.length === 0 && (
-              <p className="py-6 text-center text-sm text-muted-foreground">还没有存档点。</p>
-            )}
-            {!loadingSavepoints &&
-              savepoints.map((savepoint) => (
-                <div key={savepoint.id} className="flex items-center gap-3 rounded-lg border bg-card/60 p-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{savepoint.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatSavepointDate(savepoint.createdAt)} · {savepoint.messageCount} messages
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleRestoreSavepoint(savepoint)}
-                    disabled={!!restoringSavepointId || isGeneratingCurrentChat}
-                  >
-                    {restoringSavepointId === savepoint.id ? "Loading..." : "加载"}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDeleteSavepoint(savepoint.id)}
-                    disabled={!!restoringSavepointId}
-                    title="删除存档"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLoadDialogOpen(false)}>
-              Close
-            </Button>
-            <Button variant="outline" onClick={refreshSavepoints} disabled={loadingSavepoints || !currentChat}>
-              Refresh
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <LoadDialog
+        open={loadDialogOpen}
+        onOpenChange={setLoadDialogOpen}
+        savepoints={savepoints}
+        isLoading={loadingSavepoints}
+        isGenerating={isGeneratingCurrentChat}
+        restoringSavepointId={restoringSavepointId}
+        onRestore={handleRestoreSavepoint}
+        onDelete={handleDeleteSavepoint}
+        onRefresh={refreshSavepoints}
+      />
 
-      <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Token Usage &amp; Cache Hit
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 rounded-md border bg-background p-1">
-            <button
-              type="button"
-              onClick={() => setTokenUsageView("main")}
-              className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${tokenUsageView === "main" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Main API
-            </button>
-            <button
-              type="button"
-              onClick={() => setTokenUsageView("secondary")}
-              className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${tokenUsageView === "secondary" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Secondary API
-            </button>
-          </div>
-          <div className="overflow-y-auto max-h-[60vh]">
-            {tokenDialogRows.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                {tokenUsageView === "main"
-                  ? "No main API usage data yet. Send a message to see stats."
-                  : "No secondary API usage data yet. It appears after memory compression or image planning uses a secondary model."}
-              </p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-4">
-                  <div
-                    className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
-                    title={tokenDialogTotals.prompt.toLocaleString()}
-                  >
-                    <p className="text-lg font-bold tabular-nums leading-tight truncate">
-                      {formatCompactToken(tokenDialogTotals.prompt)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Prompt</p>
-                  </div>
-                  <div
-                    className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
-                    title={tokenDialogTotals.completion.toLocaleString()}
-                  >
-                    <p className="text-lg font-bold tabular-nums leading-tight truncate">
-                      {formatCompactToken(tokenDialogTotals.completion)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Completion</p>
-                  </div>
-                  <div
-                    className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
-                    title={(tokenDialogTotals.prompt + tokenDialogTotals.completion).toLocaleString()}
-                  >
-                    <p className="text-lg font-bold tabular-nums leading-tight truncate">
-                      {formatCompactToken(tokenDialogTotals.prompt + tokenDialogTotals.completion)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Total</p>
-                  </div>
-                  <div
-                    className="min-w-0 bg-emerald-500/10 rounded-lg p-3 text-center"
-                    title={tokenDialogTotals.cacheHit.toLocaleString()}
-                  >
-                    <p className="text-lg font-bold tabular-nums leading-tight truncate text-emerald-600">
-                      {formatCompactToken(tokenDialogTotals.cacheHit)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Cache Hit</p>
-                  </div>
-                  <div
-                    className="min-w-0 bg-blue-500/10 rounded-lg p-3 text-center"
-                    title={`${tokenDialogTotals.cacheRate}%`}
-                  >
-                    <p className="text-lg font-bold tabular-nums leading-tight truncate text-blue-600">
-                      {tokenDialogTotals.cacheRate}%
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Hit Rate</p>
-                  </div>
-                  <div
-                    className="min-w-0 bg-purple-500/10 rounded-lg p-3 text-center"
-                    title={
-                      tokenUsageView === "main"
-                        ? contextUsageTitle
-                        : `${secondaryUsageRecords.length} secondary API calls`
-                    }
-                  >
-                    <p
-                      className={`text-lg font-bold tabular-nums leading-tight truncate ${tokenUsageView === "main" ? contextUsageTone : "text-purple-600"}`}
-                    >
-                      {tokenUsageView === "main" ? contextUsageDisplay : secondaryUsageRecords.length.toLocaleString()}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {tokenUsageView === "main" ? "1M Context" : "Calls"}
-                    </p>
-                  </div>
-                  <div
-                    className="min-w-0 bg-amber-500/10 rounded-lg p-3 text-center"
-                    title={formatCnyExact(tokenDialogTotals.costCny)}
-                  >
-                    <p className="text-lg font-bold tabular-nums leading-tight truncate text-amber-600">
-                      {formatCnyCost(tokenDialogTotals.costCny)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">Cost (RMB)</p>
-                  </div>
-                </div>
-                {tokenDialogTotals.cacheRate === "-" && (
-                  <p className="text-xs text-muted-foreground mb-2 px-1">
-                    ⚠ Cache hit data unavailable — your API may not support prompt caching (Ollama/vLLM most instances
-                    do not). Supported by DeepSeek, OpenAI recent models, Anthropic.
-                  </p>
-                )}
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-muted">
-                        <th className="text-left p-2">{tokenUsageView === "main" ? "Round" : "Call"}</th>
-                        {tokenUsageView === "secondary" && <th className="text-left p-2">Model</th>}
-                        <th className="text-right p-2">Prompt</th>
-                        <th className="text-right p-2">Completion</th>
-                        <th className="text-right p-2">Total</th>
-                        <th className="text-right p-2">🔥 Hit</th>
-                        <th className="text-right p-2">📉 Miss</th>
-                        <th className="text-right p-2">Rate</th>
-                        <th className="text-right p-2">Cost (RMB)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tokenDialogRows.map((row) => {
-                        const p = row.usage?.promptTokens || 0;
-                        const c = row.usage?.completionTokens || 0;
-                        const t = row.usage?.totalTokens || 0;
-                        const h = row.usage?.cacheHitTokens || 0;
-                        const ms = row.usage?.cacheMissTokens ?? p - h;
-                        const r = p > 0 ? ((h / p) * 100).toFixed(1) : "-";
-                        const cost = row.usage?.costCny;
-                        return (
-                          <tr key={row.id} className="border-t">
-                            <td
-                              className="p-2 text-muted-foreground"
-                              title={row.debugPromptPath || row.debugPromptFilename || undefined}
-                            >
-                              <div>{row.label}</div>
-                              {tokenUsageView === "main" && row.debugTrigger && (
-                                <div className="text-[10px] leading-tight">
-                                  {row.debugTrigger === "retry" && row.debugBaseTrigger
-                                    ? `${row.debugBaseTrigger}->retry`
-                                    : row.debugTrigger}
-                                  {row.debugAttempt && row.debugAttempt > 1 ? ` a${row.debugAttempt}` : ""}
-                                </div>
-                              )}
-                            </td>
-                            {tokenUsageView === "secondary" && (
-                              <td className="p-2 text-muted-foreground">{row.model || "-"}</td>
-                            )}
-                            <td className="p-2 text-right">{p.toLocaleString()}</td>
-                            <td className="p-2 text-right">{c.toLocaleString()}</td>
-                            <td className="p-2 text-right">{t.toLocaleString()}</td>
-                            <td className="p-2 text-right text-emerald-600">{h > 0 ? h.toLocaleString() : "-"}</td>
-                            <td className="p-2 text-right text-orange-500">{ms > 0 ? ms.toLocaleString() : "-"}</td>
-                            <td className="p-2 text-right">
-                              {r}
-                              {r !== "-" ? "%" : ""}
-                            </td>
-                            <td
-                              className="p-2 text-right tabular-nums"
-                              title={
-                                [row.usage?.costPricingName || row.usage?.costModel, formatCnyExact(cost)]
-                                  .filter(Boolean)
-                                  .join(" · ") || undefined
-                              }
-                            >
-                              {formatCnyCost(cost)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTokenDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TokenDialog
+        open={tokenDialogOpen}
+        onOpenChange={setTokenDialogOpen}
+        tokenUsageView={tokenUsageView}
+        onTokenUsageViewChange={setTokenUsageView}
+        rows={tokenDialogRows}
+        totals={tokenDialogTotals}
+        secondaryUsageRecordsCount={secondaryUsageRecords.length}
+        contextUsageTitle={contextUsageTitle}
+        contextUsageTone={contextUsageTone}
+        contextUsageDisplay={contextUsageDisplay}
+      />
 
-      <Dialog open={!!deleteMsgTarget} onOpenChange={() => setDeleteMsgTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Message</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Delete this message? If it's a user message followed by an AI reply, the AI reply will also be deleted.
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteMsgTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteMessage}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteMessageDialog
+        open={!!deleteMsgTarget}
+        onOpenChange={() => setDeleteMsgTarget(null)}
+        onDelete={handleDeleteMessage}
+      />
 
-      <Dialog open={!!thinkingMsg} onOpenChange={() => setThinkingMsg(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-purple-400" />
-              创作过程
-            </DialogTitle>
-          </DialogHeader>
-          <div className="overflow-y-auto max-h-[60vh]">
-            <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground bg-muted/40 p-4 rounded-lg">
-              {thinkingMsg?.reasoningContent || "(暂无创作过程数据)"}
-            </pre>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setThinkingMsg(null)}>
-              Close
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                navigator.clipboard.writeText(thinkingMsg?.reasoningContent || "");
-                toast("success", "Copied");
-              }}
-            >
-              <Copy className="h-3.5 w-3.5 mr-1" />
-              Copy
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ThinkingDialog
+        open={!!thinkingMsg}
+        onOpenChange={() => setThinkingMsg(null)}
+        reasoningContent={thinkingMsg?.reasoningContent || ""}
+      />
     </div>
   );
 }

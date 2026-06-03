@@ -19,15 +19,11 @@ import { useChatStore } from "@/features/chat/chat.store";
 import { chatSavepointRepository, createDefaultSavepointName, messageRepository } from "@/db/repositories";
 import type { Character, Chat } from "@neo-tavern/shared";
 import { CharacterAvatarTile } from "@/components";
+import { toast } from "@/utils/toast";
 
 type HomeContextMenu =
   | { type: "character"; x: number; y: number; character: Character }
   | { type: "chat"; x: number; y: number; chat: Chat; character?: Character };
-
-function toast(type: "success" | "error" | "info", message: string) {
-  const fn = (window as any).__toast;
-  if (fn) fn(type, message);
-}
 
 export function HomePage() {
   const navigate = useNavigate();

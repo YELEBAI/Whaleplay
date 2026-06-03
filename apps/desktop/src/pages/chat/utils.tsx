@@ -1,5 +1,5 @@
 import type { Message } from "@neo-tavern/shared";
-import type { SideBlock } from "@neo-tavern/core";
+import type { SideBlock, DisplayBlock } from "@neo-tavern/core";
 import type { GenerationPhase } from "@/features/chat/chat.types";
 
 // ── Constants ─────────────────────────────────────────
@@ -71,10 +71,21 @@ export function formatSavepointDate(value: string) {
 }
 
 export function getGenerationStatus(phase: GenerationPhase | null) {
+  if (phase === "retrying") {
+    return {
+      label: "正文空白，重写中",
+      tag: "retrying",
+      detail: "上一版没有可显示正文，正在重新整理剧情并补写角色回复",
+    };
+  }
   if (phase === "writing") {
     return { label: "正文落笔中", tag: "writing", detail: "正在把这一幕写成角色回复" };
   }
   return { label: "剧情构思中", tag: "thinking", detail: "正在整理角色动机、场景节奏与下一步推进" };
+}
+
+export function replaceUserPlaceholders(content: string, userName: string) {
+  return content.replace(/\{\{user\}\}/gi, userName).replace(/<user>/gi, userName);
 }
 
 // ── Small presentational components ───────────────────
@@ -145,4 +156,21 @@ export function SideBlockView({
     );
   }
   return <p className="whitespace-pre-wrap text-muted-foreground mt-1">{side.content}</p>;
+}
+
+export function TemplateDisplayBlockView({ block, fontSize }: { block: DisplayBlock; fontSize: number }) {
+  const details = parseSafeDetails(block.content);
+  if (details) {
+    return (
+      <details className={details.className} open={details.open || undefined} style={{ fontSize: `${fontSize}px` }}>
+        <summary>{details.summary}</summary>
+        <p className="whitespace-pre-wrap">{details.body}</p>
+      </details>
+    );
+  }
+  return (
+    <p className="whitespace-pre-wrap" style={{ fontSize: `${fontSize}px` }}>
+      {block.content}
+    </p>
+  );
 }

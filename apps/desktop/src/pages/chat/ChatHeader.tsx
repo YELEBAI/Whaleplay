@@ -2,7 +2,8 @@ import { BarChart3 } from "lucide-react";
 import { Button } from "@neo-tavern/ui";
 
 interface ChatHeaderProps {
-  usageMessages: Array<{ usage?: any }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  usageMessages: any[];
   totalPrompt: number;
   totalCompletion: number;
   cacheRate: string;

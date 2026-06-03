@@ -21,6 +21,7 @@ import type { CreateCharacterInput, Character, RegexPreset, Worldbook } from "@n
 import { settingsRepository, worldbookRepository } from "@/db/repositories";
 import { parseJsonCharacterCard, parsePngCharacterCard, type ParsedCharacterCard } from "@/utils/parse-character-card";
 import { CharacterAvatarTile } from "@/components";
+import { toast } from "@/utils/toast";
 
 const emptyForm: CreateCharacterInput = {
   name: "",
@@ -69,11 +70,6 @@ export function CharacterPage() {
   const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const toast = (type: "success" | "error" | "info", msg: string) => {
-    const fn = (window as any).__toast;
-    if (fn) fn(type, msg);
-  };
 
   useEffect(() => {
     loadCharacters();
