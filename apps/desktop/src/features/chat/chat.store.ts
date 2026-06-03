@@ -3,6 +3,7 @@ import {
   chatMemoryRepository,
   chatRepository,
   chatSavepointRepository,
+  agenticPlayStateRepository,
   messageRepository,
   secondaryApiUsageRepository,
 } from "@/db/repositories";
@@ -230,6 +231,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       await messageRepository.deleteByChatId(id);
       await chatSavepointRepository.deleteByChatId(id);
       await chatMemoryRepository.delete(id);
+      await agenticPlayStateRepository.delete(id);
       await secondaryApiUsageRepository.deleteByChatId(id);
       set((state) => {
         const activeGenerations = Object.fromEntries(

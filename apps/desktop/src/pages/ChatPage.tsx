@@ -1,7 +1,44 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Copy, Pencil, ScrollText, RotateCcw, CheckCheck, Trash2, Brain, Image as ImageIcon } from "lucide-react";
-import { Button, Card, CardContent } from "@neo-tavern/ui";
+import {
+  Send,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  ArrowLeft,
+  Copy,
+  Pencil,
+  Check,
+  X,
+  ScrollText,
+  RotateCcw,
+  CheckCheck,
+  StopCircle,
+  BarChart3,
+  Trash2,
+  Brain,
+  Save,
+  FolderOpen,
+  Image as ImageIcon,
+  Bot,
+  User as UserIcon,
+  CircleDashed,
+  CheckCircle2,
+  Dice5,
+} from "lucide-react";
+import {
+  Button,
+  Input,
+  Card,
+  CardContent,
+  Textarea,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@neo-tavern/ui";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useChatStore } from "@/features/chat/chat.store";
 import { useSendMessage } from "@/features/chat/hooks/useSendMessage";
@@ -10,14 +47,18 @@ import {
   createMemoryContextBlock,
   splitMessagesByRecentTurns,
 } from "@/features/chat/memory";
-import type { ChatSavepoint, SecondaryApiUsageRecord } from "@/db/repositories";
+import type { GenerationPhase } from "@/features/chat/chat.types";
 import {
   chatRepository,
+  agenticPlayStateRepository,
   chatSavepointRepository,
+  createDefaultSavepointName,
   messageRepository,
   presetRepository,
   secondaryApiUsageRepository,
+  settingsRepository,
 } from "@/db/repositories";
+import type { ChatSavepoint, SecondaryApiUsageRecord } from "@/db/repositories";
 import { getStorageItem, removeStorageItem, setStorageItem } from "@/db/storage";
 import {
   buildChatPrompt,
@@ -27,10 +68,17 @@ import {
   resolveWorldbookEntries,
   stripPromptContent,
 } from "@neo-tavern/core";
-import type { DisplayBlock } from "@neo-tavern/core";
+import type { DisplayBlock, SideBlock } from "@neo-tavern/core";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
-import { type BuiltPrompt, type ContextBlock, type Message, type MessageImage } from "@neo-tavern/shared";
+import {
+  generateId,
+  type BuiltPrompt,
+  type ContextBlock,
+  type Message,
+  type MessageImage,
+  type ModelConfig,
+} from "@neo-tavern/shared";
 import {
   createGeneratingImages,
   extractImageMarkers,
@@ -39,51 +87,523 @@ import {
   planImageMarkersWithModel,
   type ImagePlannerWorldbookReference,
 } from "@/features/image-generation/image-generation";
-import { withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
+import { formatCnyCost, formatCnyExact, withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
 import { recordUsageCostAndWarn } from "@/features/billing/usage-cost";
 import { getChatScopedDeepSeekUserId } from "@/features/settings/model-capabilities";
-import { useVirtualList } from "@/components";
-import { ChatHeader } from "@/pages/chat/ChatHeader";
-import { ChatSidebar } from "@/pages/chat/ChatSidebar";
 import {
-  Avatar,
-  SideBlockView,
-  TemplateDisplayBlockView,
-  CONTINUE_PROMPT,
-  DEEPSEEK_CONTEXT_LIMIT,
-  CHAT_FONT_SIZE_KEY,
-  clampChatFontSize,
-  getChatDraftKey,
-  formatDuration,
-  getGenerationStatus,
-  replaceUserPlaceholders,
-  type PendingSendItem,
-} from "@/pages/chat/utils";
-import {
-  ImageDisplayBlockView,
-  ensureImageSlots,
-  clipImageReference,
-  resolveImagePlannerConfig,
-} from "@/pages/chat/DisplayBlocks";
-import { MessageEditBox } from "@/pages/chat/MessageEditBox";
-import { ChatInputArea } from "@/pages/chat/ChatInputArea";
-import {
-  ImagePromptDialog,
-  PromptDialog,
-  SaveDialog,
-  LoadDialog,
-  TokenDialog,
-  DeleteMessageDialog,
-  ThinkingDialog,
-} from "@/pages/chat/ChatDialogs";
-import { toast } from "@/utils/toast";
-import { useTranslation } from "react-i18next";
-import type { TokenUsageView } from "@/pages/chat/types";
+  AGENTIC_PLAY_OPENING_PROMPT,
+  buildAgenticPlayPresetItems,
+  createAgenticPlayContextBlock,
+  type AgenticGameState,
+} from "@/features/agentic-play/agentic-play";
+import { extractAgenticOptions, type AgenticActionOption } from "@/features/agentic-play/agentic-options";
+import { useVirtualizer } from "@tanstack/react-virtual";
+
+function Avatar({ name, src, isUser }: { name: string; src?: string; isUser?: boolean }) {
+  const initial = name.charAt(0).toUpperCase();
+  const bg = isUser ? "bg-blue-500" : "bg-emerald-500";
+  if (src) {
+    return <img src={src} alt={name} className="w-8 h-8 rounded-full object-cover border border-border/30 shrink-0" />;
+  }
+  return (
+    <div className={`w-8 h-8 rounded-full ${bg} flex items-center justify-center shrink-0`}>
+      <span className="text-white text-xs font-bold">{initial}</span>
+    </div>
+  );
+}
+
+function toast(type: "success" | "error" | "info", message: string) {
+  const fn = (window as any).__toast;
+  if (fn) fn(type, message);
+}
+
+const DEEPSEEK_CONTEXT_LIMIT = 1_000_000;
+const CHAT_FONT_SIZE_KEY = "neotavern_chat_font_size";
+const CHAT_DRAFT_KEY_PREFIX = "neotavern_chat_draft";
+const CONTINUE_PROMPT = "续写剧情";
+const CHAT_FONT_SIZE_MIN = 12;
+const CHAT_FONT_SIZE_MAX = 22;
+
+type PendingSendItem = {
+  chatId: string;
+  content: string;
+  hiddenUserMessage?: boolean;
+  label?: string;
+};
+
+type TokenUsageView = "main" | "secondary";
+
+const compactTokenFormatter = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function formatCompactToken(value: number) {
+  return compactTokenFormatter.format(value);
+}
+
+function getChatDraftKey(chatId: string) {
+  return `${CHAT_DRAFT_KEY_PREFIX}_${chatId}`;
+}
+
+function replaceUserPlaceholders(content: string, userName: string) {
+  return content.replace(/\{\{user\}\}/gi, userName).replace(/<user>/gi, userName);
+}
+
+function clampChatFontSize(value: number) {
+  if (!Number.isFinite(value)) return 15;
+  return Math.min(CHAT_FONT_SIZE_MAX, Math.max(CHAT_FONT_SIZE_MIN, Math.round(value)));
+}
+
+function formatDuration(ms: number) {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`;
+}
+
+function displayStateValue(value: unknown, fallback = "-") {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (Array.isArray(value)) return value.length ? value.map((item) => String(item)).join("、") : fallback;
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function formatPlayerCondition(player: Record<string, unknown> | undefined) {
+  if (!player) return "状态未初始化";
+  const hp = player.hp;
+  const maxHp = player.max_hp;
+  const traits = Array.isArray(player.traits) ? player.traits.map((item) => String(item)).filter(Boolean) : [];
+  const parts = [
+    hp !== undefined && hp !== null ? `HP ${hp}${maxHp !== undefined && maxHp !== null ? `/${maxHp}` : ""}` : null,
+    traits.length ? traits.join("、") : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "状态平稳";
+}
+
+function formatSavepointDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function getGenerationStatus(phase: GenerationPhase | null) {
+  if (phase === "retrying") {
+    return {
+      label: "正文空白，重写中",
+      tag: "retrying",
+      detail: "上一版没有可显示正文，正在重新整理剧情并补写角色回复",
+    };
+  }
+
+  if (phase === "writing") {
+    return {
+      label: "正文落笔中",
+      tag: "writing",
+      detail: "正在把这一幕写成角色回复",
+    };
+  }
+
+  return {
+    label: "剧情构思中",
+    tag: "thinking",
+    detail: "正在整理角色动机、场景节奏与下一步推进",
+  };
+}
+
+function parseSafeDetails(
+  content: string,
+): { className: "neo-summary" | "neo-thoughts"; open: boolean; summary: string; body: string } | null {
+  const trimmed = content.trim();
+  const match = trimmed.match(/^<details([^>]*)><summary>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>$/);
+  if (!match) return null;
+
+  const attrs = match[1];
+  const className = attrs.match(/\bclass="([^"]*)"/)?.[1];
+  const unsupportedAttrs = attrs
+    .replace(/\bopen\b/g, "")
+    .replace(/\bclass="(?:neo-summary|neo-thoughts)"/g, "")
+    .trim();
+  if ((className && className !== "neo-summary" && className !== "neo-thoughts") || unsupportedAttrs) return null;
+
+  return {
+    className: className === "neo-thoughts" ? "neo-thoughts" : "neo-summary",
+    open: /\bopen\b/.test(attrs),
+    summary: match[2],
+    body: match[3].trim(),
+  };
+}
+
+function SideBlockView({
+  side,
+  fontSize,
+  onAction,
+}: {
+  side: SideBlock;
+  fontSize: number;
+  onAction: (action: string) => void;
+}) {
+  if (side.actions) {
+    return (
+      <div className="flex flex-wrap gap-2 mt-1">
+        {side.actions.map((action, ai) => (
+          <button
+            key={ai}
+            onClick={() => onAction(action)}
+            className="px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-sm hover:bg-primary/10 hover:border-primary/50 transition-colors cursor-pointer"
+            style={{ fontSize: `${fontSize}px` }}
+          >
+            {action}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const details = parseSafeDetails(side.content);
+  if (details) {
+    return (
+      <details className={details.className} open={details.open || undefined}>
+        <summary>{details.summary}</summary>
+        <p className="whitespace-pre-wrap">{details.body}</p>
+      </details>
+    );
+  }
+
+  return <p className="whitespace-pre-wrap text-muted-foreground mt-1">{side.content}</p>;
+}
+
+function TemplateDisplayBlockView({ block, fontSize }: { block: DisplayBlock; fontSize: number }) {
+  const details = parseSafeDetails(block.content);
+  if (details) {
+    return (
+      <details className={details.className} open={details.open || undefined} style={{ fontSize: `${fontSize}px` }}>
+        <summary>{details.summary}</summary>
+        <p className="whitespace-pre-wrap">{details.body}</p>
+      </details>
+    );
+  }
+
+  return (
+    <p className="whitespace-pre-wrap" style={{ fontSize: `${fontSize}px` }}>
+      {block.content}
+    </p>
+  );
+}
+
+function ChatActivityTimeline({
+  message,
+  active,
+  generationStatus,
+}: {
+  message: Message;
+  active: boolean;
+  generationStatus: ReturnType<typeof getGenerationStatus>;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  const [thinkingOpen, setThinkingOpen] = useState(false);
+
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [active]);
+
+  const startedAt = new Date(message.createdAt).getTime();
+  const activeElapsed = active && Number.isFinite(startedAt) ? now - startedAt : null;
+  const finalElapsed = message.generateDuration ?? message.thinkingDuration ?? null;
+  const elapsed = activeElapsed ?? finalElapsed;
+
+  const reasoningLines = (message.reasoningContent ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const reasoningPreview = reasoningLines.length
+    ? reasoningLines[reasoningLines.length - 1]
+    : active
+      ? generationStatus.detail
+      : "回复已生成";
+
+  return (
+    <div className="mb-3 min-w-0">
+      {elapsed != null && (
+        <div className="mb-3 grid grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,1fr)] items-center gap-3 text-xs text-muted-foreground">
+          <div className="h-px flex-1 bg-border" />
+          <span className="shrink-0 text-center tabular-nums">任务耗时 {formatDuration(Math.max(0, elapsed))}</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+      )}
+
+      <div className="min-w-0 border-l border-border/80">
+        <div className="relative pb-3 pl-5">
+          <span
+            className={`absolute left-[-6px] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background ${
+              active ? "text-primary" : "text-emerald-500"
+            }`}
+          >
+            {active ? (
+              <CircleDashed className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            )}
+          </span>
+          <button
+            type="button"
+            className="flex w-full min-w-0 max-w-full items-center gap-1 overflow-hidden text-left text-sm font-medium disabled:cursor-default"
+            onClick={() => setThinkingOpen((open) => !open)}
+            disabled={!message.reasoningContent}
+          >
+            <Brain className="h-3.5 w-3.5 shrink-0" />
+            <span className="shrink-0">{active ? "正在思考" : "已完成思考"}</span>
+            {!thinkingOpen && reasoningPreview ? (
+              <span className="min-w-0 truncate text-muted-foreground">· {reasoningPreview}</span>
+            ) : null}
+            {thinkingOpen ? (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+          </button>
+          {thinkingOpen && message.reasoningContent ? (
+            <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+              {message.reasoningContent}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgenticOptionsView({
+  options,
+  disabled,
+  onChoose,
+}: {
+  options: AgenticActionOption[];
+  disabled: boolean;
+  onChoose: (option: AgenticActionOption) => void;
+}) {
+  if (!options.length) return null;
+
+  return (
+    <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+      {options.map((option) => (
+        <Button
+          key={option.id}
+          type="button"
+          variant="outline"
+          size="sm"
+          className="max-w-full justify-start whitespace-normal break-words text-left [overflow-wrap:anywhere]"
+          onClick={() => onChoose(option)}
+          disabled={disabled}
+        >
+          <span className="min-w-0">{option.label}</span>
+          {option.probability !== undefined && (
+            <span className="ml-2 shrink-0 rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              {option.probability}%
+            </span>
+          )}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+function ImageDisplayBlockView({
+  prompt,
+  image,
+  fontSize,
+  onDelete,
+  onEditPrompt,
+  onRegenerate,
+}: {
+  prompt: string;
+  image?: MessageImage;
+  fontSize: number;
+  onDelete: () => void;
+  onEditPrompt: () => void;
+  onRegenerate: () => void;
+}) {
+  const displayPrompt = image?.prompt?.trim() || prompt;
+  const isGenerating = image?.status === "generating";
+  const isDeleted = image?.status === "deleted";
+  const statusText = isDeleted
+    ? "图片已删除"
+    : image?.status === "error"
+      ? "图片生成失败"
+      : isGenerating
+        ? "ComfyUI 生图中"
+        : "图片尚未生成";
+
+  return (
+    <div className="group relative rounded-lg border border-primary/20 bg-primary/5 p-2">
+      <div className="absolute right-3 top-3 z-10 flex gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7 bg-background/90 shadow-sm backdrop-blur"
+          onClick={onEditPrompt}
+          title="修改图片提示词"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7 bg-background/90 shadow-sm backdrop-blur"
+          onClick={onRegenerate}
+          disabled={isGenerating}
+          title="重新生成图片"
+        >
+          <RotateCcw className={`h-3.5 w-3.5 ${isGenerating ? "animate-spin" : ""}`} />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-7 w-7 bg-background/90 text-destructive shadow-sm backdrop-blur hover:text-destructive"
+          onClick={onDelete}
+          disabled={isDeleted}
+          title="删除图片"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {image?.status === "done" && image.src ? (
+        <img
+          src={image.src}
+          alt={displayPrompt}
+          className="max-h-[520px] w-full rounded-md object-contain bg-background"
+        />
+      ) : (
+        <div className="flex min-h-32 items-center justify-center rounded-md border border-dashed bg-background/50">
+          <div className="space-y-2 text-center">
+            <ImageIconSpinner status={image?.status} />
+            <p className="text-xs text-muted-foreground">{statusText}</p>
+          </div>
+        </div>
+      )}
+      <details className="mt-2 text-muted-foreground">
+        <summary className="cursor-pointer text-xs">Image prompt</summary>
+        <p className="mt-1 whitespace-pre-wrap text-xs" style={{ fontSize: `${Math.max(11, fontSize - 3)}px` }}>
+          {displayPrompt}
+        </p>
+        {image?.error && <p className="mt-1 whitespace-pre-wrap text-xs text-destructive">{image.error}</p>}
+      </details>
+    </div>
+  );
+}
+
+function ImageIconSpinner({ status }: { status?: MessageImage["status"] }) {
+  if (status === "deleted") return <Trash2 className="mx-auto h-5 w-5 text-muted-foreground" />;
+  if (status === "error") return <X className="mx-auto h-5 w-5 text-destructive" />;
+  if (status === "done") return <Check className="mx-auto h-5 w-5 text-green-500" />;
+  return <ImageIcon className="mx-auto h-5 w-5 animate-pulse text-primary" />;
+}
+
+function ensureImageSlots(images: MessageImage[] | undefined, imageIndex: number, prompt: string) {
+  const now = new Date().toISOString();
+  const next = [...(images ?? [])];
+
+  while (next.length <= imageIndex) {
+    next.push({
+      id: generateId(),
+      prompt,
+      status: "deleted",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  return next;
+}
+
+function clipImageReference(content: string, maxChars: number) {
+  const normalized = content.replace(/\r\n/g, "\n").trim();
+  if (normalized.length <= maxChars) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
+
+async function resolveImagePlannerConfig(configId: string | null): Promise<ModelConfig | null> {
+  if (!configId) return null;
+  const stateConfig = useSettingsStore.getState().modelConfigs.find((config) => config.id === configId);
+  return stateConfig ?? settingsRepository.getModelConfig(configId);
+}
+
+function MessageEditBox({
+  initialContent,
+  fontSize,
+  onCancel,
+  onSave,
+}: {
+  initialContent: string;
+  fontSize: number;
+  onCancel: () => void;
+  onSave: (content: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(initialContent);
+  const [saving, setSaving] = useState(false);
+  const [prevInitial, setPrevInitial] = useState(initialContent);
+
+  if (initialContent !== prevInitial) {
+    setPrevInitial(initialContent);
+    setDraft(initialContent);
+  }
+
+  const save = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || saving) return;
+    setSaving(true);
+    try {
+      await onSave(trimmed);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && e.ctrlKey) {
+      e.preventDefault();
+      void save();
+    }
+    if (e.key === "Escape") {
+      onCancel();
+    }
+  };
+
+  return (
+    <div className="w-full rounded-lg border bg-card p-3 shadow-sm">
+      <Textarea
+        value={draft}
+        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(e.target.value)}
+        onKeyDown={handleKeyDown}
+        className="min-h-[260px] max-h-[60vh] resize-y overflow-y-auto leading-relaxed"
+        style={{ fontSize: `${fontSize}px` }}
+        autoFocus
+      />
+      <div className="mt-2 flex gap-2 justify-end">
+        <Button variant="outline" size="sm" onClick={onCancel}>
+          <X className="h-3.5 w-3.5 mr-1" />
+          Cancel
+        </Button>
+        <Button size="sm" onClick={() => void save()} disabled={saving || !draft.trim()}>
+          <Check className="h-3.5 w-3.5 mr-1" />
+          {saving ? "Saving..." : "Save (Ctrl+Enter)"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function ChatPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const initRef = useRef<string | null>(null);
   const lastOpenedChatRef = useRef<string | null>(null);
   const draftReadyChatRef = useRef<string | null>(null);
@@ -91,12 +611,14 @@ export function ChatPage() {
   const wasGeneratingCurrentChatRef = useRef(false);
   const activeStreamingMessageRef = useRef<string | null>(null);
   const completedScrollMessageRef = useRef<string | null>(null);
+  const agenticOpeningStartedRef = useRef<string | null>(null);
   const presetItemsRef = useRef<{ role: "system" | "user"; content: string; injectionOrder: number }[]>([]);
 
   const { characters, loadCharacters } = useCharacterStore();
   const {
     currentChat,
     messages,
+    messagesHydrated,
     loading,
     error: chatError,
     loadChat,
@@ -155,6 +677,8 @@ export function ChatPage() {
   const [savingSavepoint, setSavingSavepoint] = useState(false);
   const [loadingSavepoints, setLoadingSavepoints] = useState(false);
   const [restoringSavepointId, setRestoringSavepointId] = useState<string | null>(null);
+  const [agenticPlayEnabled, setAgenticPlayEnabled] = useState(false);
+  const [agenticGameState, setAgenticGameState] = useState<AgenticGameState | null>(null);
 
   const characterId = searchParams.get("characterId");
   const character = characters.find((c) => c.id === (currentChat?.characterId ?? characterId));
@@ -178,6 +702,8 @@ export function ChatPage() {
   } = useSendMessage({
     character,
     chatId: currentChat?.id,
+    agenticPlayEnabled,
+    onAgenticPlayStateUpdated: setAgenticGameState,
     onPromptBuilt: (built: BuiltPrompt) => {
       setPreviewText(formatPreview(built));
     },
@@ -261,6 +787,26 @@ export function ChatPage() {
     }
   }, [character?.id, character?.regexPresetId, character?.worldbookId, character]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const chatId = currentChat?.id;
+    if (!chatId || !character) {
+      setAgenticPlayEnabled(false);
+      setAgenticGameState(null);
+      return;
+    }
+
+    agenticPlayStateRepository.get(chatId).then((record) => {
+      if (cancelled) return;
+      setAgenticPlayEnabled(record?.enabled ?? false);
+      setAgenticGameState(record?.gameState ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentChat?.id, character]);
+
   const updatePreview = useCallback(
     (userInput: string) => {
       if (!character) return;
@@ -281,8 +827,9 @@ export function ChatPage() {
       const memoryBlock = settingsState.lightweightMemoryEnabled ? createMemoryContextBlock(memorySummary) : null;
       const wbState = useWorldbookStore.getState();
       let contextBlocks: ContextBlock[] | undefined;
-      if (wbState.activeWorldbookId) {
-        const wb = wbState.worldbooks.find((w) => w.id === wbState.activeWorldbookId);
+      const worldbookId = character.worldbookId || wbState.activeWorldbookId;
+      if (worldbookId) {
+        const wb = wbState.worldbooks.find((w) => w.id === worldbookId);
         if (wb && wb.entries.length > 0) {
           const { matched } = resolveWorldbookEntries(wb.entries, userInput || "", promptMessages);
           contextBlocks = matched.map((e) => ({
@@ -297,19 +844,21 @@ export function ChatPage() {
           }));
         }
       }
-      const allContextBlocks = [memoryBlock, ...(contextBlocks ?? [])].filter(Boolean);
+      const agenticBlock =
+        agenticPlayEnabled && agenticGameState ? createAgenticPlayContextBlock(agenticGameState) : null;
+      const allContextBlocks = [memoryBlock, agenticBlock, ...(contextBlocks ?? [])].filter(Boolean);
       const built = buildChatPrompt({
         character,
         recentMessages: memorySplit.recentMessages,
         userInput: userInput || "(your message)",
         maxTotalTokens: cs,
-        presetItems: presetItemsRef.current,
+        presetItems: agenticPlayEnabled ? buildAgenticPlayPresetItems(character.name) : presetItemsRef.current,
         contextBlocks: allContextBlocks as ContextBlock[],
         userName: settingsState.personaName,
       });
       setPreviewText(formatPreview(built));
     },
-    [character, messages],
+    [character, messages, agenticPlayEnabled, agenticGameState],
   );
 
   useEffect(() => {
@@ -375,6 +924,10 @@ export function ChatPage() {
     await sendMessage(trimmedContent, { hiddenUserMessage: options.hiddenUserMessage });
   };
 
+  const handleAgenticOptionChoice = (option: AgenticActionOption) => {
+    void submitContent(option.action, { label: option.label });
+  };
+
   const handleSend = async () => {
     if (!input.trim() || !currentChat) return;
     const content = input.trim();
@@ -394,7 +947,7 @@ export function ChatPage() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const next = e.target.value;
     setInput(next);
   };
@@ -696,6 +1249,7 @@ export function ChatPage() {
     setPromptDialogOpen(true);
   };
 
+  const displayError = sendError || chatError;
   const isGeneratingCurrentChat = sending && !!currentChat?.id && sendingChatId === currentChat.id;
   const hasStreamingMessage =
     isGeneratingCurrentChat && !!streamingMessageId && messages.some((m) => m.id === streamingMessageId);
@@ -704,6 +1258,27 @@ export function ChatPage() {
     () => (currentChat ? pendingSendQueue.filter((item) => item.chatId === currentChat.id).length : 0),
     [currentChat, pendingSendQueue],
   );
+
+  useEffect(() => {
+    const chatId = currentChat?.id;
+    if (!chatId || !character || !agenticPlayEnabled) return;
+    if (loading || !messagesHydrated || messages.length !== 0) return;
+    if (sending || isGeneratingCurrentChat) return;
+    if (agenticOpeningStartedRef.current === chatId) return;
+
+    agenticOpeningStartedRef.current = chatId;
+    void submitContent(AGENTIC_PLAY_OPENING_PROMPT, { hiddenUserMessage: true, label: "开局选项" });
+  }, [
+    currentChat?.id,
+    character,
+    agenticPlayEnabled,
+    loading,
+    messagesHydrated,
+    messages.length,
+    sending,
+    isGeneratingCurrentChat,
+    submitContent,
+  ]);
 
   useEffect(() => {
     if (sending || pendingSendQueue.length === 0 || !currentChat) return;
@@ -909,32 +1484,46 @@ export function ChatPage() {
           !isUser && (activeRegexRules.length > 0 || /\[image\]/i.test(msg.content))
             ? applyRegexRules(msg.content, activeRegexRules)
             : null;
-        const displayContent = split?.displayContent ?? split?.promptContent ?? msg.content;
+        const rawDisplayContent = split?.displayContent ?? split?.promptContent ?? msg.content;
+        const agenticChoiceBlock = !isUser && agenticPlayEnabled ? extractAgenticOptions(rawDisplayContent) : null;
+        const displayContent = agenticChoiceBlock?.content ?? rawDisplayContent;
+        const displaySplit = agenticChoiceBlock?.options.length ? null : split;
         const isStreamingAi = !isUser && isGeneratingCurrentChat && msg.id === streamingMessageId;
         const hasDisplayContent = displayContent.trim().length > 0;
 
-        return { msg, isUser, isFinalAi, split, displayContent, isStreamingAi, hasDisplayContent };
+        return {
+          msg,
+          isUser,
+          isFinalAi,
+          split: displaySplit,
+          displayContent,
+          agenticOptions: agenticChoiceBlock?.options ?? [],
+          isStreamingAi,
+          hasDisplayContent,
+        };
       }),
-    [activeRegexRules, isGeneratingCurrentChat, lastAssistantId, streamingMessageId, messages],
+    [activeRegexRules, agenticPlayEnabled, isGeneratingCurrentChat, lastAssistantId, streamingMessageId, messages],
   );
 
-  const {
-    virtualizer: chatVirtualizer,
-    containerRef: messagesContainerRef,
-    isNearBottomRef,
-    handleScroll: handleChatScroll,
-    scrollToIndex: chatScrollToIndex,
-    remeasure: chatRemeasure,
-  } = useVirtualList({
+  const isNearBottomRef = useRef(true);
+
+  const handleChatScroll = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 120;
+  }, []);
+
+  const chatVirtualizer = useVirtualizer({
     count: renderedMessages.length,
-    getItemKey: (index) => renderedMessages[index]?.msg.id ?? `msg-${index}`,
+    getScrollElement: () => messagesContainerRef.current,
     estimateSize: () => 260,
+    getItemKey: (index) => renderedMessages[index]?.msg.id ?? `msg-${index}`,
     overscan: 8,
   });
 
   useLayoutEffect(() => {
-    chatRemeasure();
-  }, [fontSize, chatRemeasure]);
+    chatVirtualizer.measure();
+  }, [fontSize, chatVirtualizer]);
 
   useEffect(() => {
     const lastMsg = messages[messages.length - 1];
@@ -963,30 +1552,18 @@ export function ChatPage() {
     ) {
       const completedIndex = renderedMessages.findIndex((m) => m.msg.id === completedMessageId);
       if (completedIndex >= 0 && isNearBottomRef.current) {
-        chatScrollToIndex(completedIndex, "start");
+        chatVirtualizer.scrollToIndex(completedIndex, { align: "start" });
       }
       completedScrollMessageRef.current = completedMessageId;
       activeStreamingMessageRef.current = null;
     } else if (lastMsg.role === "user") {
       if (isNearBottomRef.current) {
-        chatScrollToIndex(renderedMessages.length - 1);
+        chatVirtualizer.scrollToIndex(renderedMessages.length - 1, { align: "end" });
       }
     }
 
     wasGeneratingCurrentChatRef.current = isGeneratingThisChat;
-    // isNearBottomRef is a ref — intentionally excluded from deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    messages,
-    messages.length,
-    sending,
-    sendingChatId,
-    streamingMessageId,
-    currentChat?.id,
-    renderedMessages,
-    chatVirtualizer,
-    chatScrollToIndex,
-  ]);
+  }, [messages, messages.length, sending, sendingChatId, streamingMessageId, currentChat?.id, renderedMessages, chatVirtualizer]);
 
   useLayoutEffect(() => {
     if (loading || !currentChat?.id || messages.length === 0) return;
@@ -994,30 +1571,116 @@ export function ChatPage() {
     lastOpenedChatRef.current = currentChat.id;
     skipNextMessageAutoScrollRef.current = currentChat.id;
     requestAnimationFrame(() => {
-      chatScrollToIndex(renderedMessages.length - 1);
+      chatVirtualizer.scrollToIndex(renderedMessages.length - 1, { align: "end" });
     });
-  }, [currentChat?.id, loading, messages.length, renderedMessages.length, chatScrollToIndex]);
-
-  const { t } = useTranslation("chat");
+  }, [currentChat?.id, loading, messages.length, renderedMessages.length, chatVirtualizer]);
 
   return (
-    <div className="flex h-full" style={{ "--chat-font-size": fontSize + "px" } as React.CSSProperties}>
-      <ChatSidebar character={character} onBack={() => navigate("/")} t={t} />
+    <div
+      className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+      style={{ "--chat-font-size": fontSize + "px" } as React.CSSProperties}
+    >
+      <div className="shrink-0 border-b px-6 py-4">
+        <div className="flex min-w-0 items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="truncate text-2xl font-bold">{character?.name || "Whale Play"}</h1>
+            <p className="mt-1 truncate text-sm text-muted-foreground">
+              {agenticPlayEnabled ? "Agentic Play experimental session" : "Character chat session"}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate("/")}>
+              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+              Home
+            </Button>
+          </div>
+        </div>
+      </div>
 
-      <div className="flex-1 flex flex-col">
-        <ChatHeader
-          usageMessages={usageMessages}
-          totalPrompt={totalPrompt}
-          totalCompletion={totalCompletion}
-          cacheRate={cacheRate}
-          contextUsageTitle={contextUsageTitle}
-          contextUsagePercent={contextUsagePercent}
-          contextUsageBarTone={contextUsageBarTone}
-          contextUsageTone={contextUsageTone}
-          contextUsageDisplay={contextUsageDisplay}
-          onTokenDialogOpen={() => setTokenDialogOpen(true)}
-          t={t}
-        />
+      <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-4 overflow-hidden p-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="grid min-h-0 min-w-0 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[230px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
+            <div className="shrink-0 border-b p-4">
+              <h2 className="truncate font-semibold">{character?.name || "No character"}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {agenticPlayEnabled ? "实验模式" : "普通模式"}
+              </p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {character ? (
+                <div className="space-y-4 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={character.name} src={character.avatar} />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{character.name}</p>
+                      <p className="text-xs text-muted-foreground">Character anchor</p>
+                    </div>
+                  </div>
+                  <section>
+                    <h3 className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Description</h3>
+                    <p className="line-clamp-6 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                      {character.description || "-"}
+                    </p>
+                  </section>
+                  <section>
+                    <h3 className="mb-1 text-xs font-semibold uppercase text-muted-foreground">Personality</h3>
+                    <p className="line-clamp-6 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
+                      {character.personality || "-"}
+                    </p>
+                  </section>
+                  {agenticPlayEnabled && (
+                    <section className="rounded-md border bg-background p-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold">
+                        <Brain className="h-3.5 w-3.5" />
+                        Agentic
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        使用专用主持人提示词模块，不读取普通 preset 组。
+                      </p>
+                    </section>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Select a character to start chatting</p>
+              )}
+            </div>
+          </aside>
+
+          <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background">
+        <div className="flex items-center justify-end gap-2 border-b px-4 py-2 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setTokenDialogOpen(true)}
+            className="text-muted-foreground hover:text-foreground text-xs gap-1"
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+            {usageMessages.length > 0 ? (
+              <span>
+                P:{totalPrompt} C:{totalCompletion} | 🔥 {cacheRate}%
+              </span>
+            ) : (
+              <span>Token Stats</span>
+            )}
+          </Button>
+          {usageMessages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setTokenDialogOpen(true)}
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              title={contextUsageTitle}
+            >
+              <span className="text-[10px] font-medium">1M</span>
+              <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                <span
+                  className={`block h-full rounded-full transition-[width] ${contextUsageBarTone}`}
+                  style={{ width: `${contextUsagePercent}%` }}
+                />
+              </span>
+              <span className={`w-10 text-right tabular-nums ${contextUsageTone}`}>{contextUsageDisplay}</span>
+            </button>
+          )}
+        </div>
         <div
           ref={messagesContainerRef}
           onScroll={handleChatScroll}
@@ -1061,7 +1724,7 @@ export function ChatPage() {
               }}
             >
               {chatVirtualizer.getVirtualItems().map((virtualItem) => {
-                const { msg, isUser, isFinalAi, split, displayContent, isStreamingAi, hasDisplayContent } =
+                const { msg, isUser, isFinalAi, split, displayContent, agenticOptions, isStreamingAi, hasDisplayContent } =
                   renderedMessages[virtualItem.index];
                 const aiName = character?.name ?? "AI";
                 let imageBlockIndex = 0;
@@ -1081,134 +1744,19 @@ export function ChatPage() {
                       transform: `translateY(${virtualItem.start}px)`,
                     }}
                   >
-                    {!isUser && (
-                      <div className="flex items-center justify-between mb-1.5 px-1 group">
-                        <div className="flex items-center gap-2">
-                          <Avatar name={aiName} src={character?.avatar} />
-                          <span className="text-xs font-medium text-muted-foreground">{aiName}</span>
-                          {isStreamingAi && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-xs text-muted-foreground animate-pulse">
-                              {generationPhase === "writing" ? (
-                                <Pencil className="h-3 w-3 text-primary" />
-                              ) : generationPhase === "retrying" ? (
-                                <RotateCcw className="h-3 w-3 text-primary" />
-                              ) : (
-                                <Brain className="h-3 w-3 text-primary" />
-                              )}
-                              <span>{generationStatus.label}</span>
-                              <span className="text-[10px] uppercase text-muted-foreground/60">
-                                {generationStatus.tag}
-                              </span>
-                            </span>
-                          )}
-                          {msg.thinkingDuration != null && (
-                            <span className="text-[10px] text-muted-foreground/60 tabular-nums" title="Thinking time">
-                              思考 {formatDuration(msg.thinkingDuration)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                            title="Copy"
-                            onClick={() => handleCopy(msg.content, msg.id)}
-                          >
-                            {copiedId === msg.id ? (
-                              <CheckCheck className="h-3.5 w-3.5 text-green-500" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                            title="Edit"
-                            onClick={() => startEdit(msg)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                            title="View full prompt"
-                            onClick={showPromptDialog}
-                          >
-                            <ScrollText className="h-3.5 w-3.5" />
-                          </Button>
-                          {msg.reasoningContent && (
+                    {isUser ? (
+                      <div className="flex min-w-0 justify-end gap-3 pb-5">
+                        <div className="min-w-0 max-w-[min(82%,48rem)] overflow-hidden rounded-lg border bg-primary p-4 text-primary-foreground">
+                          <div className="mb-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity hover:opacity-100">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-purple-400"
-                              title="查看创作过程"
-                              onClick={() => setThinkingMsg(msg)}
-                            >
-                              <Brain className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {imageGeneration.enabled &&
-                            imageGeneration.mode === "manual" &&
-                            hasDisplayContent &&
-                            !isStreamingAi && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                title={isMessageImageBusy ? "图片生成中" : "生成图片"}
-                                onClick={() => void handleGenerateMessageImages(msg)}
-                                disabled={isMessageImageBusy}
-                              >
-                                <ImageIcon className={`h-3.5 w-3.5 ${isMessageImageBusy ? "animate-pulse" : ""}`} />
-                              </Button>
-                            )}
-                          {isFinalAi && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                              title="Regenerate"
-                              onClick={() => {
-                                if (!sending) regenerate();
-                              }}
-                              disabled={sending}
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                            title="Delete"
-                            onClick={() => setDeleteMsgTarget(msg)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-                      {isUser && <Avatar name="You" isUser />}
-
-                      <div
-                        className={`${editingMsgId === msg.id ? "w-full max-w-[92%]" : "w-[75%] max-w-[80%]"} min-w-0 ${isUser ? "items-end" : "items-start"}`}
-                      >
-                        {isUser && (
-                          <div className="flex items-center justify-end gap-1 mb-1.5 px-1 opacity-0 hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              className="h-6 w-6 text-primary-foreground/70 hover:text-primary-foreground"
                               title="Copy"
                               onClick={() => handleCopy(msg.content, msg.id)}
                             >
                               {copiedId === msg.id ? (
-                                <CheckCheck className="h-3.5 w-3.5 text-green-500" />
+                                <CheckCheck className="h-3.5 w-3.5 text-green-300" />
                               ) : (
                                 <Copy className="h-3.5 w-3.5" />
                               )}
@@ -1216,33 +1764,133 @@ export function ChatPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                              className="h-6 w-6 text-primary-foreground/70 hover:text-primary-foreground"
                               title="Delete"
                               onClick={() => setDeleteMsgTarget(msg)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </div>
-                        )}
+                          {editingMsgId === msg.id ? (
+                            <MessageEditBox
+                              initialContent={msg.content}
+                              fontSize={fontSize}
+                              onCancel={cancelEdit}
+                              onSave={saveEdit}
+                            />
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]" style={{ fontSize: `${fontSize}px` }}>
+                              {displayContent}
+                            </p>
+                          )}
+                        </div>
+                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                          <UserIcon className="h-4 w-4" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex min-w-0 justify-start gap-3 pb-5">
+                        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                        <div className="group min-w-0 w-full max-w-4xl overflow-hidden py-1">
+                          <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+                            <span className="min-w-0 truncate text-xs font-medium text-muted-foreground">{aiName}</span>
+                            <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                title="Copy"
+                                onClick={() => handleCopy(msg.content, msg.id)}
+                              >
+                                {copiedId === msg.id ? (
+                                  <CheckCheck className="h-3.5 w-3.5 text-green-500" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                title="Edit"
+                                onClick={() => startEdit(msg)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                title="View full prompt"
+                                onClick={showPromptDialog}
+                              >
+                                <ScrollText className="h-3.5 w-3.5" />
+                              </Button>
+                              {msg.reasoningContent && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-purple-400"
+                                  title="查看创作过程"
+                                  onClick={() => setThinkingMsg(msg)}
+                                >
+                                  <Brain className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {imageGeneration.enabled &&
+                                imageGeneration.mode === "manual" &&
+                                hasDisplayContent &&
+                                !isStreamingAi && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                    title={isMessageImageBusy ? "图片生成中" : "生成图片"}
+                                    onClick={() => void handleGenerateMessageImages(msg)}
+                                    disabled={isMessageImageBusy}
+                                  >
+                                    <ImageIcon className={`h-3.5 w-3.5 ${isMessageImageBusy ? "animate-pulse" : ""}`} />
+                                  </Button>
+                                )}
+                              {isFinalAi && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                  title="Regenerate"
+                                  onClick={() => {
+                                    if (!sending) regenerate();
+                                  }}
+                                  disabled={sending}
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                title="Delete"
+                                onClick={() => setDeleteMsgTarget(msg)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
 
-                        {editingMsgId === msg.id ? (
-                          <MessageEditBox
-                            initialContent={msg.content}
-                            fontSize={fontSize}
-                            onCancel={cancelEdit}
-                            onSave={saveEdit}
-                          />
-                        ) : isUser ? (
-                          <Card className="bg-primary text-primary-foreground">
-                            <CardContent className="p-3">
-                              <p className="whitespace-pre-wrap" style={{ fontSize: `${fontSize}px` }}>
-                                {displayContent}
-                              </p>
-                            </CardContent>
-                          </Card>
-                        ) : split?.displayBlocks && split.displayBlocks.length > 0 && hasDisplayContent ? (
-                          <Card>
-                            <CardContent className="p-3 space-y-2">
+                          <ChatActivityTimeline message={msg} active={isStreamingAi} generationStatus={generationStatus} />
+
+                          {editingMsgId === msg.id ? (
+                            <MessageEditBox
+                              initialContent={msg.content}
+                              fontSize={fontSize}
+                              onCancel={cancelEdit}
+                              onSave={saveEdit}
+                            />
+                          ) : split?.displayBlocks && split.displayBlocks.length > 0 && hasDisplayContent ? (
+                            <div className="space-y-2">
                               {split.displayBlocks.map((block: DisplayBlock, bi: number) =>
                                 block.type === "image" ? (
                                   (() => {
@@ -1270,140 +1918,239 @@ export function ChatPage() {
                                 ) : block.type === "dialogue" ? (
                                   <div
                                     key={bi}
-                                    className="bg-accent/60 border border-border/50 rounded-lg p-3 relative mt-3 first:mt-0"
+                                    className="relative mt-3 rounded-md border bg-accent/40 p-3 first:mt-0"
                                   >
-                                    <span className="absolute -top-2.5 left-3 bg-primary text-primary-foreground text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                                    <span className="absolute -top-2.5 left-3 rounded bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
                                       {block.speaker}
                                     </span>
-                                    <p className="whitespace-pre-wrap pt-0.5" style={{ fontSize: `${fontSize}px` }}>
+                                    <p className="whitespace-pre-wrap break-words pt-0.5 [overflow-wrap:anywhere]" style={{ fontSize: `${fontSize}px` }}>
                                       {block.content}
                                     </p>
                                   </div>
                                 ) : (
-                                  <p key={bi} className="whitespace-pre-wrap" style={{ fontSize: `${fontSize}px` }}>
+                                  <p key={bi} className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]" style={{ fontSize: `${fontSize}px` }}>
                                     {block.content}
                                   </p>
                                 ),
                               )}
-                            </CardContent>
-                          </Card>
-                        ) : (
-                          <Card>
-                            <CardContent className="p-3 space-y-2">
-                              {isStreamingAi && !hasDisplayContent ? (
-                                <>
-                                  <p className="text-sm text-muted-foreground">{generationStatus.detail}</p>
-                                  <div className="flex gap-1" aria-label={generationStatus.label}>
-                                    <span
-                                      className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
-                                      style={{ animationDelay: "0ms" }}
-                                    />
-                                    <span
-                                      className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
-                                      style={{ animationDelay: "150ms" }}
-                                    />
-                                    <span
-                                      className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
-                                      style={{ animationDelay: "300ms" }}
-                                    />
-                                  </div>
-                                </>
-                              ) : (
-                                <p className="whitespace-pre-wrap" style={{ fontSize: `${fontSize}px` }}>
-                                  {displayContent}
-                                </p>
-                              )}
-                            </CardContent>
-                          </Card>
-                        )}
+                            </div>
+                          ) : isStreamingAi && !hasDisplayContent ? (
+                            <div className="space-y-2">
+                              <p className="text-sm text-muted-foreground">{generationStatus.detail}</p>
+                              <div className="flex gap-1" aria-label={generationStatus.label}>
+                                <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50" style={{ animationDelay: "0ms" }} />
+                                <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50" style={{ animationDelay: "150ms" }} />
+                                <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50" style={{ animationDelay: "300ms" }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="whitespace-pre-wrap break-words leading-relaxed [overflow-wrap:anywhere]" style={{ fontSize: `${fontSize}px` }}>
+                              {displayContent}
+                            </p>
+                          )}
 
-                        {split?.sideBlocks.map((side, si) => (
-                          <div key={si} style={{ fontSize: `${fontSize}px` }}>
-                            <SideBlockView side={side} fontSize={fontSize} onAction={setInput} />
-                          </div>
-                        ))}
+                          <AgenticOptionsView
+                            options={isFinalAi ? agenticOptions : []}
+                            disabled={!currentChat || isGeneratingCurrentChat}
+                            onChoose={handleAgenticOptionChoice}
+                          />
+
+                          {split?.sideBlocks.map((side, si) => (
+                            <div key={si} style={{ fontSize: `${fontSize}px` }}>
+                              <SideBlockView side={side} fontSize={fontSize} onAction={setInput} />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
             </div>
             {isGeneratingCurrentChat && !hasStreamingMessage && (
-              <div>
-                <div className="flex items-center gap-2 mb-1.5 px-1">
-                  <Avatar name={character?.name ?? "AI"} src={character?.avatar} />
-                  <span className="text-xs font-medium text-muted-foreground">{character?.name ?? "AI"}</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-xs text-muted-foreground animate-pulse ml-1">
-                    {generationPhase === "writing" ? (
-                      <Pencil className="h-3 w-3 text-primary" />
-                    ) : generationPhase === "retrying" ? (
-                      <RotateCcw className="h-3 w-3 text-primary" />
-                    ) : (
-                      <Brain className="h-3 w-3 text-primary" />
-                    )}
-                    <span>{generationStatus.label}</span>
-                    <span className="text-[10px] uppercase text-muted-foreground/60">{generationStatus.tag}</span>
-                  </span>
+              <div className="flex min-w-0 justify-start gap-3 pb-5">
+                <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                  <Bot className="h-4 w-4" />
                 </div>
-                <div className="flex gap-3">
-                  <div className="w-8 shrink-0" />
-                  <Card className="w-[75%] max-w-[80%]">
-                    <CardContent className="p-3 space-y-2">
-                      <p className="text-sm text-muted-foreground">{generationStatus.detail}</p>
-                      <div className="flex gap-1" aria-label={generationStatus.label}>
-                        <span
-                          className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
-                          style={{ animationDelay: "0ms" }}
-                        />
-                        <span
-                          className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
-                          style={{ animationDelay: "150ms" }}
-                        />
-                        <span
-                          className="w-2 h-2 rounded-full bg-primary/50 animate-bounce"
-                          style={{ animationDelay: "300ms" }}
-                        />
+                <div className="min-w-0 w-full max-w-4xl py-1">
+                  <div className="mb-3 min-w-0 border-l border-border/80">
+                    <div className="relative pb-3 pl-5">
+                      <span className="absolute left-[-6px] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background text-primary">
+                        <CircleDashed className="h-3.5 w-3.5 animate-spin" />
+                      </span>
+                      <div className="flex min-w-0 items-center gap-1 overflow-hidden text-sm font-medium">
+                        <Brain className="h-3.5 w-3.5 shrink-0" />
+                        <span className="shrink-0">正在思考</span>
+                        <span className="min-w-0 truncate text-muted-foreground">· {generationStatus.detail}</span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
+                  <div className="flex gap-1" aria-label={generationStatus.label}>
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50" style={{ animationDelay: "0ms" }} />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50" style={{ animationDelay: "150ms" }} />
+                    <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50" style={{ animationDelay: "300ms" }} />
+                  </div>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        <ChatInputArea
-          displayError={sendError || chatError}
-          onDismissError={() => {
-            clearSendError();
-            clearError();
-          }}
-          pendingSendCount={pendingSendCount}
-          hasChat={!!currentChat}
-          pendingSendQueue={pendingSendQueue}
-          currentChatId={currentChat?.id}
-          onCancelPending={(index) => setPendingSendQueue((queue) => queue.filter((_, i) => i !== index))}
-          fontSize={fontSize}
-          onFontSizeChange={handleFontSizeChange}
-          previewOpen={previewOpen}
-          onTogglePreview={() => {
-            const nextOpen = !previewOpen;
-            setPreviewOpen(nextOpen);
-            if (nextOpen) updatePreview(input.trim());
-          }}
-          onContinue={handleContinue}
-          messagesLength={messages.length}
-          input={input}
-          onInputChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          placeholder={character ? `Message ${character.name}...` : "Type a message..."}
-          onSend={handleSend}
-          isSending={sending}
-          isGenerating={isGeneratingCurrentChat}
-          onSave={() => setSaveDialogOpen(true)}
-          onLoad={openLoadDialog}
-          onAbort={abort}
-        />
+        {displayError && (
+          <div className="px-4 py-2 mx-4 mb-2 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between">
+            <span className="truncate">{displayError}</span>
+            <div className="flex gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  clearSendError();
+                  clearError();
+                }}
+              >
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
+        <div className="shrink-0 border-t bg-card p-4">
+          <div className="mx-auto w-full min-w-0 max-w-4xl space-y-2">
+            {pendingSendCount > 0 && currentChat && (
+              <div className="rounded-md border border-primary/20 bg-primary/5 p-2">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">待发送 {pendingSendCount}</span>
+                </div>
+                <div className="max-h-32 space-y-1.5 overflow-y-auto pr-1">
+                  {pendingSendQueue
+                    .map((item, index) => ({ ...item, index }))
+                    .filter((item) => item.chatId === currentChat.id)
+                    .map((item) => (
+                      <div
+                        key={`${item.chatId}-${item.index}`}
+                        className="flex items-start gap-2 rounded-md border bg-background/85 px-2 py-1.5"
+                      >
+                        <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                          {item.label ?? item.content}
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                          title="取消待发送"
+                          onClick={() =>
+                            setPendingSendQueue((queue) => queue.filter((_, index) => index !== item.index))
+                          }
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-lg border bg-background/75 p-3 shadow-sm">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-md border bg-background/70 px-2">
+                    <span className="text-[10px] text-muted-foreground leading-none">A</span>
+                    <input
+                      type="range"
+                      min="12"
+                      max="22"
+                      value={fontSize}
+                      onInput={(e) => handleFontSizeChange(Number(e.currentTarget.value))}
+                      onChange={(e) => handleFontSizeChange(Number(e.target.value))}
+                      className="h-1 w-12 accent-primary cursor-pointer"
+                      title={`Font size: ${fontSize}px`}
+                    />
+                    <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      const nextOpen = !previewOpen;
+                      setPreviewOpen(nextOpen);
+                      if (nextOpen) updatePreview(input.trim());
+                    }}
+                    className="h-10 w-10 shrink-0"
+                    title="Preview prompt"
+                  >
+                    {previewOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleContinue}
+                    disabled={!currentChat || messages.length === 0}
+                    className="h-10 w-10 shrink-0"
+                    title="隐藏发送续写请求"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSaveDialogOpen(true)}
+                    disabled={!currentChat || isGeneratingCurrentChat}
+                    className="h-10 w-10 shrink-0"
+                    title="创建当前聊天存档"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={openLoadDialog}
+                    disabled={!currentChat || isGeneratingCurrentChat}
+                    className="h-10 w-10 shrink-0"
+                    title="加载聊天存档"
+                  >
+                    <FolderOpen className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="flex min-w-0 items-end gap-2">
+                <Textarea
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    character
+                      ? agenticPlayEnabled
+                        ? `Action in ${character.name}'s scene...`
+                        : `Message ${character.name}...`
+                      : "Type a message..."
+                  }
+                  disabled={!currentChat}
+                  rows={3}
+                  className="min-h-[76px] min-w-0 flex-1 resize-none"
+                />
+                  <Button
+                    onClick={handleSend}
+                    disabled={!input.trim() || !currentChat}
+                    size="icon"
+                    title={sending ? "Add to pending send" : "Send"}
+                    className="h-10 w-10 shrink-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                  {sending && (
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={abort}
+                      title="Stop generating"
+                      className="h-10 w-10 shrink-0"
+                    >
+                      <StopCircle className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+            </div>
+          </div>
+        </div>
 
         {previewOpen && (
           <div className="border-t p-4 bg-muted/30">
@@ -1414,69 +2161,524 @@ export function ChatPage() {
             </div>
           </div>
         )}
+          </section>
+        </div>
+
+        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <div className="shrink-0 border-b p-4">
+            <h2 className="font-semibold">会话状态</h2>
+          </div>
+
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
+            <section>
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <BarChart3 className="h-4 w-4" />
+                运行概览
+              </div>
+              <div className="space-y-2">
+                <div className="rounded-md border bg-background p-3">
+                  <div className="text-xs text-muted-foreground">消息</div>
+                  <div className="mt-1 text-sm font-medium">{messages.length} messages</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTokenDialogOpen(true)}
+                  className="w-full rounded-md border bg-background p-3 text-left transition-colors hover:bg-accent"
+                >
+                  <div className="text-xs text-muted-foreground">Token</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {usageMessages.length > 0 ? `P:${totalPrompt} C:${totalCompletion} | cache ${cacheRate}%` : "暂无统计"}
+                  </div>
+                  {usageMessages.length > 0 && (
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={`h-full rounded-full transition-[width] ${contextUsageBarTone}`}
+                        style={{ width: `${contextUsagePercent}%` }}
+                      />
+                    </div>
+                  )}
+                </button>
+              </div>
+            </section>
+
+            {agenticPlayEnabled && (
+              <section className="mt-5">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                  <Brain className="h-4 w-4" />
+                  场景状态
+                </div>
+                <div className="space-y-2">
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">玩家</div>
+                    <div className="mt-1 break-words text-sm font-medium">
+                      {displayStateValue(agenticGameState?.player?.name, "玩家")}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">所在地点</div>
+                    <div className="mt-1 break-words text-sm font-medium">
+                      {agenticGameState?.location || "未初始化"}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">玩家状态</div>
+                    <div className="mt-1 break-words text-sm">
+                      {formatPlayerCondition(agenticGameState?.player)}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">当前局势</div>
+                    <div className="mt-1 break-words text-sm">
+                      {displayStateValue(agenticGameState?.scene?.active_conflict, "暂无冲突")}
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">目标</div>
+                    <div className="mt-1 break-words text-sm">
+                      {agenticGameState?.quest
+                        ? String(agenticGameState.quest.current_objective ?? agenticGameState.quest.main ?? "-")
+                        : "-"}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-md border bg-background p-3">
+                      <div className="text-xs text-muted-foreground">时间</div>
+                      <div className="mt-1 break-words text-sm">
+                        {displayStateValue(agenticGameState?.scene?.time, "unknown")}
+                      </div>
+                    </div>
+                    <div className="rounded-md border bg-background p-3">
+                      <div className="text-xs text-muted-foreground">危险等级</div>
+                      <div className="mt-1 text-sm">
+                        {displayStateValue(agenticGameState?.scene?.danger_level, "-")}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-md border bg-background p-3">
+                    <div className="text-xs text-muted-foreground">物品 / Flags</div>
+                    <div className="mt-1 text-sm">
+                      {(agenticGameState?.inventory?.length ?? 0)} items ·{" "}
+                      {agenticGameState ? Object.keys(agenticGameState.flags).length : 0} flags
+                    </div>
+                  </div>
+                </div>
+
+                <section className="mt-5">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <Dice5 className="h-4 w-4" />
+                    判定
+                  </div>
+                  <div className="rounded-md border bg-background p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-md border bg-card">
+                        <Dice5
+                          className={`h-6 w-6 text-primary ${
+                            isGeneratingCurrentChat ? "animate-spin" : "animate-pulse"
+                          }`}
+                        />
+                        <span className="absolute inset-1 rounded-md border border-primary/20" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">
+                          {isGeneratingCurrentChat ? "判定进行中" : "等待行动判定"}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          {isGeneratingCurrentChat
+                            ? "主持人正在判断风险、调用骰子或整理结果。"
+                            : "玩家选择行动后，风险动作会触发骰子判定。"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </section>
+            )}
+          </div>
+        </aside>
       </div>
 
-      <ImagePromptDialog
+      <Dialog
         open={!!imagePromptEditTarget}
         onOpenChange={(open) => {
           if (!open) closeImagePromptEditor();
         }}
-        draft={imagePromptDraft}
-        onDraftChange={setImagePromptDraft}
-        onCancel={closeImagePromptEditor}
-        onSave={() => void saveImagePromptEdit(false)}
-        onSaveAndRegenerate={() => void saveImagePromptEdit(true)}
-      />
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>修改图片提示词</DialogTitle>
+            <DialogDescription>保存后会更新这张图片的提示词；也可以直接保存并重新生成。</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={imagePromptDraft}
+            onChange={(event: React.ChangeEvent<HTMLTextAreaElement>) => setImagePromptDraft(event.target.value)}
+            rows={8}
+            className="font-mono text-xs"
+            placeholder="English image prompt..."
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={closeImagePromptEditor}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void saveImagePromptEdit(false)}
+              disabled={!imagePromptDraft.trim()}
+            >
+              保存提示词
+            </Button>
+            <Button onClick={() => void saveImagePromptEdit(true)} disabled={!imagePromptDraft.trim()}>
+              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              保存并重新生成
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <PromptDialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen} previewText={previewText} />
+      <Dialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Full Prompt</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh]">
+            <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground">
+              {previewText || "(no prompt data)"}
+            </pre>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPromptDialogOpen(false)}>
+              Close
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(previewText);
+                toast("success", "Copied");
+              }}
+            >
+              <Copy className="h-3.5 w-3.5 mr-1" />
+              Copy Prompt
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <SaveDialog
-        open={saveDialogOpen}
-        onOpenChange={(open) => (open ? setSaveDialogOpen(true) : closeSaveDialog())}
-        savepointName={savepointName}
-        onSavepointNameChange={setSavepointName}
-        isSaving={savingSavepoint}
-        hasCurrentChat={!!currentChat}
-        onSave={handleCreateSavepoint}
-        onCancel={closeSaveDialog}
-      />
+      <Dialog open={saveDialogOpen} onOpenChange={(open) => (open ? setSaveDialogOpen(true) : closeSaveDialog())}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>创建存档点</DialogTitle>
+            <DialogDescription>保存当前聊天的消息快照。名字可以留空，系统会自动生成。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              value={savepointName}
+              onChange={(event) => setSavepointName(event.target.value)}
+              placeholder={createDefaultSavepointName()}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeSaveDialog}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateSavepoint} disabled={savingSavepoint || !currentChat}>
+              {savingSavepoint ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <LoadDialog
-        open={loadDialogOpen}
-        onOpenChange={setLoadDialogOpen}
-        savepoints={savepoints}
-        isLoading={loadingSavepoints}
-        isGenerating={isGeneratingCurrentChat}
-        restoringSavepointId={restoringSavepointId}
-        onRestore={handleRestoreSavepoint}
-        onDelete={handleDeleteSavepoint}
-        onRefresh={refreshSavepoints}
-      />
+      <Dialog open={loadDialogOpen} onOpenChange={setLoadDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>加载存档</DialogTitle>
+            <DialogDescription>加载后会用存档内容替换当前聊天消息。</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[48vh] space-y-2 overflow-y-auto pr-1">
+            {loadingSavepoints && <p className="py-6 text-center text-sm text-muted-foreground">Loading...</p>}
+            {!loadingSavepoints && savepoints.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">还没有存档点。</p>
+            )}
+            {!loadingSavepoints &&
+              savepoints.map((savepoint) => (
+                <div key={savepoint.id} className="flex items-center gap-3 rounded-lg border bg-card/60 p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{savepoint.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatSavepointDate(savepoint.createdAt)} · {savepoint.messageCount} messages
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRestoreSavepoint(savepoint)}
+                    disabled={!!restoringSavepointId || isGeneratingCurrentChat}
+                  >
+                    {restoringSavepointId === savepoint.id ? "Loading..." : "加载"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDeleteSavepoint(savepoint.id)}
+                    disabled={!!restoringSavepointId}
+                    title="删除存档"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLoadDialogOpen(false)}>
+              Close
+            </Button>
+            <Button variant="outline" onClick={refreshSavepoints} disabled={loadingSavepoints || !currentChat}>
+              Refresh
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <TokenDialog
-        open={tokenDialogOpen}
-        onOpenChange={setTokenDialogOpen}
-        tokenUsageView={tokenUsageView}
-        onTokenUsageViewChange={setTokenUsageView}
-        rows={tokenDialogRows}
-        totals={tokenDialogTotals}
-        secondaryUsageRecordsCount={secondaryUsageRecords.length}
-        contextUsageTitle={contextUsageTitle}
-        contextUsageTone={contextUsageTone}
-        contextUsageDisplay={contextUsageDisplay}
-      />
+      <Dialog open={tokenDialogOpen} onOpenChange={setTokenDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Token Usage &amp; Cache Hit
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 rounded-md border bg-background p-1">
+            <button
+              type="button"
+              onClick={() => setTokenUsageView("main")}
+              className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${tokenUsageView === "main" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Main API
+            </button>
+            <button
+              type="button"
+              onClick={() => setTokenUsageView("secondary")}
+              className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${tokenUsageView === "secondary" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Secondary API
+            </button>
+          </div>
+          <div className="overflow-y-auto max-h-[60vh]">
+            {tokenDialogRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                {tokenUsageView === "main"
+                  ? "No main API usage data yet. Send a message to see stats."
+                  : "No secondary API usage data yet. It appears after memory compression or image planning uses a secondary model."}
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-4">
+                  <div
+                    className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
+                    title={tokenDialogTotals.prompt.toLocaleString()}
+                  >
+                    <p className="text-lg font-bold tabular-nums leading-tight truncate">
+                      {formatCompactToken(tokenDialogTotals.prompt)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Prompt</p>
+                  </div>
+                  <div
+                    className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
+                    title={tokenDialogTotals.completion.toLocaleString()}
+                  >
+                    <p className="text-lg font-bold tabular-nums leading-tight truncate">
+                      {formatCompactToken(tokenDialogTotals.completion)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Completion</p>
+                  </div>
+                  <div
+                    className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
+                    title={(tokenDialogTotals.prompt + tokenDialogTotals.completion).toLocaleString()}
+                  >
+                    <p className="text-lg font-bold tabular-nums leading-tight truncate">
+                      {formatCompactToken(tokenDialogTotals.prompt + tokenDialogTotals.completion)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Total</p>
+                  </div>
+                  <div
+                    className="min-w-0 bg-emerald-500/10 rounded-lg p-3 text-center"
+                    title={tokenDialogTotals.cacheHit.toLocaleString()}
+                  >
+                    <p className="text-lg font-bold tabular-nums leading-tight truncate text-emerald-600">
+                      {formatCompactToken(tokenDialogTotals.cacheHit)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Cache Hit</p>
+                  </div>
+                  <div
+                    className="min-w-0 bg-blue-500/10 rounded-lg p-3 text-center"
+                    title={`${tokenDialogTotals.cacheRate}%`}
+                  >
+                    <p className="text-lg font-bold tabular-nums leading-tight truncate text-blue-600">
+                      {tokenDialogTotals.cacheRate}%
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Hit Rate</p>
+                  </div>
+                  <div
+                    className="min-w-0 bg-purple-500/10 rounded-lg p-3 text-center"
+                    title={
+                      tokenUsageView === "main"
+                        ? contextUsageTitle
+                        : `${secondaryUsageRecords.length} secondary API calls`
+                    }
+                  >
+                    <p
+                      className={`text-lg font-bold tabular-nums leading-tight truncate ${tokenUsageView === "main" ? contextUsageTone : "text-purple-600"}`}
+                    >
+                      {tokenUsageView === "main" ? contextUsageDisplay : secondaryUsageRecords.length.toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {tokenUsageView === "main" ? "1M Context" : "Calls"}
+                    </p>
+                  </div>
+                  <div
+                    className="min-w-0 bg-amber-500/10 rounded-lg p-3 text-center"
+                    title={formatCnyExact(tokenDialogTotals.costCny)}
+                  >
+                    <p className="text-lg font-bold tabular-nums leading-tight truncate text-amber-600">
+                      {formatCnyCost(tokenDialogTotals.costCny)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">Cost (RMB)</p>
+                  </div>
+                </div>
+                {tokenDialogTotals.cacheRate === "-" && (
+                  <p className="text-xs text-muted-foreground mb-2 px-1">
+                    ⚠ Cache hit data unavailable — your API may not support prompt caching (Ollama/vLLM most instances
+                    do not). Supported by DeepSeek, OpenAI recent models, Anthropic.
+                  </p>
+                )}
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-muted">
+                        <th className="text-left p-2">{tokenUsageView === "main" ? "Round" : "Call"}</th>
+                        {tokenUsageView === "secondary" && <th className="text-left p-2">Model</th>}
+                        <th className="text-right p-2">Prompt</th>
+                        <th className="text-right p-2">Completion</th>
+                        <th className="text-right p-2">Total</th>
+                        <th className="text-right p-2">🔥 Hit</th>
+                        <th className="text-right p-2">📉 Miss</th>
+                        <th className="text-right p-2">Rate</th>
+                        <th className="text-right p-2">Cost (RMB)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tokenDialogRows.map((row) => {
+                        const p = row.usage?.promptTokens || 0;
+                        const c = row.usage?.completionTokens || 0;
+                        const t = row.usage?.totalTokens || 0;
+                        const h = row.usage?.cacheHitTokens || 0;
+                        const ms = row.usage?.cacheMissTokens ?? p - h;
+                        const r = p > 0 ? ((h / p) * 100).toFixed(1) : "-";
+                        const cost = row.usage?.costCny;
+                        return (
+                          <tr key={row.id} className="border-t">
+                            <td
+                              className="p-2 text-muted-foreground"
+                              title={row.debugPromptPath || row.debugPromptFilename || undefined}
+                            >
+                              <div>{row.label}</div>
+                              {tokenUsageView === "main" && row.debugTrigger && (
+                                <div className="text-[10px] leading-tight">
+                                  {row.debugTrigger === "retry" && row.debugBaseTrigger
+                                    ? `${row.debugBaseTrigger}->retry`
+                                    : row.debugTrigger}
+                                  {row.debugAttempt && row.debugAttempt > 1 ? ` a${row.debugAttempt}` : ""}
+                                </div>
+                              )}
+                            </td>
+                            {tokenUsageView === "secondary" && (
+                              <td className="p-2 text-muted-foreground">{row.model || "-"}</td>
+                            )}
+                            <td className="p-2 text-right">{p.toLocaleString()}</td>
+                            <td className="p-2 text-right">{c.toLocaleString()}</td>
+                            <td className="p-2 text-right">{t.toLocaleString()}</td>
+                            <td className="p-2 text-right text-emerald-600">{h > 0 ? h.toLocaleString() : "-"}</td>
+                            <td className="p-2 text-right text-orange-500">{ms > 0 ? ms.toLocaleString() : "-"}</td>
+                            <td className="p-2 text-right">
+                              {r}
+                              {r !== "-" ? "%" : ""}
+                            </td>
+                            <td
+                              className="p-2 text-right tabular-nums"
+                              title={
+                                [row.usage?.costPricingName || row.usage?.costModel, formatCnyExact(cost)]
+                                  .filter(Boolean)
+                                  .join(" · ") || undefined
+                              }
+                            >
+                              {formatCnyCost(cost)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTokenDialogOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <DeleteMessageDialog
-        open={!!deleteMsgTarget}
-        onOpenChange={() => setDeleteMsgTarget(null)}
-        onDelete={handleDeleteMessage}
-      />
+      <Dialog open={!!deleteMsgTarget} onOpenChange={() => setDeleteMsgTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Message</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete this message? If it's a user message followed by an AI reply, the AI reply will also be deleted.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteMsgTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteMessage}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <ThinkingDialog
-        open={!!thinkingMsg}
-        onOpenChange={() => setThinkingMsg(null)}
-        reasoningContent={thinkingMsg?.reasoningContent || ""}
-      />
+      <Dialog open={!!thinkingMsg} onOpenChange={() => setThinkingMsg(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-purple-400" />
+              创作过程
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto max-h-[60vh]">
+            <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground bg-muted/40 p-4 rounded-lg">
+              {thinkingMsg?.reasoningContent || "(暂无创作过程数据)"}
+            </pre>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setThinkingMsg(null)}>
+              Close
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                navigator.clipboard.writeText(thinkingMsg?.reasoningContent || "");
+                toast("success", "Copied");
+              }}
+            >
+              <Copy className="h-3.5 w-3.5 mr-1" />
+              Copy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

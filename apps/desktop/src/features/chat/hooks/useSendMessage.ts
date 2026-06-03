@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useChatStore } from "../chat.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import {
+  agenticPlayStateRepository,
   chatMemoryRepository,
   presetRepository,
   secondaryApiUsageRepository,
@@ -29,6 +30,12 @@ import { recordUsageCostAndWarn } from "@/features/billing/usage-cost";
 import { withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
 import { getChatScopedDeepSeekUserId, shouldOmitTemperatureForModel } from "@/features/settings/model-capabilities";
 import {
+  buildAgenticPlayPresetItems,
+  createAgenticPlayContextBlock,
+  generateAgenticPlayTurn,
+  type AgenticGameState,
+} from "@/features/agentic-play/agentic-play";
+import {
   applyRegexRules,
   buildChatPrompt,
   createModelProvider,
@@ -44,6 +51,8 @@ import { useWorldbookStore } from "@/features/settings/worldbook.store";
 interface UseSendMessageOptions {
   character: Character | undefined;
   chatId: string | undefined;
+  agenticPlayEnabled?: boolean;
+  onAgenticPlayStateUpdated?: (state: AgenticGameState) => void;
   onPromptBuilt?: (built: BuiltPrompt) => void;
 }
 
@@ -426,7 +435,13 @@ async function saveDebugPromptFile(
   };
 }
 
-export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMessageOptions): UseSendMessageReturn {
+export function useSendMessage({
+  character,
+  chatId,
+  agenticPlayEnabled = false,
+  onAgenticPlayStateUpdated,
+  onPromptBuilt,
+}: UseSendMessageOptions): UseSendMessageReturn {
   const [errors, setErrors] = useState<Record<string, string | null>>({});
   const addMessage = useChatStore((s) => s.addMessage);
   const patchMessage = useChatStore((s) => s.patchMessage);
@@ -502,8 +517,10 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
 
   const getWorldbookContextBlocks = async (userInput: string, recentMessages: Message[]) => {
     const { worldbooks, activeWorldbookId } = useWorldbookStore.getState();
-    if (!activeWorldbookId || !character) return [];
-    const wb = worldbooks.find((w) => w.id === activeWorldbookId);
+    if (!character) return [];
+    const worldbookId = character.worldbookId || activeWorldbookId;
+    if (!worldbookId) return [];
+    const wb = worldbooks.find((w) => w.id === worldbookId);
     if (!wb || wb.entries.length === 0) return [];
     const contributor = new WorldbookContributor();
     contributor.setEntries(wb.entries);
@@ -519,9 +536,10 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
     if (!imageSettings.worldbookReferenceEnabled || !character) return [];
 
     const { worldbooks, activeWorldbookId } = useWorldbookStore.getState();
-    if (!activeWorldbookId) return [];
+    const worldbookId = character.worldbookId || activeWorldbookId;
+    if (!worldbookId) return [];
 
-    const wb = worldbooks.find((w) => w.id === activeWorldbookId);
+    const wb = worldbooks.find((w) => w.id === worldbookId);
     if (!wb || wb.entries.length === 0) return [];
 
     const contributor = new WorldbookContributor();
@@ -858,6 +876,201 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
     return "";
   };
 
+  const generateAgenticAssistantOnce = async (
+    targetChatId: string,
+    assistantId: string,
+    built: BuiltPrompt,
+    modelConfig: ModelConfig,
+    initialGameState: AgenticGameState,
+    controller: AbortController,
+    generationId: string,
+    retrying: boolean,
+    attempt: number,
+    debugContext?: DebugPromptContext,
+  ): Promise<{
+    content: string;
+    reasoningContent: string;
+    usage?: Message["usage"];
+    generateDuration: number;
+    thinkingDuration: number;
+    gameState: AgenticGameState;
+  }> => {
+    const provider = createModelProvider(modelConfig);
+    const genStart = Date.now();
+    const userId = getChatScopedDeepSeekUserId(modelConfig, targetChatId);
+    let nextContent = "";
+    let nextReasoningContent = "";
+    let thinkingDuration: number | undefined;
+    const showLiveText = modelConfig.streamingEnabled !== false;
+    let debugPrompt: SavedDebugPrompt | undefined;
+
+    if (debugContext) {
+      try {
+        debugPrompt = await saveDebugPromptFile(
+          debugContext,
+          built,
+          getAttemptMessages(built, retrying),
+          retrying ? "retry" : debugContext.baseTrigger,
+          attempt,
+          userId,
+        );
+      } catch (err) {
+        notifyDebugPromptSaveFailed(err);
+      }
+    }
+
+    setGenerationPhase(targetChatId, retrying ? "retrying" : "thinking");
+    await patchMessage(
+      assistantId,
+      {
+        content: "",
+        reasoningContent: undefined,
+        generateDuration: undefined,
+        thinkingDuration: undefined,
+        usage: undefined,
+      },
+      { persist: false },
+    );
+
+    const result = await generateAgenticPlayTurn({
+      provider,
+      modelConfig,
+      builtPrompt: {
+        ...built,
+        messages: getAttemptMessages(built, retrying),
+      },
+      character: character!,
+      gameState: initialGameState,
+      userId,
+      signal: controller.signal,
+      onToolRound: () => {
+        setGenerationPhase(targetChatId, retrying ? "retrying" : "thinking");
+      },
+      onFinalRound: () => {
+        setGenerationPhase(targetChatId, "writing");
+      },
+      onContentDelta: async (delta) => {
+        if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+        thinkingDuration ??= Date.now() - genStart;
+        nextContent += delta;
+        setGenerationPhase(targetChatId, "writing");
+        await patchMessage(
+          assistantId,
+          {
+            content: showLiveText ? nextContent : "",
+            reasoningContent: nextReasoningContent || undefined,
+            thinkingDuration,
+          },
+          { persist: false },
+        );
+      },
+      onReasoningDelta: async (delta) => {
+        if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+        nextReasoningContent += delta;
+        await patchMessage(
+          assistantId,
+          {
+            content: showLiveText ? nextContent : "",
+            reasoningContent: nextReasoningContent || undefined,
+            thinkingDuration,
+          },
+          { persist: false },
+        );
+      },
+      onContentReset: async () => {
+        nextContent = "";
+        await patchMessage(
+          assistantId,
+          {
+            content: "",
+            reasoningContent: nextReasoningContent || undefined,
+            thinkingDuration,
+          },
+          { persist: false },
+        );
+      },
+    });
+
+    if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+
+    thinkingDuration ??= Date.now() - genStart;
+    const usage = withDebugUsage(withDeepSeekUsageCost(result.usage, modelConfig), debugPrompt);
+    return {
+      content: result.content,
+      reasoningContent: result.reasoningContent ?? nextReasoningContent,
+      usage,
+      generateDuration: Date.now() - genStart,
+      thinkingDuration,
+      gameState: result.gameState,
+    };
+  };
+
+  const generateAgenticAssistantWithEmptyRetry = async (
+    targetChatId: string,
+    assistantId: string,
+    built: BuiltPrompt,
+    modelConfig: ModelConfig,
+    initialGameState: AgenticGameState,
+    controller: AbortController,
+    generationId: string,
+    debugContext?: DebugPromptContext,
+  ): Promise<string> => {
+    let currentState = initialGameState;
+    for (let attempt = 0; attempt <= EMPTY_ASSISTANT_RETRY_LIMIT; attempt++) {
+      const attemptNumber = attempt + 1;
+      const result = await generateAgenticAssistantOnce(
+        targetChatId,
+        assistantId,
+        built,
+        modelConfig,
+        currentState,
+        controller,
+        generationId,
+        attempt > 0,
+        attemptNumber,
+        debugContext,
+      );
+      currentState = result.gameState;
+      void recordUsageCostAndWarn(result.usage);
+
+      if (hasVisibleAssistantBody(result.content)) {
+        if (character) {
+          await agenticPlayStateRepository.updateState(targetChatId, character, result.gameState);
+          onAgenticPlayStateUpdated?.(result.gameState);
+        }
+        await patchMessage(assistantId, {
+          content: result.content,
+          reasoningContent: result.reasoningContent || undefined,
+          generateDuration: result.generateDuration,
+          thinkingDuration: result.thinkingDuration,
+          usage: result.usage,
+        });
+        return result.content;
+      }
+
+      if (attempt < EMPTY_ASSISTANT_RETRY_LIMIT) {
+        setGenerationPhase(targetChatId, "retrying");
+        await patchMessage(
+          assistantId,
+          {
+            content: "",
+            reasoningContent: undefined,
+            generateDuration: undefined,
+            thinkingDuration: result.thinkingDuration,
+            usage: result.usage,
+          },
+          { persist: false },
+        );
+        continue;
+      }
+
+      await deleteMessage(assistantId);
+      setStreamingMessageId(targetChatId, null);
+      throw new Error("Agentic Play returned an empty body after automatic retry.");
+    }
+    return "";
+  };
+
   const processImageGeneration = async (targetChatId: string, assistantId: string, content: string) => {
     const settings = normalizeImageSettings(useSettingsStore.getState().imageGeneration);
     if (!settings.enabled || settings.mode !== "auto" || settings.maxImages <= 0 || !settings.comfyWorkflowJson.trim())
@@ -988,14 +1201,20 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
         const historyMessages = options.hiddenUserMessage ? recentMessages : recentMessages.slice(0, -1);
         const memoryPlan = await getMemoryPromptPlan(historyMessages, chatId, controller.signal);
         const worldbookBlocks = await getWorldbookContextBlocks(trimmedContent, stripMessages(recentMessages));
-        const contextBlocks = [memoryPlan.memoryBlock, ...worldbookBlocks].filter(Boolean) as ContextBlock[];
+        const agenticRecord =
+          agenticPlayEnabled && character
+            ? await agenticPlayStateRepository.getOrCreate(chatId, character, true)
+            : null;
+        const agenticBlock = agenticRecord ? createAgenticPlayContextBlock(agenticRecord.gameState) : null;
+        const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(Boolean) as ContextBlock[];
+        const effectivePresetItems = agenticRecord ? buildAgenticPlayPresetItems(character.name) : presetItems;
 
         const built = buildChatPrompt({
           character,
           recentMessages: stripMessages(memoryPlan.recentMessages) as Message[],
           userInput: trimmedContent,
           maxTotalTokens: contextTokens,
-          presetItems,
+          presetItems: effectivePresetItems,
           contextBlocks,
           userName: useSettingsStore.getState().personaName,
         });
@@ -1028,15 +1247,27 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
               hiddenUserMessage: !!options.hiddenUserMessage,
             }
           : undefined;
-        const finalContent = await generateAssistantWithEmptyRetry(
-          chatId,
-          assistant.id,
-          built,
-          modelConfig,
-          controller,
-          generationId,
-          debugContext,
-        );
+        const finalContent =
+          agenticRecord && agenticPlayEnabled
+            ? await generateAgenticAssistantWithEmptyRetry(
+                chatId,
+                assistant.id,
+                built,
+                modelConfig,
+                agenticRecord.gameState,
+                controller,
+                generationId,
+                debugContext,
+              )
+            : await generateAssistantWithEmptyRetry(
+                chatId,
+                assistant.id,
+                built,
+                modelConfig,
+                controller,
+                generationId,
+                debugContext,
+              );
         if (isGenerationActive(chatId, generationId)) {
           void notifyAssistantOutputComplete(character.name);
         }
@@ -1052,7 +1283,17 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
         finishGeneration(generationId, chatId);
       }
     },
-    [character, chatId, addMessage, patchMessage, deleteMessage, ensureMessagesHydrated, onPromptBuilt],
+    [
+      character,
+      chatId,
+      addMessage,
+      patchMessage,
+      deleteMessage,
+      ensureMessagesHydrated,
+      agenticPlayEnabled,
+      onAgenticPlayStateUpdated,
+      onPromptBuilt,
+    ],
   );
 
   const clearError = useCallback(() => setChatError(chatId, null), [chatId, setChatError]);
@@ -1108,14 +1349,18 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
       const historyMessages = afterDelete.slice(0, -1);
       const memoryPlan = await getMemoryPromptPlan(historyMessages, chatId, controller.signal);
       const worldbookBlocks = await getWorldbookContextBlocks(userContent, stripMessages(afterDelete));
-      const contextBlocks = [memoryPlan.memoryBlock, ...worldbookBlocks].filter(Boolean) as ContextBlock[];
+      const agenticRecord =
+        agenticPlayEnabled && character ? await agenticPlayStateRepository.getOrCreate(chatId, character, true) : null;
+      const agenticBlock = agenticRecord ? createAgenticPlayContextBlock(agenticRecord.gameState) : null;
+      const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(Boolean) as ContextBlock[];
+      const effectivePresetItems = agenticRecord ? buildAgenticPlayPresetItems(character.name) : presetItems;
 
       const built = buildChatPrompt({
         character,
         recentMessages: stripMessages(memoryPlan.recentMessages) as Message[],
         userInput: userContent,
         maxTotalTokens: contextTokens,
-        presetItems,
+        presetItems: effectivePresetItems,
         contextBlocks,
         userName: useSettingsStore.getState().personaName,
       });
@@ -1144,15 +1389,27 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
             hiddenUserMessage: false,
           }
         : undefined;
-      const finalContent = await generateAssistantWithEmptyRetry(
-        chatId,
-        assistant.id,
-        built,
-        modelConfig,
-        controller,
-        generationId,
-        debugContext,
-      );
+      const finalContent =
+        agenticRecord && agenticPlayEnabled
+          ? await generateAgenticAssistantWithEmptyRetry(
+              chatId,
+              assistant.id,
+              built,
+              modelConfig,
+              agenticRecord.gameState,
+              controller,
+              generationId,
+              debugContext,
+            )
+          : await generateAssistantWithEmptyRetry(
+              chatId,
+              assistant.id,
+              built,
+              modelConfig,
+              controller,
+              generationId,
+              debugContext,
+            );
       if (isGenerationActive(chatId, generationId)) {
         void notifyAssistantOutputComplete(character.name);
       }
@@ -1167,7 +1424,17 @@ export function useSendMessage({ character, chatId, onPromptBuilt }: UseSendMess
     } finally {
       finishGeneration(generationId, chatId);
     }
-  }, [character, chatId, addMessage, patchMessage, deleteMessage, ensureMessagesHydrated, onPromptBuilt]);
+  }, [
+    character,
+    chatId,
+    addMessage,
+    patchMessage,
+    deleteMessage,
+    ensureMessagesHydrated,
+    agenticPlayEnabled,
+    onAgenticPlayStateUpdated,
+    onPromptBuilt,
+  ]);
 
   return {
     sendMessage,

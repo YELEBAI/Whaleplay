@@ -6,7 +6,7 @@ export type PromptMessageRole = 'system' | 'user' | 'assistant'
 
 export interface ContextBlock {
   id: string
-  source: 'character' | 'worldbook' | 'memory' | 'persona' | 'system' | 'safety'
+  source: 'character' | 'worldbook' | 'memory' | 'agentic' | 'persona' | 'system' | 'safety'
   title: string
   content: string
   priority: number

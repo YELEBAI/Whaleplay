@@ -6,6 +6,7 @@ export { settingsRepository } from "./settings.repository";
 export { presetRepository } from "./preset.repository";
 export { worldbookRepository } from "./worldbook.repository";
 export { chatSavepointRepository, createDefaultSavepointName, type ChatSavepoint } from "./chat-savepoint.repository";
+export { agenticPlayStateRepository, type AgenticPlayStateRecord } from "./agentic-play-state.repository";
 export {
   secondaryApiUsageRepository,
   type SecondaryApiUsageRecord,

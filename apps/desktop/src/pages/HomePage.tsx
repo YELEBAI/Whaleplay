@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Save, Settings, Trash2 } from "lucide-react";
+import { Dice5, MessageCircle, Plus, Save, Settings, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -16,7 +16,12 @@ import {
 } from "@neo-tavern/ui";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useChatStore } from "@/features/chat/chat.store";
-import { chatSavepointRepository, createDefaultSavepointName, messageRepository } from "@/db/repositories";
+import {
+  agenticPlayStateRepository,
+  chatSavepointRepository,
+  createDefaultSavepointName,
+  messageRepository,
+} from "@/db/repositories";
 import type { Character, Chat } from "@neo-tavern/shared";
 import { CharacterAvatarTile } from "@/components";
 import { toast } from "@/utils/toast";
@@ -28,9 +33,11 @@ type HomeContextMenu =
 export function HomePage() {
   const navigate = useNavigate();
   const { characters, loading: charsLoading, loadCharacters } = useCharacterStore();
-  const { chats, loading: chatsLoading, loadChats, deleteChat } = useChatStore();
+  const { chats, loading: chatsLoading, loadChats, deleteChat, createOrGetChat } = useChatStore();
   const [deleteTarget, setDeleteTarget] = useState<Chat | null>(null);
   const [saveTarget, setSaveTarget] = useState<Chat | null>(null);
+  const [modeTarget, setModeTarget] = useState<Character | null>(null);
+  const [creatingMode, setCreatingMode] = useState<"normal" | "agentic" | null>(null);
   const [savepointName, setSavepointName] = useState("");
   const [savingSavepoint, setSavingSavepoint] = useState(false);
   const [contextMenu, setContextMenu] = useState<HomeContextMenu | null>(null);
@@ -66,7 +73,23 @@ export function HomePage() {
     if (existingChat) {
       navigate(`/chat/${existingChat.id}`);
     } else {
-      navigate(`/chat/new?characterId=${characterId}`);
+      const character = charactersById.get(characterId);
+      if (character) setModeTarget(character);
+    }
+  };
+
+  const handleCreateChatWithMode = async (mode: "normal" | "agentic") => {
+    if (!modeTarget) return;
+    setCreatingMode(mode);
+    try {
+      const chat = await createOrGetChat({ characterId: modeTarget.id, title: modeTarget.name });
+      await agenticPlayStateRepository.setEnabled(chat.id, modeTarget, mode === "agentic");
+      setModeTarget(null);
+      navigate(`/chat/${chat.id}`);
+    } catch (err) {
+      toast("error", (err as Error).message || "创建会话失败");
+    } finally {
+      setCreatingMode(null);
     }
   };
 
@@ -305,6 +328,51 @@ export function HomePage() {
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!modeTarget}
+        onOpenChange={(open) => {
+          if (!open && !creatingMode) setModeTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>选择会话模式</DialogTitle>
+            <DialogDescription>为 "{modeTarget?.name}" 创建一个新会话。</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={!!creatingMode}
+              onClick={() => void handleCreateChatWithMode("normal")}
+              className="rounded-md border bg-card p-4 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <div className="flex items-center gap-2 font-medium">
+                <MessageCircle className="h-4 w-4" />
+                普通模式
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">角色按当前角色卡直接对话。</p>
+            </button>
+            <button
+              type="button"
+              disabled={!!creatingMode}
+              onClick={() => void handleCreateChatWithMode("agentic")}
+              className="rounded-md border bg-card p-4 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <div className="flex items-center gap-2 font-medium">
+                <Dice5 className="h-4 w-4" />
+                实验模式
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">主持人推进场景、判定风险并维护状态。</p>
+            </button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModeTarget(null)} disabled={!!creatingMode}>
+              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
