@@ -23,7 +23,7 @@ function formatChatTime(value: string) {
 
 export function ChatSidebar({ chats, characters, currentChatId, onBack, onSelectChat }: ChatSidebarProps) {
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
+    <aside className="app-sidebar-gradient flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border">
       <div className="shrink-0 border-b p-3">
         <button
           onClick={onBack}

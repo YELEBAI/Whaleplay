@@ -26,31 +26,49 @@
   --scrollbar-track: 0 0% 96.1%;
   --scrollbar-thumb: 0 0% 72%;
   --scrollbar-thumb-hover: 0 0% 58%;
+  --rail-gradient-from: 0 0% 100%;
+  --rail-gradient-mid: 210 20% 98%;
+  --rail-gradient-to: 210 22% 94%;
+  --rail-border: 210 18% 86%;
+  --sidebar-gradient-from: 0 0% 100%;
+  --sidebar-gradient-mid: 210 24% 97%;
+  --sidebar-gradient-to: 210 26% 93%;
+  --sidebar-border: 210 18% 84%;
+  --panel-shadow: 215 28% 12%;
 }
 
 :root.dark {
-  --background: 0 0% 3.9%;
+  --background: 220 10% 4.5%;
   --foreground: 0 0% 98%;
-  --card: 0 0% 3.9%;
+  --card: 220 10% 5.5%;
   --card-foreground: 0 0% 98%;
-  --popover: 0 0% 3.9%;
+  --popover: 220 10% 5.5%;
   --popover-foreground: 0 0% 98%;
   --primary: 0 0% 98%;
   --primary-foreground: 0 0% 9%;
-  --secondary: 0 0% 14.9%;
+  --secondary: 220 8% 14.5%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 0 0% 14.9%;
+  --muted: 220 8% 14.5%;
   --muted-foreground: 0 0% 63.9%;
-  --accent: 0 0% 14.9%;
+  --accent: 220 8% 15.5%;
   --accent-foreground: 0 0% 98%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
-  --border: 0 0% 14.9%;
-  --input: 0 0% 14.9%;
+  --border: 220 8% 15.5%;
+  --input: 220 8% 15.5%;
   --ring: 0 0% 83.1%;
   --scrollbar-track: 0 0% 7%;
   --scrollbar-thumb: 0 0% 28%;
   --scrollbar-thumb-hover: 0 0% 42%;
+  --rail-gradient-from: 220 12% 8.5%;
+  --rail-gradient-mid: 220 12% 6.2%;
+  --rail-gradient-to: 220 14% 3.8%;
+  --rail-border: 220 10% 14%;
+  --sidebar-gradient-from: 220 12% 7.8%;
+  --sidebar-gradient-mid: 220 12% 5.6%;
+  --sidebar-gradient-to: 220 15% 3.5%;
+  --sidebar-border: 220 10% 14%;
+  --panel-shadow: 0 0% 0%;
 }
 
 :root.sepia {
@@ -76,6 +94,49 @@
   --scrollbar-track: 42 45% 84%;
   --scrollbar-thumb: 33 24% 57%;
   --scrollbar-thumb-hover: 31 24% 45%;
+  --rail-gradient-from: 42 52% 91%;
+  --rail-gradient-mid: 42 48% 86%;
+  --rail-gradient-to: 39 36% 78%;
+  --rail-border: 35 26% 66%;
+  --sidebar-gradient-from: 42 52% 92%;
+  --sidebar-gradient-mid: 42 46% 86%;
+  --sidebar-gradient-to: 39 34% 78%;
+  --sidebar-border: 35 26% 66%;
+  --panel-shadow: 30 18% 34%;
+}
+
+:root.blue {
+  --background: 213 43% 9%;
+  --foreground: 205 46% 94%;
+  --card: 213 38% 11%;
+  --card-foreground: 205 46% 94%;
+  --popover: 213 38% 11%;
+  --popover-foreground: 205 46% 94%;
+  --primary: 193 68% 67%;
+  --primary-foreground: 214 48% 9%;
+  --secondary: 212 32% 17%;
+  --secondary-foreground: 205 46% 93%;
+  --muted: 212 28% 18%;
+  --muted-foreground: 205 20% 70%;
+  --accent: 199 46% 22%;
+  --accent-foreground: 198 58% 91%;
+  --destructive: 0 58% 42%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 208 28% 24%;
+  --input: 208 28% 24%;
+  --ring: 193 62% 65%;
+  --scrollbar-track: 213 38% 12%;
+  --scrollbar-thumb: 198 30% 34%;
+  --scrollbar-thumb-hover: 196 38% 44%;
+  --rail-gradient-from: 210 34% 17%;
+  --rail-gradient-mid: 212 40% 12%;
+  --rail-gradient-to: 216 48% 7%;
+  --rail-border: 204 28% 22%;
+  --sidebar-gradient-from: 210 36% 15%;
+  --sidebar-gradient-mid: 213 42% 10.5%;
+  --sidebar-gradient-to: 216 50% 6.5%;
+  --sidebar-border: 204 28% 22%;
+  --panel-shadow: 210 52% 5%;
 }
 
 * {
@@ -224,6 +285,10 @@
   :root.sepia {
     color-scheme: light;
   }
+
+  :root.blue {
+    color-scheme: dark;
+  }
 }
 
 .animate-delay-0 {
@@ -241,4 +306,25 @@
   .setting-row { @apply flex items-center justify-between gap-4 rounded-md border px-3 py-3; }
   .card-title-row { @apply flex items-center gap-2; }
   .chat-grid-cell { @apply min-h-0 min-w-0 overflow-hidden; }
+  .app-rail {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--rail-gradient-from)) 0%,
+      hsl(var(--rail-gradient-mid)) 46%,
+      hsl(var(--rail-gradient-to)) 100%
+    );
+    border-color: hsl(var(--rail-border) / 0.82);
+    box-shadow: inset -1px 0 0 hsl(var(--foreground) / 0.03);
+  }
+  .app-sidebar-gradient {
+    background:
+      linear-gradient(
+        90deg,
+        hsl(var(--sidebar-gradient-from)) 0%,
+        hsl(var(--sidebar-gradient-mid)) 50%,
+        hsl(var(--sidebar-gradient-to)) 100%
+      );
+    border-color: hsl(var(--sidebar-border) / 0.86);
+    box-shadow: 0 12px 34px hsl(var(--panel-shadow) / 0.18);
+  }
 }

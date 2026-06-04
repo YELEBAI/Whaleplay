@@ -1,4 +1,4 @@
-import { Sun, Moon, Eye, Monitor, CheckCircle2 } from "lucide-react";
+import { Sun, Moon, Eye, Monitor, CheckCircle2, Waves } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@neo-tavern/ui";
 import { useThemeStore, type Theme } from "@/app/theme.store";
 
@@ -11,17 +11,20 @@ export function AppearanceSection({ t }: { t: (key: string, params?: Record<stri
     { value: "light" as Theme, icon: Sun, label: t("appearance.light") },
     { value: "dark" as Theme, icon: Moon, label: t("appearance.dark") },
     { value: "sepia" as Theme, icon: Eye, label: t("appearance.eyeCare") },
+    { value: "blue" as Theme, icon: Waves, label: t("appearance.blue") },
     { value: "system" as Theme, icon: Monitor, label: t("appearance.system") },
   ];
 
   const resolvedLabel =
     resolvedTheme === "dark"
       ? t("appearance.dark")
-      : resolvedTheme === "sepia"
-        ? t("appearance.eyeCare")
-        : t("appearance.light");
+      : resolvedTheme === "blue"
+        ? t("appearance.blue")
+        : resolvedTheme === "sepia"
+          ? t("appearance.eyeCare")
+          : t("appearance.light");
 
-  const TitleIcon = resolvedTheme === "dark" ? Moon : resolvedTheme === "sepia" ? Eye : Sun;
+  const TitleIcon = resolvedTheme === "dark" ? Moon : resolvedTheme === "blue" ? Waves : resolvedTheme === "sepia" ? Eye : Sun;
 
   return (
     <Card>
@@ -33,7 +36,7 @@ export function AppearanceSection({ t }: { t: (key: string, params?: Record<stri
         <CardDescription>{t("appearance.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
           {themes.map((th) => (
             <button
               key={th.value}
@@ -55,6 +58,8 @@ export function AppearanceSection({ t }: { t: (key: string, params?: Record<stri
                 ? t("appearance.systemResolved", { resolved: resolvedLabel })
                 : theme === "sepia"
                   ? t("appearance.eyeCare")
+                  : theme === "blue"
+                    ? t("appearance.blue")
                   : theme === "dark"
                     ? t("appearance.dark")
                     : t("appearance.light"),

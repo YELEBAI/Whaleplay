@@ -21,7 +21,7 @@ export function Layout() {
 
   return (
     <div className="flex h-screen bg-background">
-      <aside className="w-16 flex flex-col items-center border-r bg-card py-4 gap-2">
+      <aside className="app-rail w-16 flex flex-col items-center border-r py-4 gap-2">
         {navItems.map((item) => (
           <NavLink
             key={item.to}

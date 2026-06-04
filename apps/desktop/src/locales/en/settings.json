@@ -83,6 +83,7 @@
     "light": "Light",
     "dark": "Dark",
     "eyeCare": "Eye Care",
+    "blue": "Whale Blue",
     "systemResolved": "System ({{resolved}})",
     "language": "Language",
     "languageHint": "Changes take effect immediately.",

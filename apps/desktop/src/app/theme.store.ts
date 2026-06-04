@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { getStorageItem, setStorageItem } from "@/db/storage";
 
-export type Theme = "light" | "dark" | "sepia" | "system";
-export type ResolvedTheme = "light" | "dark" | "sepia";
+export type Theme = "light" | "dark" | "sepia" | "blue" | "system";
+export type ResolvedTheme = "light" | "dark" | "sepia" | "blue";
 
 const STORAGE_KEY = "neotavern_theme";
 
@@ -19,7 +19,8 @@ function applyDOMTheme(t: ResolvedTheme) {
   if (typeof document === "undefined") return;
   document.documentElement.classList.toggle("dark", t === "dark");
   document.documentElement.classList.toggle("sepia", t === "sepia");
-  document.documentElement.style.colorScheme = t === "dark" ? "dark" : "light";
+  document.documentElement.classList.toggle("blue", t === "blue");
+  document.documentElement.style.colorScheme = t === "dark" || t === "blue" ? "dark" : "light";
 }
 
 interface ThemeStore {
@@ -37,7 +38,7 @@ export const useThemeStore = create<ThemeStore>((set) => ({
 
   init: async () => {
     const saved = await getStorageItem(STORAGE_KEY);
-    if (saved === "light" || saved === "dark" || saved === "sepia" || saved === "system") {
+    if (saved === "light" || saved === "dark" || saved === "sepia" || saved === "blue" || saved === "system") {
       const resolved = resolveTheme(saved);
       set({ theme: saved, resolvedTheme: resolved });
       applyDOMTheme(resolved);

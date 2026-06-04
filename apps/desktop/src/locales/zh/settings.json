@@ -82,6 +82,7 @@
     "light": "浅色",
     "dark": "深色",
     "eyeCare": "护眼",
+    "blue": "蓝鲸",
     "systemResolved": "系统（{{resolved}}）",
     "language": "界面语言",
     "languageHint": "切换后立即生效，无需刷新。",
