@@ -1,5 +1,14 @@
 # Whale Play
 
+![Whale Play](apps/desktop/src-tauri/icons/128x128.png)
+
+
+![Tauri 2](https://img.shields.io/badge/Tauri-2-24C8D8?logo=tauri)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript)
+![pnpm](https://img.shields.io/badge/pnpm-workspace-F69220)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Whale Play 是一个面向角色卡创作和角色扮演聊天的桌面应用。它把角色卡、世界书、预设提示词、长上下文聊天、实验性主持人模式和 Whale Builder 创作工作流放在同一个本地客户端里。
 
 项目基于 Tauri v2、React、TypeScript、Vite 和 pnpm workspace 构建，模型接口使用 OpenAI-compatible API，可接入 DeepSeek、OpenAI 兼容服务或其他同协议模型。
@@ -14,56 +23,233 @@ Whale Play 是一个面向角色卡创作和角色扮演聊天的桌面应用。
 - 正则后处理：把模型输出拆成正文、展示块、图片标记、按钮等前端结构，并可控制是否进入下一轮提示词。
 - 用量与调试：显示 token、缓存命中、费用估算、Prompt Preview 和调试 prompt 文件。
 
+## Prompt 注入管线
+
+聊天提示词由 `@neo-tavern/core` 的 `buildChatPrompt` 按以下顺序构建：
+
+```text
+┌─ 1. System Rules（默认或自定义系统规则）
+├─ 2. Preset Items（预设提示词卡片，按 injectionOrder 排序后合并为单条消息）
+├─ 3. Character Block（角色名、描述、性格、场景、示例对话）
+├─ 4. User Persona（用户人设）
+├─ 5. Before-History Context Blocks（position: "beforeHistory"）
+│    └─ 来源：worldbook（前置世界书）、memory（记忆摘要）、safety 等
+├─ 6. Chat History（消息历史，按 token 预算从旧到新裁剪）
+│    ├─ atDepth Context Blocks（position: "atDepth"，插入到指定深度位置）
+│    └─ First Message（新会话开场白，插入到历史末尾）
+├─ 7. After-History Context Blocks（position: "afterHistory"）
+│    └─ 来源：worldbook（召回世界书）、agentic（Agentic Play 状态）
+└─ 8. User Input（当前用户输入）
+```
+
+**Context Block 的来源与注入策略：**
+
+| source              | 含义                  | 典型 position                | priority      |
+| ------------------- | --------------------- | ---------------------------- | ------------- |
+| `character`         | 角色卡信息            | beforeHistory                | 0             |
+| `worldbook`         | 世界书条目            | beforeHistory / afterHistory | 条目 priority |
+| `memory`            | 长期记忆摘要          | beforeHistory                | 低            |
+| `persona`           | 用户人设              | beforeHistory                | -             |
+| `agentic`           | Agentic Play 场景状态 | afterHistory                 | 20000         |
+| `system` / `safety` | 系统安全规则          | beforeHistory                | -             |
+
+**Worldbook 注入流程：**
+
+1. 正则后处理提取本轮 AI 回复的所有 display blocks 文本
+2. 拼接最近若干轮对话的纯文本，用 worldbook 条目 keywords 匹配
+3. 匹配到的条目按 position 分入 beforeHistory / afterHistory
+4. `position: "beforeHistory"` 的条目注入到聊天历史之前（前置世界书）
+5. `position: "afterHistory"` 的条目注入到聊天历史之后、用户输入之前（召回世界书）
+
 ## Agentic Play
 
-Agentic Play 是聊天页里的实验模式。它不使用普通预设组，而是替换为一组专用主持人模块：
+Agentic Play 是聊天页里的实验模式，使用主持人型 prompt。它替换普通预设组，注入专用主持人模块和结构化场景状态。
 
-- `core_rules`
-- `writing_style`
-- `specific_rules`
-- `host_style`
+### Prompt 注入结构
 
-该模式会继续读取角色卡、世界书、记忆和聊天历史，但会额外注入结构化场景状态。模型可使用这些工具：
+Agentic Play 模式通过 `buildAgenticPlayPresetItems` 替换普通预设卡片，注入四个模块：
 
-- `present_player_options`：在剧情断点发起 5 个结构化行动选项，选项显示在输入栏上方，不写进正文。
-- `roll_dice`：根据成功率或难度进行真实骰子判定。
-- `update_game_state`：更新位置、任务、NPC、物品、危险等级、flags 等场景状态。
+```text
+├─ core_rules（injectionOrder: 10）
+│   └─ 开局断点规则、角色出场规则、行动判定规则、输出格式规则
+├─ writing_style（injectionOrder: 15）
+│   └─ 描写风格：沉浸感、选项设计、工具使用
+├─ specific_rules（injectionOrder: 20）
+│   └─ 断点选项规则、自定义行动流程、roll_dice 调用时机、update_game_state 规则
+└─ host_style（injectionOrder: 30）
+    └─ 主持人风格：公正评判、失败推动剧情、核心角色存在感
+```
 
-开局时会读取角色卡 first message，并在第一个需要玩家选择的断点给出行动选项。玩家也可以直接输入自定义行动。
+同时注入 `createAgenticPlayContextBlock` 作为 `position: "afterHistory"`、`priority: 20000` 的 context block，包含完整结构化场景状态。
+
+### 场景状态结构
+
+```ts
+AgenticGameState {
+  mode: "narrative_dice"
+  player:   { name, hp, max_hp, traits[], skills{} }
+  location: string
+  quest:    { main, current_objective, completed_objectives[] }
+  npcs:     [{ name, role, attitude }]
+  inventory: unknown[]
+  flags:    Record<string, unknown>
+  scene:    { time, danger_level, active_conflict }
+  log:      string[]
+}
+```
+
+状态通过 `update_game_state` 工具调用持续更新，模型在每轮中看到的始终是最新状态。
+
+### Tools 定义与执行流程
+
+模型在对话中通过 OpenAI function calling 调用三个工具：
+
+#### `roll_dice` — 真实骰子判定
+
+```yaml
+参数:
+  dice:                string  # 骰子表达式，如 "1d20", "2d6"
+  modifier:            integer # 可选修正值
+  difficulty:          integer # 可选目标难度 DC
+  success_probability: integer # AI 预估成功率 5-95
+  reason:              string  # 掷骰原因
+
+执行:
+  1. 解析骰子表达式 → count, sides
+  2. 如提供 success_probability 且表达式为 1d20 且未提供 difficulty
+     → 自动转换: difficulty = 21 + modifier - round(success_probability / 5)
+  3. 执行真实随机掷骰
+  4. 返回 { dice, rolls[], total, difficulty, successProbability, outcome, reason }
+```
+
+#### `present_player_options` — 结构化断点选项
+
+```yaml
+参数:
+  scene_text: string # 断点前的可见叙述（不含选项）
+  question: string # 选项栏上方的简短提问
+  options: array # 恰好 5 个选项，每个 { label, action, success_probability, description? }
+
+执行: → stopForUser = true
+  → 选项渲染到输入栏上方的可点击按钮
+  → 玩家点击或输入自定义行动 → 文本作为下轮 user input 发回 AI
+```
+
+#### `update_game_state` — 更新场景状态
+
+```yaml
+参数:
+  state_patch: object # JSON patch，对象深度合并，数组和原始值替换
+  reason: string # 更新原因
+
+执行: → 合并 patch 到当前 state → normalize
+  → 返回 { ok, reason, updated_state }
+```
+
+### Tools 执行循环
+
+```text
+用户输入 → buildChatPrompt() → [system rules, presets, character, context blocks, history, user input]
+  │
+  ▼
+Model API（带 tools + tool_choice: "auto"）
+  │
+  ├─ 无 tool_calls → 直接返回 content
+  │
+  └─ 有 tool_calls（最多 8 轮）
+      │
+      ├─ roll_dice        → 执行骰子 → 结果注入 tool message → 继续循环
+      ├─ update_game_state → 合并状态 → 结果注入 tool message → 继续循环
+      └─ present_player_options → stopForUser → 返回 scene_text + 选项
+```
+
+### 选项解析（Fallback）
+
+如果 AI 在正文中内联输出选项（而非使用 `present_player_options` 工具），`extractAgenticOptions` 会尝试从正文中解析选项：
+
+- 匹配 `选项 1.` / `A.` / `1)` 等格式
+- 提取成功率标记（如 `成功率 65%`）
+- 清理 markdown 格式
+- 少于 2 个有效选项则退回纯文本
 
 ## Whale Builder
 
-Whale Builder 是内置的角色卡与世界书创作工作流。它会先收集方向和必要设定，再进入规划与逐条创作阶段。
+Whale Builder 是内置的角色卡与世界书创作工作流。它基于 **Skill** 架构，使用 Skill 文件定义工作流和创作规范。
 
-当前能力包括：
+### Skill 系统
 
-- 一次性批量询问同一创作阶段的问题。
-- 使用结构化选项栏收集用户选择。
-- 读取内置 skill references。
-- 生成并维护创作规划。
-- 后台逐条创作，并在右侧监控世界书条目进度。
-- 生成角色卡、世界书、性格调色盘、MVU 相关材料和评估报告。
-- 保存到 Whale Play，或导出到文件夹。
+Builder 启动后，系统注入包含 Skill 指令的 system prompt，告知模型：
 
-Builder 相关逻辑位于：
+1. 必须先调用 `read_skill_reference('SKILL.md')` 加载 Skill 入口
+2. Skill 是唯一事实来源 — 工作流、数据格式、写作规则均以 Skill 为准
+3. 不确定读什么文档时调用 `list_skill_references`
+4. 完成后必须调用 `save_character_draft` 保存最终草稿
 
-```text
-apps/desktop/src/features/character/builder/
-```
+Skill references 位于：`apps/desktop/src/features/character/neo-builder-skill-references/`
+
+### Tools 定义
+
+Builder 使用 `WhaleBuilderToolRegistry` 注册以下工具：
+
+| 工具名                     | 用途                                                                 |
+| -------------------------- | -------------------------------------------------------------------- |
+| `list_skill_references`    | 列出可用 Skill 参考资料，支持 query 过滤                             |
+| `read_skill_reference`     | 读取指定 Skill 参考文档内容                                          |
+| `web_search`               | 联网搜索（需开启）                                                   |
+| `ask_user_options`         | 向用户展示结构化追问选项（一次性 2-5 个问题）                        |
+| `show_creation_plan`       | 展示/更新创作规划                                                    |
+| `validate_character_draft` | 校验角色卡草稿规范性                                                 |
+| `save_character_draft`     | 保存最终草稿（Skill 兼容格式），只有调用此工具产出物才显示在右侧面板 |
+
+### Prompt 注入结构
+
+Builder 的 system prompt 包含：
+
+- Skill 入口指令
+- 工具使用说明
+- 联网搜索状态
+- 追问规则（同一阶段最多调用一次 `ask_user_options`）
+- 保存规则（信息足够时必须调用 `save_character_draft`）
+
+Context prompt 包含结构化创作上下文：
+
+- `currentDraft`：当前角色卡草稿
+- `currentWorldbookEntries`：当前世界书条目
+- `creationPlan`：创作规划
+- `personalityPalette`：性格调色盘
+- `mvu`：MVU 配置
+- `evaluationReport`：评估报告
+
+### 工具注入位置的规范
+
+**Prompt 注入位置规范：**
+
+| 注入内容               | 注入方式                                                | 注入位置                                                             |
+| ---------------------- | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| System Rules           | `buildChatPrompt` systemRules 参数                      | 消息列表第 1 条                                                      |
+| Preset Items           | `buildChatPrompt` presetItems 参数                      | 按 injectionOrder 排序后，在 system rules 之后、character block 之前 |
+| Character Block        | `buildChatPrompt` character 参数                        | preset items 之后                                                    |
+| User Persona           | `buildChatPrompt` userPersona 参数                      | character block 之后                                                 |
+| Worldbook (前置)       | ContextBlock, position: "beforeHistory"                 | persona 之后、history 之前                                           |
+| Worldbook (召回)       | ContextBlock, position: "afterHistory"                  | history 之后、user input 之前                                        |
+| Memory Summary         | ContextBlock, position: "beforeHistory"                 | 与前置 worldbook 一起排序                                            |
+| Agentic Play State     | ContextBlock, position: "afterHistory", priority: 20000 | history 之后、user input 之前                                        |
+| Tools Definition       | OpenAI `tools` 参数                                     | 随 API 请求发送，不入 prompt 正文                                    |
+| Tool Execution Results | `role: "tool"` 消息                                     | 插入到当前 assistant 消息之后                                        |
 
 ## 技术栈
 
-| 模块 | 技术 |
-| --- | --- |
-| 桌面壳 | Tauri v2 + Rust |
-| 前端 | React 18 + TypeScript + Vite |
-| 状态管理 | Zustand |
-| UI | Tailwind CSS + Radix UI + Lucide Icons |
-| 虚拟列表 | @tanstack/react-virtual |
-| Prompt / Regex / Worldbook | `@neo-tavern/core` |
-| 共享类型 | `@neo-tavern/shared` |
-| 共享 UI | `@neo-tavern/ui` |
-| 包管理 | pnpm workspace |
+| 模块                       | 技术                                   |
+| -------------------------- | -------------------------------------- |
+| 桌面壳                     | Tauri v2 + Rust                        |
+| 前端                       | React 18 + TypeScript + Vite           |
+| 状态管理                   | Zustand                                |
+| UI                         | Tailwind CSS + Radix UI + Lucide Icons |
+| 虚拟列表                   | @tanstack/react-virtual                |
+| Prompt / Regex / Worldbook | `@neo-tavern/core`                     |
+| 共享类型                   | `@neo-tavern/shared`                   |
+| 共享 UI                    | `@neo-tavern/ui`                       |
+| 包管理                     | pnpm workspace                         |
 
 ## 项目结构
 
