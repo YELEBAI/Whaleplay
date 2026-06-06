@@ -20,9 +20,10 @@ export function useBranchNavigation(chatId: string | undefined) {
 
   /** Messages along the active branch path, excluding hidden user messages */
   const visibleMessages = useMemo(() => {
-    const path = getActivePath(chatId ?? "");
+    if (!chatId) return [];
+    const path = getActivePath(chatId);
     return path.filter((m: Message) => !m.hidden);
-  }, [chatId, getActivePath]);
+  }, [chatId, messages, activeLeafId]);
 
   /** Message ids that have 2+ children — displayed as fork points in the tree panel */
   const forkParents = useMemo(() => {

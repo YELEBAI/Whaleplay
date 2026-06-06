@@ -306,8 +306,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const state = get();
     const hydrated = state.currentChat?.id === chatId && state.messagesHydrated;
     if (!hydrated) await hydrateMessages(chatId, set, get);
-    // Return only the active path for prompt building
-    return get().getActivePath(chatId);
+    return get().messages.filter((m) => m.chatId === chatId);
   },
 
   addMessage: async (input: CreateMessageInput) => {
