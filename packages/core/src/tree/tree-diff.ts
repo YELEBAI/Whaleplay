@@ -43,9 +43,9 @@ export function diffTreesById(a: Message[], b: Message[]): TreeDiffResult {
  * Matches messages whose role + content prefix are identical.
  */
 export function fingerprintMessage(m: Message): string {
-  // Normalize: role + first 300 chars of trimmed content
+  // Normalize: chatId + role + first 300 chars of trimmed content
   const body = m.content.trim().slice(0, 300);
-  return `${m.role}:${body}`;
+  return `${m.chatId}:${m.role}:${body}`;
 }
 
 /**

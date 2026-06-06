@@ -2,8 +2,6 @@ import { Send, ChevronDown, ChevronUp, Pencil, X, Save, FolderOpen, StopCircle }
 import { Button, Textarea } from "@neo-tavern/ui";
 import { useTranslation } from "react-i18next";
 import type { PendingSendItem } from "./types";
-import { SyncIndicator } from "@/features/sync";
-
 // ── Static JSX fragments ────────────────────────────
 const SmallA = <span className="text-[10px] text-muted-foreground leading-none">A</span>;
 const LargeA = <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>;
@@ -178,7 +176,6 @@ export function ChatInputArea({
                 <FolderOpen className={iconCls} />
               </Button>
               {SepBar}
-              <SyncIndicator />
             </div>
             <div className="flex min-w-0 items-end gap-2 rounded-lg border bg-background p-2">
               <Textarea

@@ -49,8 +49,6 @@ export interface ChatRightPanelProps {
   activeLeafId?: string | null;
   onSwitchBranch?: (leafId: string) => void;
   onCreateBranch?: (parentId: string) => void;
-  getBranchName?: (leafId: string) => string;
-  onRenameBranch?: (leafId: string, name: string) => void;
   onExploreAgenticOption?: (option: MessageAgenticOption, parentMessageId: string) => void;
 }
 
@@ -174,8 +172,6 @@ export function ChatRightPanel({
   activeLeafId,
   onSwitchBranch,
   onCreateBranch,
-  getBranchName: _getBranchName,
-  onRenameBranch: _onRenameBranch,
   onExploreAgenticOption,
 }: ChatRightPanelProps) {
   const { t } = useTranslation("chat");

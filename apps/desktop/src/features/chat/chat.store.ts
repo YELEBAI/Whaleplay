@@ -54,7 +54,6 @@ interface ChatState {
   deleteMessage: (id: string) => Promise<void>;
   deleteMessages: (ids: string[]) => Promise<void>;
   getActivePath: (_chatId: string) => Message[];
-  getForks: (parentId: string) => Message[];
   switchBranch: (leafId: string) => void;
   createBranch: (parentId: string, branchName?: string) => Promise<Message>;
   getBranchName: (leafId: string) => string;
@@ -489,10 +488,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     })();
 
     return buildMessagePath(messages, leafId);
-  },
-
-  getForks: (parentId: string) => {
-    return get().messages.filter((m) => m.parentId === parentId);
   },
 
   switchBranch: (leafId: string) => {

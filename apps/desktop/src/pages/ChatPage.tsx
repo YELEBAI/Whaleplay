@@ -28,12 +28,10 @@ import {
 import {
   chatRepository,
   agenticPlayStateRepository,
-  chatSavepointRepository,
-  messageRepository,
   presetRepository,
   secondaryApiUsageRepository,
 } from "@/db/repositories";
-import type { ChatSavepoint, SecondaryApiUsageRecord } from "@/db/repositories";
+import type { SecondaryApiUsageRecord } from "@/db/repositories";
 import { getStorageItem, removeStorageItem, setStorageItem } from "@/db/storage";
 import {
   buildChatPrompt,
@@ -72,6 +70,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChatSidebar } from "@/pages/chat/ChatSidebar";
 import { ChatRightPanel } from "@/pages/chat/ChatRightPanel";
 import { ChatInputArea } from "@/pages/chat/ChatInputArea";
+import { useBranchNavigation } from "@/pages/chat/hooks/useBranchNavigation";
+import { useSavepointManager } from "@/pages/chat/hooks/useSavepointManager";
 import {
   ImageDisplayBlockView,
   ensureImageSlots,
@@ -106,10 +106,6 @@ import {
   ThinkingDialog,
   RegenerateDialog,
 } from "@/pages/chat/ChatDialogs";
-
-function isVisibleChatMessage(message: Message) {
-  return !message.hidden;
-}
 
 function getChoiceAgenticOption(choice?: ChoiceInputPanelChoice): AgenticActionOption | null {
   const raw = choice?.meta?.agenticOption;
@@ -245,13 +241,9 @@ export function ChatPage() {
     patchMessage,
     deleteMessages,
     lastDiceResult,
-    activeLeafId,
-    getActivePath,
-    switchBranch,
-    createBranch,
-    getBranchName,
-    setBranchName,
   } = useChatStore();
+
+  const branch = useBranchNavigation(currentChat?.id);
   const regexPresets = useSettingsStore((s) => s.regexPresets);
   const activeRegexPresetId = useSettingsStore((s) => s.activeRegexPresetId);
   const imageGeneration = useSettingsStore((s) => s.imageGeneration);
@@ -271,22 +263,6 @@ export function ChatPage() {
       return true;
     });
   }, [regexPresets, activeRegexPresetId]);
-  const visibleMessages = useMemo(() => {
-    const path = getActivePath(currentChat?.id ?? "");
-    return path.filter(isVisibleChatMessage);
-  }, [currentChat?.id, getActivePath]);
-
-  // Compute which message ids are fork points (have 2+ children) - used by right panel
-  const forkParents = useMemo(() => {
-    const childCounts = new Map<string, number>();
-    for (const m of messages) {
-      if (m.parentId) {
-        childCounts.set(m.parentId, (childCounts.get(m.parentId) ?? 0) + 1);
-      }
-    }
-    return new Set([...childCounts].filter(([, c]) => c >= 2).map(([id]) => id));
-  }, [messages]);
-
   const [input, setInput] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewText, setPreviewText] = useState("");
@@ -310,14 +286,6 @@ export function ChatPage() {
   const [chatListCollapsed, setChatListCollapsed] = useState(false);
   const [thinkingMsg, setThinkingMsg] = useState<Message | null>(null);
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [loadDialogOpen, setLoadDialogOpen] = useState(false);
-  const [savepointName, setSavepointName] = useState("");
-  const [savepoints, setSavepoints] = useState<ChatSavepoint[]>([]);
-  const [savingSavepoint, setSavingSavepoint] = useState(false);
-  const [loadingSavepoints, setLoadingSavepoints] = useState(false);
-  const [restoringSavepointId, setRestoringSavepointId] = useState<string | null>(null);
-  const [importingSavepointId, setImportingSavepointId] = useState<string | null>(null);
   const [agenticPlayEnabled, setAgenticPlayEnabled] = useState(false);
   const [agenticGameState, setAgenticGameState] = useState<AgenticGameState | null>(null);
   const [dismissedAgenticChoiceMessageId, setDismissedAgenticChoiceMessageId] = useState<string | null>(null);
@@ -593,7 +561,7 @@ export function ChatPage() {
         setPendingSendQueue((queue) => [...queue, { chatId: currentChat.id, content: trimmedContent, ...options }]);
         return;
       }
-      if (visibleMessages.length === 0 && character?.firstMessage.trim()) {
+      if (branch.visibleMessages.length === 0 && character?.firstMessage.trim()) {
         await addMessage({
           chatId: currentChat.id,
           parentId: null,
@@ -607,7 +575,7 @@ export function ChatPage() {
         metadata: options.metadata,
       });
     },
-    [currentChat, sending, visibleMessages.length, character?.firstMessage, addMessage, personaName, sendMessage],
+    [currentChat, sending, branch.visibleMessages.length, character?.firstMessage, addMessage, personaName, sendMessage],
   );
 
   const handleAgenticChoiceSubmit = (value: string, choice?: ChoiceInputPanelChoice) => {
@@ -967,6 +935,7 @@ export function ChatPage() {
   };
 
   const isGeneratingCurrentChat = sending && !!currentChat?.id && sendingChatId === currentChat.id;
+  const savepoint = useSavepointManager(currentChat, isGeneratingCurrentChat);
   const hasStreamingMessage =
     isGeneratingCurrentChat && !!streamingMessageId && messages.some((m) => m.id === streamingMessageId);
   const generationStatus = getGenerationStatus(generationPhase);
@@ -978,7 +947,7 @@ export function ChatPage() {
   useEffect(() => {
     const chatId = currentChat?.id;
     if (!chatId || !character || !agenticPlayEnabled) return;
-    if (loading || !messagesHydrated || visibleMessages.length !== 0) return;
+    if (loading || !messagesHydrated || branch.visibleMessages.length !== 0) return;
     if (sending || isGeneratingCurrentChat) return;
     if (agenticOpeningStartedRef.current === chatId) return;
 
@@ -990,7 +959,7 @@ export function ChatPage() {
     agenticPlayEnabled,
     loading,
     messagesHydrated,
-    visibleMessages.length,
+    branch.visibleMessages.length,
     sending,
     isGeneratingCurrentChat,
     submitContent,
@@ -1009,99 +978,12 @@ export function ChatPage() {
     });
   }, [sending, pendingSendQueue, currentChat, sendMessage]);
 
-  const refreshSavepoints = async () => {
-    if (!currentChat) {
-      setSavepoints([]);
-      return;
-    }
-    setLoadingSavepoints(true);
-    try {
-      setSavepoints(await chatSavepointRepository.listByChatId(currentChat.id));
-    } finally {
-      setLoadingSavepoints(false);
-    }
-  };
-
-  const closeSaveDialog = () => {
-    setSaveDialogOpen(false);
-    setSavepointName("");
-    setSavingSavepoint(false);
-  };
-
-  const handleCreateSavepoint = async () => {
-    if (!currentChat) return;
-    setSavingSavepoint(true);
-    try {
-      const latestMessages = await messageRepository.listByChatId(currentChat.id);
-      await chatSavepointRepository.create({
-        chatId: currentChat.id,
-        characterId: currentChat.characterId,
-        name: savepointName,
-        messages: latestMessages,
-      });
-      toast("success", "存档已创建");
-      closeSaveDialog();
-      if (loadDialogOpen) void refreshSavepoints();
-    } catch {
-      toast("error", "创建存档失败");
-      setSavingSavepoint(false);
-    }
-  };
-
-  const openLoadDialog = async () => {
-    if (!currentChat) return;
-    setLoadDialogOpen(true);
-    await refreshSavepoints();
-  };
-
-  const handleRestoreSavepoint = async (savepoint: ChatSavepoint) => {
-    if (!currentChat || isGeneratingCurrentChat) return;
-    setRestoringSavepointId(savepoint.id);
-    try {
-      await messageRepository.replaceByChatId(currentChat.id, savepoint.messages);
-      await chatRepository.update(currentChat.id, {});
-      await loadChat(currentChat.id);
-      setLoadDialogOpen(false);
-      toast("success", "存档已加载");
-    } catch {
-      toast("error", "加载存档失败");
-    } finally {
-      setRestoringSavepointId(null);
-    }
-  };
-
-  const handleImportSavepointAsBranch = async (savepoint: ChatSavepoint) => {
-    if (!currentChat || isGeneratingCurrentChat) return;
-    setImportingSavepointId(savepoint.id);
-    try {
-      const result = await useChatStore.getState().mergeFromSavepoint(currentChat.id, savepoint.messages);
-      if (result.imported > 0) {
-        toast("success", `已导入 ${result.imported} 条新消息为分支`);
-      } else {
-        toast("info", "存档消息与当前对话完全一致，无需导入");
-      }
-      setLoadDialogOpen(false);
-    } catch (err) {
-      toast("error", `导入失败: ${(err as Error).message}`);
-    } finally {
-      setImportingSavepointId(null);
-    }
-  };
-
-  const handleDeleteSavepoint = async (savepointId: string) => {
-    await chatSavepointRepository.delete(savepointId);
-    if (currentChat) {
-      setSavepoints(await chatSavepointRepository.listByChatId(currentChat.id));
-    }
-    toast("info", "存档已删除");
-  };
-
   const lastAssistantId = useMemo(() => {
-    for (let i = visibleMessages.length - 1; i >= 0; i--) {
-      if (visibleMessages[i].role === "assistant") return visibleMessages[i].id;
+    for (let i = branch.visibleMessages.length - 1; i >= 0; i--) {
+      if (branch.visibleMessages[i].role === "assistant") return branch.visibleMessages[i].id;
     }
     return null;
-  }, [visibleMessages]);
+  }, [branch.visibleMessages]);
 
   const handleDeleteMessage = async () => {
     if (!deleteMsgTarget) return;
@@ -1215,7 +1097,7 @@ export function ChatPage() {
 
   const renderedMessages = useMemo(
     () =>
-      visibleMessages.map((msg) => {
+      branch.visibleMessages.map((msg) => {
         const isUser = msg.role === "user";
         const isFinalAi = !isUser && msg.id === lastAssistantId;
         const split =
@@ -1246,7 +1128,7 @@ export function ChatPage() {
       isGeneratingCurrentChat,
       lastAssistantId,
       streamingMessageId,
-      visibleMessages,
+      branch.visibleMessages,
     ],
   );
   const activeAgenticChoiceBlock = useMemo(() => {
@@ -1294,7 +1176,7 @@ export function ChatPage() {
   }, [fontSize, chatVirtualizer]);
 
   useEffect(() => {
-    const lastMsg = visibleMessages[visibleMessages.length - 1];
+    const lastMsg = branch.visibleMessages[branch.visibleMessages.length - 1];
     if (!lastMsg) return;
 
     const isGeneratingThisChat = sending && !!currentChat?.id && sendingChatId === currentChat.id;
@@ -1332,8 +1214,8 @@ export function ChatPage() {
 
     wasGeneratingCurrentChatRef.current = isGeneratingThisChat;
   }, [
-    visibleMessages,
-    visibleMessages.length,
+    branch.visibleMessages,
+    branch.visibleMessages.length,
     sending,
     sendingChatId,
     streamingMessageId,
@@ -1343,14 +1225,14 @@ export function ChatPage() {
   ]);
 
   useLayoutEffect(() => {
-    if (loading || !currentChat?.id || visibleMessages.length === 0) return;
+    if (loading || !currentChat?.id || branch.visibleMessages.length === 0) return;
     if (lastOpenedChatRef.current === currentChat.id) return;
     lastOpenedChatRef.current = currentChat.id;
     skipNextMessageAutoScrollRef.current = currentChat.id;
     requestAnimationFrame(() => {
       chatVirtualizer.scrollToIndex(renderedMessages.length - 1, { align: "end" });
     });
-  }, [currentChat?.id, loading, visibleMessages.length, renderedMessages.length, chatVirtualizer]);
+  }, [currentChat?.id, loading, branch.visibleMessages.length, renderedMessages.length, chatVirtualizer]);
 
   const chatLayoutColumns = chatListCollapsed
     ? "lg:grid-cols-[48px_minmax(0,1fr)] xl:grid-cols-[48px_minmax(0,1fr)_320px]"
@@ -1381,7 +1263,7 @@ export function ChatPage() {
             className="flex-1 overflow-y-auto p-5 mx-3 my-2 rounded-xl border border-border/40 bg-background/50"
           >
             {loading && <p className="text-sm text-muted-foreground text-center">Loading...</p>}
-            {!loading && visibleMessages.length === 0 && !isGeneratingCurrentChat && (
+            {!loading && branch.visibleMessages.length === 0 && !isGeneratingCurrentChat && (
               <div className={`${chatContentWidthClass} mx-auto`}>
                 {character ? (
                   <div>
@@ -1762,7 +1644,7 @@ export function ChatPage() {
                 if (nextOpen) updatePreview(input.trim());
               }}
               onContinue={handleContinue}
-              messagesLength={visibleMessages.length}
+              messagesLength={branch.visibleMessages.length}
               input={input}
               onInputChange={handleInputChange}
               onKeyDown={handleKeyDown}
@@ -1776,8 +1658,8 @@ export function ChatPage() {
               onSend={handleSend}
               isSending={sending}
               onAbort={abort}
-              onSave={() => setSaveDialogOpen(true)}
-              onLoad={openLoadDialog}
+              onSave={() => savepoint.setSaveDialogOpen(true)}
+              onLoad={savepoint.openLoadDialog}
               isGenerating={isGeneratingCurrentChat}
               previewText={previewText}
               wide={chatListCollapsed}
@@ -1787,7 +1669,7 @@ export function ChatPage() {
 
         <div className="hidden xl:contents">
           <ChatRightPanel
-            messagesCount={visibleMessages.length}
+            messagesCount={branch.visibleMessages.length}
             usageMessagesCount={usageMessages.length}
             totalPrompt={totalPrompt}
             totalCompletion={totalCompletion}
@@ -1801,19 +1683,17 @@ export function ChatPage() {
             isGeneratingCurrentChat={isGeneratingCurrentChat}
             lastDiceResult={lastDiceResult}
             allMessages={messages}
-            forkParentIds={forkParents}
-            activeLeafId={activeLeafId}
-            onSwitchBranch={switchBranch}
+            forkParentIds={branch.forkParents}
+            activeLeafId={branch.activeLeafId}
+            onSwitchBranch={branch.switchBranch}
             onCreateBranch={(parentId) => {
-              void createBranch(parentId);
+              void branch.createBranch(parentId);
             }}
-            getBranchName={getBranchName}
-            onRenameBranch={setBranchName}
             onExploreAgenticOption={
               agenticPlayEnabled
                 ? (option, parentId) => {
                     // Switch to the parent message branch first, then submit
-                    switchBranch(parentId);
+                    branch.switchBranch(parentId);
                     const roll = rollDice({
                       dice: "1d20",
                       difficulty: option.difficulty,
@@ -1862,30 +1742,30 @@ export function ChatPage() {
       <PromptDialog open={promptDialogOpen} onOpenChange={setPromptDialogOpen} previewText={previewText} />
 
       <SaveDialog
-        open={saveDialogOpen}
+        open={savepoint.saveDialogOpen}
         onOpenChange={(v) => {
-          if (!v) closeSaveDialog();
+          if (!v) savepoint.closeSaveDialog();
         }}
-        savepointName={savepointName}
-        onSavepointNameChange={setSavepointName}
-        onCancel={closeSaveDialog}
-        onSave={handleCreateSavepoint}
-        isSaving={savingSavepoint}
+        savepointName={savepoint.savepointName}
+        onSavepointNameChange={savepoint.setSavepointName}
+        onCancel={savepoint.closeSaveDialog}
+        onSave={savepoint.handleCreateSavepoint}
+        isSaving={savepoint.savingSavepoint}
         hasCurrentChat={!!currentChat}
       />
 
       <LoadDialog
-        open={loadDialogOpen}
-        onOpenChange={setLoadDialogOpen}
-        savepoints={savepoints}
-        isLoading={loadingSavepoints}
-        restoringSavepointId={restoringSavepointId}
-        importingSavepointId={importingSavepointId}
+        open={savepoint.loadDialogOpen}
+        onOpenChange={savepoint.setLoadDialogOpen}
+        savepoints={savepoint.savepoints}
+        isLoading={savepoint.loadingSavepoints}
+        restoringSavepointId={savepoint.restoringSavepointId}
+        importingSavepointId={savepoint.importingSavepointId}
         isGenerating={isGeneratingCurrentChat}
-        onRestore={handleRestoreSavepoint}
-        onImportAsBranch={handleImportSavepointAsBranch}
-        onDelete={handleDeleteSavepoint}
-        onRefresh={refreshSavepoints}
+        onRestore={savepoint.handleRestoreSavepoint}
+        onImportAsBranch={savepoint.handleImportSavepointAsBranch}
+        onDelete={savepoint.handleDeleteSavepoint}
+        onRefresh={savepoint.refreshSavepoints}
       />
 
       <TokenDialog

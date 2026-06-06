@@ -12,8 +12,8 @@ use serde_json::Value;
 
 use crate::AppStore;
 
-/// In-memory session tokens: session_token → TokenEntry
-type TokenStore = Arc<Mutex<std::collections::HashMap<String, crate::sync::TokenEntry>>>;
+/// In-memory session tokens
+type TokenStore = Arc<Mutex<std::collections::HashMap<String, ()>>>;
 
 /// Start the LAN HTTP server.
 pub async fn start(
@@ -38,7 +38,6 @@ pub async fn start(
             .app_data(store_path_data.clone())
             // ── Public routes ────────────────────────
             .route("/api/auth/login", web::post().to(login))
-            .route("/api/pair", web::post().to(pair))
             // ── Protected API ───────────────────────
             .service(
                 web::scope("/api")
@@ -130,54 +129,21 @@ async fn login(
 
     match stored_pw {
         Some(pw) if pw == body.password => {
-            let token = crate::sync::generate_session_token();
-            state.tokens.lock().unwrap().insert(
-                token.clone(),
-                crate::sync::TokenEntry {
-                    device_id: "web-ui".into(),
-                    expires_at: u64::MAX,
-                },
-            );
+            let token = uuid_v4();
+            state.tokens.lock().unwrap().insert(token.clone(), ());
             HttpResponse::Ok().json(serde_json::json!({ "token": token }))
         }
         _ => HttpResponse::Unauthorized().json(serde_json::json!({ "error": "invalid password" })),
     }
 }
 
-// ── Pair handler ────────────────────────────────────────
-
-#[derive(serde::Deserialize)]
-struct PairBody {
-    token: String,
-    #[serde(rename = "deviceName")]
-    device_name: Option<String>,
-}
-
-async fn pair(
-    state: web::Data<ServerState>,
-    body: web::Json<PairBody>,
-) -> HttpResponse {
-    match crate::sync::verify_pairing_token(&body.token) {
-        Ok(device_id) => {
-            let session_token = crate::sync::generate_session_token();
-            let now_ms = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
-            state.tokens.lock().unwrap().insert(
-                session_token.clone(),
-                crate::sync::TokenEntry {
-                    device_id,
-                    expires_at: now_ms + 24 * 60 * 60 * 1000, // 24h
-                },
-            );
-            HttpResponse::Ok().json(serde_json::json!({
-                "sessionToken": session_token,
-                "deviceName": body.device_name.clone().unwrap_or_default(),
-            }))
-        }
-        Err(err) => HttpResponse::Unauthorized().json(serde_json::json!({ "error": err })),
-    }
+fn uuid_v4() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    format!("{:016x}", ts)
 }
 
 // ── Store handlers ─────────────────────────────────────
