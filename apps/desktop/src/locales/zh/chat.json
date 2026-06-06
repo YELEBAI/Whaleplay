@@ -20,6 +20,11 @@
   "startConversation": "开始与 {{name}} 的对话",
   "noPromptPreview": "输入消息查看提示词预览",
   "dismiss": "关闭",
+  "close": "关闭",
+  "cancel": "取消",
+  "save": "保存",
+  "copy": "复制",
+  "deleteBtn": "删除",
   "contextUsage": {
     "title": "当前对话上下文 Token：{{current}} / {{limit}}",
     "noData": "暂无上下文使用数据"
@@ -40,6 +45,13 @@
     "title": "删除消息",
     "description": "删除这条消息？如果是用户消息后面跟着AI回复，AI回复也会被一并删除。"
   },
+  "imagePromptDialog": {
+    "title": "修改图片提示词",
+    "description": "保存后会更新这张图片的提示词；也可以直接保存并重新生成。",
+    "placeholder": "English image prompt...",
+    "savePrompt": "保存提示词",
+    "saveAndRegenerate": "保存并重新生成"
+  },
   "savepointDialog": {
     "title": "创建存档点",
     "description": "保存当前聊天的消息快照。名字可以留空，系统会自动生成。",
@@ -47,12 +59,14 @@
   },
   "loadDialog": {
     "title": "加载存档",
-    "description": "加载后会用存档内容替换当前聊天消息。",
+    "description": "加载会用存档内容替换当前聊天；导入为分支会把新消息合并到当前对话树。",
     "loading": "加载中……",
     "noSavepoints": "还没有存档点。",
     "messages": "{{count}} 条消息",
     "load": "加载",
     "delete": "删除存档",
+    "importAsBranch": "导入为分支",
+    "importing": "导入中……",
     "refresh": "刷新",
     "close": "关闭"
   },
@@ -74,7 +88,9 @@
       "total": "总计",
       "cacheHit": "缓存命中",
       "hitRate": "命中率",
-      "context": "1M 上下文"
+      "context": "1M 上下文",
+      "calls": "调用次数",
+      "cost": "费用 (RMB)"
     },
     "tableHeaders": [
       "#",
@@ -85,6 +101,24 @@
       "📉 未命中",
       "命中率"
     ],
+    "tabs": {
+      "main": "主 API",
+      "secondary": "辅助 API"
+    },
+    "table": {
+      "round": "轮次",
+      "call": "调用",
+      "model": "模型",
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "总计",
+      "hit": "🔥 命中",
+      "miss": "📉 未命中",
+      "rate": "命中率",
+      "cost": "费用 (RMB)"
+    },
+    "noDataMain": "暂无主 API 用量数据。发送消息后可查看统计。",
+    "noDataSecondary": "暂无辅助 API 用量数据。当记忆压缩或图片规划使用辅助模型后会出现。",
     "cacheHint": "⚠ 缓存命中数据不可用——你的 API 可能不支持提示缓存（Ollama/vLLM 大多数实例不支持）。受 DeepSeek、OpenAI 最新模型、Anthropic 支持。"
   },
   "generationStatus": {
@@ -109,8 +143,67 @@
     "deleteFailed": "删除失败",
     "copied": "已复制"
   },
+  "regenerateDialog": {
+    "title": "重新生成",
+    "description": "选择如何处理当前 AI 回复。",
+    "fork": {
+      "label": "创建新分支",
+      "description": "保留当前回复，新回复作为分支挂载。可在侧边栏分支视图自由切换。"
+    },
+    "replace": {
+      "label": "替换当前回复",
+      "description": "丢弃当前回复并重新生成。旧的回复将被永久删除。"
+    },
+    "forkAndRegenerate": "分叉并重新生成",
+    "replaceRegenerate": "替换重新生成"
+  },
   "oldMessages": {
     "collapse": "收起较早消息，保留最近 {{limit}} 轮",
     "show": "显示较早消息：{{count}} 轮 / {{messages}} 条"
+  },
+  "rightPanel": {
+    "tabs": {
+      "stats": "状态",
+      "branches": "分支"
+    },
+    "dice": {
+      "criticalSuccess": "大成功!",
+      "criticalFailure": "大失败!",
+      "success": "成功",
+      "failure": "失败",
+      "rolled": "掷出",
+      "dc": "DC {{value}}",
+      "successRate": "成功率 {{rate}}%"
+    },
+    "tree": {
+      "thinking": "(思考中...)",
+      "empty": "(空)",
+      "createBranch": "创建分支",
+      "noBranches": "暂无对话分支",
+      "unexplored": "未探索",
+      "unexploredOption": "未探索选项: {{action}}",
+      "unexploredOptionWithDc": "未探索选项: {{action}} (DC {{difficulty}})"
+    },
+    "overview": {
+      "title": "运行概览",
+      "expand": "展开运行概览",
+      "collapse": "收纳运行概览",
+      "messages": "消息",
+      "messageCount": "{{count}} messages",
+      "tokenUsage": "Token 用量",
+      "viewDetails": "查看详细 →",
+      "tokenStats": "P:{{prompt}} C:{{completion}} | cache {{rate}}%",
+      "noStats": "暂无统计",
+      "context": "Context"
+    },
+    "agentic": {
+      "sceneStatus": "场景状态",
+      "dynamicVariables": "动态变量",
+      "judgment": "判定",
+      "judging": "判定进行中",
+      "waitingJudgment": "等待行动判定",
+      "judgingHint": "主持人正在判断风险、调用骰子或整理结果。",
+      "waitingJudgmentHint": "玩家选择行动后，风险动作会触发骰子判定。"
+    }
   }
 }

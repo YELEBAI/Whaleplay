@@ -1,7 +1,17 @@
 import { Send, ChevronDown, ChevronUp, Pencil, X, Save, FolderOpen, StopCircle } from "lucide-react";
 import { Button, Textarea } from "@neo-tavern/ui";
+import { useTranslation } from "react-i18next";
 import type { PendingSendItem } from "./types";
 import { SyncIndicator } from "@/features/sync";
+
+// ── Static JSX fragments ────────────────────────────
+const SmallA = <span className="text-[10px] text-muted-foreground leading-none">A</span>;
+const LargeA = <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>;
+const SepBar = <span className="mx-1 h-6 w-px bg-border" />;
+
+// ── Repeated className constants ─────────────────────
+const btnIconCls = "h-10 w-10 shrink-0";
+const iconCls = "h-4 w-4";
 
 export interface ChatInputAreaProps {
   displayError: string | null;
@@ -58,6 +68,8 @@ export function ChatInputArea({
   previewText,
   wide = false,
 }: ChatInputAreaProps) {
+  const { t } = useTranslation("chat");
+
   const contentWidthClass = wide ? "max-w-6xl" : "max-w-4xl";
   const previewWidthClass = wide ? "max-w-5xl" : "max-w-3xl";
 
@@ -68,7 +80,7 @@ export function ChatInputArea({
           <span className="truncate">{displayError}</span>
           <div className="flex gap-1 shrink-0">
             <Button variant="ghost" size="sm" onClick={onDismissError}>
-              Dismiss
+              {t("dismiss")}
             </Button>
           </div>
         </div>
@@ -79,7 +91,9 @@ export function ChatInputArea({
           {pendingSendCount > 0 && hasChat && (
             <div className="bg-primary/5 p-2">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-muted-foreground">待发送 {pendingSendCount}</span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t("pendingSend", { count: pendingSendCount })}
+                </span>
               </div>
               <div className="max-h-32 space-y-1.5 overflow-y-auto pr-1">
                 {pendingSendQueue
@@ -97,7 +111,7 @@ export function ChatInputArea({
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                        title="取消待发送"
+                        title={t("cancelPending")}
                         onClick={() => onCancelPending(item.index)}
                       >
                         <X className="h-3.5 w-3.5" />
@@ -111,7 +125,7 @@ export function ChatInputArea({
           <div className="bg-background/75 p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-md border bg-background/70 px-2">
-                <span className="text-[10px] text-muted-foreground leading-none">A</span>
+                {SmallA}
                 <input
                   type="range"
                   min="12"
@@ -120,50 +134,50 @@ export function ChatInputArea({
                   onInput={(e) => onFontSizeChange(Number(e.currentTarget.value))}
                   onChange={(e) => onFontSizeChange(Number(e.target.value))}
                   className="h-1 w-12 accent-primary cursor-pointer"
-                  title={`Font size: ${fontSize}px`}
+                  title={t("fontSize", { size: fontSize })}
                 />
-                <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>
+                {LargeA}
               </div>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={onTogglePreview}
-                className="h-10 w-10 shrink-0"
-                title="Preview prompt"
+                className={btnIconCls}
+                title={t("previewPrompt")}
               >
-                {previewOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                {previewOpen ? <ChevronDown className={iconCls} /> : <ChevronUp className={iconCls} />}
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={onContinue}
                 disabled={!hasChat || messagesLength === 0}
-                className="h-10 w-10 shrink-0"
-                title="隐藏发送续写请求"
+                className={btnIconCls}
+                title={t("continue")}
               >
-                <Pencil className="h-4 w-4" />
+                <Pencil className={iconCls} />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={onSave}
                 disabled={!hasChat || isGenerating}
-                className="h-10 w-10 shrink-0"
-                title="创建当前聊天存档"
+                className={btnIconCls}
+                title={t("savepointTitle")}
               >
-                <Save className="h-4 w-4" />
+                <Save className={iconCls} />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
                 onClick={onLoad}
                 disabled={!hasChat || isGenerating}
-                className="h-10 w-10 shrink-0"
-                title="加载聊天存档"
+                className={btnIconCls}
+                title={t("loadTitle")}
               >
-                <FolderOpen className="h-4 w-4" />
+                <FolderOpen className={iconCls} />
               </Button>
-              <span className="mx-1 h-6 w-px bg-border" />
+              {SepBar}
               <SyncIndicator />
             </div>
             <div className="flex min-w-0 items-end gap-2 rounded-lg border bg-background p-2">
@@ -180,20 +194,20 @@ export function ChatInputArea({
                 onClick={onSend}
                 disabled={!input.trim() || !hasChat}
                 size="icon"
-                title={isSending ? "Add to pending send" : "Send"}
-                className="h-10 w-10 shrink-0"
+                title={t(isSending ? "sendQueuedTitle" : "sendTitle")}
+                className={btnIconCls}
               >
-                <Send className="h-4 w-4" />
+                <Send className={iconCls} />
               </Button>
               {isSending && (
                 <Button
                   variant="destructive"
                   size="icon"
                   onClick={onAbort}
-                  title="Stop generating"
+                  title={t("stopTitle")}
                   className="h-10 w-10 shrink-0"
                 >
-                  <StopCircle className="h-4 w-4" />
+                  <StopCircle className={iconCls} />
                 </Button>
               )}
             </div>
@@ -232,7 +246,7 @@ export function ChatInputArea({
                   );
                 })
               ) : (
-                <span className="text-muted-foreground">Type a message to see prompt preview</span>
+                <span className="text-muted-foreground">{t("noPromptPreview")}</span>
               )}
             </pre>
           </div>

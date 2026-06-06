@@ -181,7 +181,7 @@ function ChatActivityTimeline({
       <div className="min-w-0 border-l border-border/80">
         <div className="relative pb-3 pl-5">
           <span
-            className={`absolute left-[-6px] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background ${
+            className={`absolute left-0 top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background ${
               active ? "text-primary" : "text-emerald-500"
             }`}
           >
@@ -1240,7 +1240,14 @@ export function ChatPage() {
           hasDisplayContent,
         };
       }),
-    [activeRegexRules, agenticPlayEnabled, isGeneratingCurrentChat, lastAssistantId, streamingMessageId, visibleMessages],
+    [
+      activeRegexRules,
+      agenticPlayEnabled,
+      isGeneratingCurrentChat,
+      lastAssistantId,
+      streamingMessageId,
+      visibleMessages,
+    ],
   );
   const activeAgenticChoiceBlock = useMemo(() => {
     const latest = renderedMessages[renderedMessages.length - 1];
@@ -1433,19 +1440,17 @@ export function ChatPage() {
                     >
                       {isUser ? (
                         <div className="flex min-w-0 justify-end gap-3 pb-5">
-                          <div
-                            className={`min-w-0 ${userBubbleWidthClass} overflow-hidden rounded-lg border bg-primary p-4 text-primary-foreground`}
-                          >
+                          <div className={`min-w-0 ${userBubbleWidthClass} overflow-hidden`}>
                             <div className="mb-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity hover:opacity-100">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 text-primary-foreground/70 hover:text-primary-foreground"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
                                 title="Copy"
                                 onClick={() => handleCopy(msg.content, msg.id)}
                               >
                                 {copiedId === msg.id ? (
-                                  <CheckCheck className="h-3.5 w-3.5 text-green-300" />
+                                  <CheckCheck className="h-3.5 w-3.5 text-green-500" />
                                 ) : (
                                   <Copy className="h-3.5 w-3.5" />
                                 )}
@@ -1453,13 +1458,14 @@ export function ChatPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 text-primary-foreground/70 hover:text-primary-foreground"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
                                 title="Delete"
                                 onClick={() => setDeleteMsgTarget(msg)}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
+                            <div className="rounded-lg border bg-primary p-4 text-primary-foreground">
                             {editingMsgId === msg.id ? (
                               <MessageEditBox
                                 initialContent={msg.content}
@@ -1475,6 +1481,7 @@ export function ChatPage() {
                                 {displayContent}
                               </p>
                             )}
+                            </div>
                           </div>
                           <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
                             <UserIcon className="h-4 w-4" />
@@ -1687,8 +1694,8 @@ export function ChatPage() {
                   </div>
                   <div className={`min-w-0 w-full ${chatContentWidthClass} py-1`}>
                     <div className="mb-3 min-w-0 border-l border-border/80">
-                      <div className="relative pb-3 pl-5">
-                        <span className="absolute left-[-6px] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background text-primary">
+                      <div className="relative pb-3">
+                        <span className="absolute left-0 top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background text-primary">
                           <CircleDashed className="h-3.5 w-3.5 animate-spin" />
                         </span>
                         <div className="flex min-w-0 items-center gap-1 overflow-hidden text-sm font-medium">
@@ -1797,38 +1804,41 @@ export function ChatPage() {
             forkParentIds={forkParents}
             activeLeafId={activeLeafId}
             onSwitchBranch={switchBranch}
-            onCreateBranch={(parentId) => { void createBranch(parentId); }}
+            onCreateBranch={(parentId) => {
+              void createBranch(parentId);
+            }}
             getBranchName={getBranchName}
             onRenameBranch={setBranchName}
-            onExploreAgenticOption={agenticPlayEnabled ? (option, parentId) => {
-              // Switch to the parent message branch first, then submit
-              switchBranch(parentId);
-              const roll = rollDice({
-                dice: "1d20",
-                difficulty: option.difficulty,
-                success_probability: option.probability,
-                reason: option.action,
-              });
-              useChatStore.getState().setLastDiceResult(roll);
-              const payload = buildAgenticChoicePayload(
-                { label: option.label, action: option.action, probability: option.probability, difficulty: option.difficulty },
-                roll,
-              );
-              void submitContent(payload, {
-                hiddenUserMessage: true,
-                label: option.label,
-                metadata: {
-                  hiddenReason: "agentic_choice",
-                  agenticAction: {
-                    label: option.label,
-                    action: option.action,
-                    success_probability: option.probability,
-                    difficulty: option.difficulty,
-                    dice_result: roll,
-                  },
-                },
-              });
-            } : undefined}
+            onExploreAgenticOption={
+              agenticPlayEnabled
+                ? (option, parentId) => {
+                    // Switch to the parent message branch first, then submit
+                    switchBranch(parentId);
+                    const roll = rollDice({
+                      dice: "1d20",
+                      difficulty: option.difficulty,
+                      success_probability: option.probability,
+                      reason: option.action,
+                    });
+                    useChatStore.getState().setLastDiceResult(roll);
+                    const payload = buildAgenticChoicePayload(option, roll);
+                    void submitContent(payload, {
+                      hiddenUserMessage: true,
+                      label: option.label,
+                      metadata: {
+                        hiddenReason: "agentic_choice",
+                        agenticAction: {
+                          label: option.label,
+                          action: option.action,
+                          success_probability: option.probability,
+                          difficulty: option.difficulty,
+                          dice_result: roll,
+                        },
+                      },
+                    });
+                  }
+                : undefined
+            }
           />
         </div>
       </div>

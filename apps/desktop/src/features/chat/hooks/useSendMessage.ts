@@ -1300,12 +1300,13 @@ export function useSendMessage({
         void processImageGeneration(chatId, assistant.id, finalContent);
         // Sync hook: after bot reply completes, push to peers if connected
         void triggerSync(useChatStore.getState().messages.filter((m) => m.chatId === chatId).slice(-2));
+        await removeEmptyStreamingDraft(assistantId);
+      } catch (err) {
         if ((err as Error).name === "AbortError") {
           setChatError(chatId, "Generation stopped");
         } else {
           setChatError(chatId, (err as Error).message || "Failed to send message");
         }
-        await removeEmptyStreamingDraft(assistantId);
       } finally {
         finishGeneration(generationId, chatId);
       }

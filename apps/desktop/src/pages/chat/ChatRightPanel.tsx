@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   BarChart3,
@@ -23,10 +24,7 @@ import {
 } from "lucide-react";
 import { StatusMeter } from "@neo-tavern/ui";
 import type { AgenticGameState, DiceRollResult } from "@/features/agentic-play/agentic-play";
-import {
-  resolveAgenticStatusMeters,
-  type ResolvedAgenticStatusMeter,
-} from "@/features/agentic-play/status-assets";
+import { resolveAgenticStatusMeters, type ResolvedAgenticStatusMeter } from "@/features/agentic-play/status-assets";
 import type { Message, MessageAgenticOption } from "@neo-tavern/shared";
 
 // ── Component ─────────────────────────────────────────
@@ -56,14 +54,18 @@ export interface ChatRightPanelProps {
   onExploreAgenticOption?: (option: MessageAgenticOption, parentMessageId: string) => void;
 }
 
+// ── Shared classNames ────────────────────────────────
+
+const labelClass = "text-xs text-muted-foreground";
+
 // ── Dice Slot Machine ───────────────────────────────
 
-const OUTCOME_ICONS: Record<string, { Icon: typeof Dice5; color: string; label: string }> = {
-  critical_success: { Icon: Trophy, color: "text-amber-400", label: "大成功!" },
-  critical_failure: { Icon: Skull, color: "text-red-500", label: "大失败!" },
-  success: { Icon: ShieldCheck, color: "text-emerald-400", label: "成功" },
-  failure: { Icon: Dice5, color: "text-red-400", label: "失败" },
-  rolled: { Icon: Dice5, color: "text-primary", label: "掷出" },
+const OUTCOME_ICONS: Record<string, { Icon: typeof Dice5; color: string; labelKey: string }> = {
+  critical_success: { Icon: Trophy, color: "text-amber-400", labelKey: "rightPanel.dice.criticalSuccess" },
+  critical_failure: { Icon: Skull, color: "text-red-500", labelKey: "rightPanel.dice.criticalFailure" },
+  success: { Icon: ShieldCheck, color: "text-emerald-400", labelKey: "rightPanel.dice.success" },
+  failure: { Icon: Dice5, color: "text-red-400", labelKey: "rightPanel.dice.failure" },
+  rolled: { Icon: Dice5, color: "text-primary", labelKey: "rightPanel.dice.rolled" },
 };
 
 function DiceFace({ value, sides, rolling }: { value: number; sides: number; rolling: boolean }) {
@@ -87,8 +89,9 @@ function DiceFace({ value, sides, rolling }: { value: number; sides: number; rol
 }
 
 function DiceSlotMachine({ result, isGenerating }: { result: DiceRollResult; isGenerating: boolean }) {
-  const { Icon: OutcomeIcon, color: outcomeColor, label: outcomeLabel } =
-    OUTCOME_ICONS[result.outcome] ?? OUTCOME_ICONS.rolled;
+  const { t } = useTranslation("chat");
+  const { Icon: OutcomeIcon, color: outcomeColor, labelKey } = OUTCOME_ICONS[result.outcome] ?? OUTCOME_ICONS.rolled;
+  const outcomeLabel = t(labelKey);
 
   const parsed = result.dice.match(/^(\d+)d(\d+)$/);
   const count = parsed ? parseInt(parsed[1], 10) : 1;
@@ -117,8 +120,10 @@ function DiceSlotMachine({ result, isGenerating }: { result: DiceRollResult; isG
         </div>
         {result.difficulty !== undefined && (
           <div className="mt-0.5 text-xs text-muted-foreground">
-            DC {result.difficulty}
-            {result.successProbability !== undefined && <span> · 成功率 {result.successProbability}%</span>}
+            {t("rightPanel.dice.dc", { value: result.difficulty })}
+            {result.successProbability !== undefined && (
+              <span> · {t("rightPanel.dice.successRate", { rate: result.successProbability })}</span>
+            )}
           </div>
         )}
       </div>
@@ -173,6 +178,7 @@ export function ChatRightPanel({
   onRenameBranch: _onRenameBranch,
   onExploreAgenticOption,
 }: ChatRightPanelProps) {
+  const { t } = useTranslation("chat");
   const hasUsage = usageMessagesCount > 0;
   const statusMeters = agenticPlayEnabled ? resolveAgenticStatusMeters(agenticGameState) : [];
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
@@ -205,7 +211,7 @@ export function ChatRightPanel({
 
   const rootMessages = useMemo(() => {
     if (!allMessages) return [];
-    return (childrenMap.get(null) ?? []);
+    return childrenMap.get(null) ?? [];
   }, [allMessages, childrenMap]);
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
@@ -226,7 +232,9 @@ export function ChatRightPanel({
     const isFork = children.length >= 2;
     const isExpanded = expandedNodes.has(message.id) || depth < 2; // auto-expand shallow nodes
     const isOnActivePath = activePathIds.has(message.id);
-    const preview = message.content.slice(0, 60).replace(/\n/g, " ") || (message.role === "assistant" ? "(思考中...)" : "(空)");
+    const preview =
+      message.content.slice(0, 60).replace(/\n/g, " ") ||
+      (message.role === "assistant" ? t("rightPanel.tree.thinking") : t("rightPanel.tree.empty"));
 
     // Find untaken agentic options (available but never chosen)
     const untakenOptions: MessageAgenticOption[] = [];
@@ -234,9 +242,11 @@ export function ChatRightPanel({
       const takenLabels = new Set(
         children
           .filter((c) => c.role === "user" && c.hidden)
-          .map((c) => (typeof c.metadata?.agenticAction === "object" && c.metadata.agenticAction
-            ? (c.metadata.agenticAction as Record<string, unknown>).label
-            : undefined))
+          .map((c) =>
+            typeof c.metadata?.agenticAction === "object" && c.metadata.agenticAction
+              ? (c.metadata.agenticAction as Record<string, unknown>).label
+              : undefined,
+          )
           .filter(Boolean) as string[],
       );
       for (const opt of message.agenticOptions) {
@@ -277,9 +287,7 @@ export function ChatRightPanel({
           {/* Content preview + switch action */}
           <button
             type="button"
-            className={`min-w-0 truncate text-left ${
-              isOnActivePath ? "font-medium text-primary" : "text-foreground"
-            }`}
+            className={`min-w-0 truncate text-left ${isOnActivePath ? "font-medium text-primary" : "text-foreground"}`}
             title={message.content.slice(0, 200)}
             onClick={() => onSwitchBranch?.(message.id)}
           >
@@ -300,7 +308,7 @@ export function ChatRightPanel({
               type="button"
               className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover:opacity-100"
               style={{ opacity: isFork ? undefined : 0 }}
-              title="Create branch"
+              title={t("rightPanel.tree.createBranch")}
               onClick={(e) => {
                 e.stopPropagation();
                 onCreateBranch(message.id);
@@ -312,28 +320,34 @@ export function ChatRightPanel({
         </div>
 
         {/* Children */}
-        {hasChildren && isExpanded &&
-          children.map((child) => renderTreeNode(child, depth + 1))
-        }
+        {hasChildren && isExpanded && children.map((child) => renderTreeNode(child, depth + 1))}
 
         {/* Untaken agentic options (potential branches) */}
-        {isExpanded && untakenOptions.length > 0 && untakenOptions.map((opt) => (
-          <div
-            key={`untaken-${message.id}-${opt.id}`}
-            className="flex items-center gap-1 py-0.5 text-xs hover:bg-accent/50 rounded text-muted-foreground cursor-pointer"
-            style={{ paddingLeft: `${8 + (depth + 1) * 14}px`, paddingRight: 4 }}
-            title={`未探索选项: ${opt.action}${opt.difficulty ? ` (DC ${opt.difficulty})` : ""}`}
-            onClick={() => onExploreAgenticOption?.(opt, message.id)}
-          >
-            <span className="w-4 shrink-0" />
-            <Dice5 className="h-3 w-3 shrink-0 text-amber-400/60" />
-            <span className="min-w-0 truncate italic">{opt.label}</span>
-            {opt.difficulty !== undefined && (
-              <span className="shrink-0 text-[10px] text-muted-foreground/50">DC{opt.difficulty}</span>
-            )}
-            <span className="shrink-0 rounded bg-amber-400/10 px-1 py-0.5 text-[10px] text-amber-400/70">未探索</span>
-          </div>
-        ))}
+        {isExpanded &&
+          untakenOptions.length > 0 &&
+          untakenOptions.map((opt) => (
+            <div
+              key={`untaken-${message.id}-${opt.id}`}
+              className="flex items-center gap-1 py-0.5 text-xs hover:bg-accent/50 rounded text-muted-foreground cursor-pointer"
+              style={{ paddingLeft: `${8 + (depth + 1) * 14}px`, paddingRight: 4 }}
+              title={
+                opt.difficulty !== undefined
+                  ? t("rightPanel.tree.unexploredOptionWithDc", { action: opt.action, difficulty: opt.difficulty })
+                  : t("rightPanel.tree.unexploredOption", { action: opt.action })
+              }
+              onClick={() => onExploreAgenticOption?.(opt, message.id)}
+            >
+              <span className="w-4 shrink-0" />
+              <Dice5 className="h-3 w-3 shrink-0 text-amber-400/60" />
+              <span className="min-w-0 truncate italic">{opt.label}</span>
+              {opt.difficulty !== undefined && (
+                <span className="shrink-0 text-[10px] text-muted-foreground/50">DC{opt.difficulty}</span>
+              )}
+              <span className="shrink-0 rounded bg-amber-400/10 px-1 py-0.5 text-[10px] text-amber-400/70">
+                {t("rightPanel.tree.unexplored")}
+              </span>
+            </div>
+          ))}
       </div>
     );
   };
@@ -351,7 +365,7 @@ export function ChatRightPanel({
             onClick={() => setActiveView("stats")}
           >
             <BarChart3 className="h-3.5 w-3.5" />
-            状态
+            {t("rightPanel.tabs.stats")}
           </button>
           <button
             type="button"
@@ -362,7 +376,7 @@ export function ChatRightPanel({
             disabled={!hasBranchTree}
           >
             <GitBranch className="h-3.5 w-3.5" />
-            分支
+            {t("rightPanel.tabs.branches")}
           </button>
         </div>
       </div>
@@ -372,7 +386,7 @@ export function ChatRightPanel({
         {activeView === "tree" ? (
           <div className="space-y-0.5">
             {rootMessages.length === 0 ? (
-              <p className="text-xs text-muted-foreground">暂无对话分支</p>
+              <p className="text-xs text-muted-foreground">{t("rightPanel.tree.noBranches")}</p>
             ) : (
               rootMessages.map((msg) => renderTreeNode(msg, 0))
             )}
@@ -385,11 +399,11 @@ export function ChatRightPanel({
                 className="flex w-full items-center justify-between gap-3 text-left"
                 onClick={() => setOverviewCollapsed((value) => !value)}
                 aria-expanded={!overviewCollapsed}
-                title={overviewCollapsed ? "展开运行概览" : "收纳运行概览"}
+                title={overviewCollapsed ? t("rightPanel.overview.expand") : t("rightPanel.overview.collapse")}
               >
                 <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
                   <BarChart3 className="h-4 w-4 shrink-0" />
-                  <span className="truncate">运行概览</span>
+                  <span className="truncate">{t("rightPanel.overview.title")}</span>
                 </span>
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                   {overviewCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -399,8 +413,10 @@ export function ChatRightPanel({
               {!overviewCollapsed && (
                 <div className="mt-3 space-y-2">
                   <div className="rounded-md border bg-card/60 p-3">
-                    <div className="text-xs text-muted-foreground">消息</div>
-                    <div className="mt-1 text-sm font-medium">{messagesCount} messages</div>
+                    <div className={labelClass}>{t("rightPanel.overview.messages")}</div>
+                    <div className="mt-1 text-sm font-medium">
+                      {t("rightPanel.overview.messageCount", { count: messagesCount })}
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -408,11 +424,17 @@ export function ChatRightPanel({
                     className="w-full rounded-md border bg-card/60 p-3 text-left transition-colors hover:bg-accent"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="text-xs text-muted-foreground">Token 用量</div>
-                      <span className="text-xs text-primary">查看详细 →</span>
+                      <div className={labelClass}>{t("rightPanel.overview.tokenUsage")}</div>
+                      <span className="text-xs text-primary">{t("rightPanel.overview.viewDetails")}</span>
                     </div>
                     <div className="mt-1 text-sm font-medium">
-                      {hasUsage ? `P:${totalPrompt} C:${totalCompletion} | cache ${cacheRate}%` : "暂无统计"}
+                      {hasUsage
+                        ? t("rightPanel.overview.tokenStats", {
+                            prompt: totalPrompt,
+                            completion: totalCompletion,
+                            rate: cacheRate,
+                          })
+                        : t("rightPanel.overview.noStats")}
                     </div>
                     {hasUsage && (
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -426,7 +448,7 @@ export function ChatRightPanel({
                   {hasUsage && (
                     <div className="rounded-md border bg-card/60 p-3">
                       <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>Context</span>
+                        <span>{t("rightPanel.overview.context")}</span>
                         <span>{contextUsageDisplay}</span>
                       </div>
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -445,12 +467,14 @@ export function ChatRightPanel({
               <section className="mt-5">
                 <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
                   <Brain className="h-4 w-4" />
-                  场景状态
+                  {t("rightPanel.agentic.sceneStatus")}
                 </div>
                 <div className="space-y-2">
                   {statusMeters.length > 0 && (
                     <div className="space-y-2">
-                      <div className="px-1 text-xs font-semibold text-muted-foreground">动态变量</div>
+                      <div className="px-1 text-xs font-semibold text-muted-foreground">
+                        {t("rightPanel.agentic.dynamicVariables")}
+                      </div>
                       {statusMeters.slice(0, 8).map((meter) => (
                         <StatusMeter
                           key={meter.id}
@@ -472,7 +496,7 @@ export function ChatRightPanel({
                 <section className="mt-5">
                   <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
                     <Dice5 className="h-4 w-4" />
-                    判定
+                    {t("rightPanel.agentic.judgment")}
                   </div>
                   <div className="rounded-md border bg-background p-4">
                     {lastDiceResult ? (
@@ -489,12 +513,14 @@ export function ChatRightPanel({
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-medium">
-                            {isGeneratingCurrentChat ? "判定进行中" : "等待行动判定"}
+                            {isGeneratingCurrentChat
+                              ? t("rightPanel.agentic.judging")
+                              : t("rightPanel.agentic.waitingJudgment")}
                           </div>
                           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                             {isGeneratingCurrentChat
-                              ? "主持人正在判断风险、调用骰子或整理结果。"
-                              : "玩家选择行动后，风险动作会触发骰子判定。"}
+                              ? t("rightPanel.agentic.judgingHint")
+                              : t("rightPanel.agentic.waitingJudgmentHint")}
                           </p>
                         </div>
                       </div>
