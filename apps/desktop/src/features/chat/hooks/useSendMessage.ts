@@ -451,6 +451,7 @@ export function useSendMessage({
   const patchMessage = useChatStore((s) => s.patchMessage);
   const deleteMessage = useChatStore((s) => s.deleteMessage);
   const ensureMessagesHydrated = useChatStore((s) => s.ensureMessagesHydrated);
+  const getActivePath = useChatStore((s) => s.getActivePath);
   const activeChatGeneration = useChatStore((s) => (chatId ? s.activeGenerations[chatId] : undefined));
   const beginSending = useChatStore((s) => s.beginSending);
   const setStreamingMessageId = useChatStore((s) => s.setStreamingMessageId);
@@ -1188,8 +1189,12 @@ export function useSendMessage({
       let assistantId: string | null = null;
 
       try {
-        await addMessage({
+        const activePath = getActivePath(chatId);
+        const lastMessageId = activePath.length > 0 ? activePath[activePath.length - 1].id : null;
+
+        const userMsg = await addMessage({
           chatId,
+          parentId: lastMessageId,
           role: "user",
           content: trimmedContent,
           hidden: !!options.hiddenUserMessage,
@@ -1248,6 +1253,7 @@ export function useSendMessage({
 
         const assistant = await addMessage({
           chatId,
+          parentId: userMsg.id,
           role: "assistant",
           content: "",
         });
@@ -1392,6 +1398,7 @@ export function useSendMessage({
 
       const assistant = await addMessage({
         chatId,
+        parentId: allMessages[lastUserIdx].id,
         role: "assistant",
         content: "",
       });

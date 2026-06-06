@@ -5,6 +5,8 @@ import {
   chatSavepointRepository,
   agenticPlayStateRepository,
   messageRepository,
+  buildMessagePath,
+  collectDescendantIds,
   secondaryApiUsageRepository,
 } from "@/db/repositories";
 import type { Chat, Message, CreateChatInput, CreateMessageInput } from "@neo-tavern/shared";
@@ -50,6 +52,7 @@ interface ChatState {
   ) => Promise<void>;
   deleteMessage: (id: string) => Promise<void>;
   deleteMessages: (ids: string[]) => Promise<void>;
+  getActivePath: (chatId: string) => Message[];
   beginSending: (chatId: string) => void;
   setStreamingMessageId: (chatId: string, id: string | null) => void;
   setGenerationPhase: (chatId: string, phase: GenerationPhase) => void;
@@ -420,16 +423,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
   deleteMessage: async (id: string) => {
     try {
       const target = get().messages.find((m) => m.id === id);
-      await messageRepository.deleteMessage(id);
-      const chat = target ? await chatRepository.update(target.chatId, {}) : null;
+      if (!target) return;
+
+      // Cascade: collect all descendant ids
+      const descendantIds = collectDescendantIds(get().messages, id);
+      const allIds = [id, ...descendantIds];
+
+      await messageRepository.deleteMessages(allIds);
+      const chat = await chatRepository.update(target.chatId, {});
+      const idSet = new Set(allIds);
       set((state) => ({
-        messages: state.messages.filter((m) => m.id !== id),
-        ...(chat ? applyTouchedChat(state, chat) : {}),
+        messages: state.messages.filter((m) => !idSet.has(m.id)),
+        ...applyTouchedChat(state, chat),
       }));
     } catch (err) {
       set({ error: (err as Error).message });
       throw err;
     }
+  },
+
+  getActivePath: (_chatId: string) => {
+    const messages = get().messages;
+    if (messages.length === 0) return [];
+
+    // Find the latest message by createdAt as the leaf
+    const sorted = [...messages].sort((a, b) => {
+      const byTime = b.createdAt.localeCompare(a.createdAt);
+      return byTime === 0 ? b.id.localeCompare(a.id) : byTime;
+    });
+    const leafId = sorted[0].id;
+    return buildMessagePath(messages, leafId);
   },
 
   deleteMessages: async (ids: string[]) => {

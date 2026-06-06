@@ -573,6 +573,7 @@ export function ChatPage() {
       if (visibleMessages.length === 0 && character?.firstMessage.trim()) {
         await addMessage({
           chatId: currentChat.id,
+          parentId: null,
           role: "assistant",
           content: replaceUserPlaceholders(character.firstMessage, personaName).trim(),
         });

@@ -71,11 +71,14 @@ fn open_sqlite(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY NOT NULL,
             chat_id TEXT NOT NULL,
+            parent_id TEXT,
             created_at TEXT NOT NULL,
             message_json TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_messages_chat_created
             ON messages(chat_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_messages_parent_id
+            ON messages(parent_id);
         CREATE TABLE IF NOT EXISTS agentic_play_states (
             chat_id TEXT PRIMARY KEY NOT NULL,
             character_id TEXT NOT NULL,
@@ -89,6 +92,19 @@ fn open_sqlite(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
         "#,
     )
     .map_err(|err| format!("Failed to initialize SQLite schema: {err}"))?;
+
+    // Migration: add parent_id column if upgrading from older schema
+    let has_parent_id: bool = conn
+        .prepare("SELECT parent_id FROM messages LIMIT 0")
+        .is_ok();
+    if !has_parent_id {
+        conn.execute_batch(
+            "ALTER TABLE messages ADD COLUMN parent_id TEXT;
+             CREATE INDEX IF NOT EXISTS idx_messages_parent_id ON messages(parent_id);",
+        )
+        .map_err(|err| format!("Failed to migrate SQLite schema for parent_id: {err}"))?;
+    }
+
     Ok(conn)
 }
 
@@ -102,13 +118,18 @@ fn json_string_field<'a>(value: &'a serde_json::Value, field: &str) -> Result<&'
 
 fn serialize_message(
     message: &serde_json::Value,
-) -> Result<(String, String, String, String), String> {
+) -> Result<(String, String, Option<String>, String, String), String> {
     let id = json_string_field(message, "id")?.to_string();
     let chat_id = json_string_field(message, "chatId")?.to_string();
+    let parent_id = message
+        .get("parentId")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
     let created_at = json_string_field(message, "createdAt")?.to_string();
     let raw = serde_json::to_string(message)
         .map_err(|err| format!("Failed to serialize message: {err}"))?;
-    Ok((id, chat_id, created_at, raw))
+    Ok((id, chat_id, parent_id, created_at, raw))
 }
 
 fn parse_message_json(raw: String) -> Result<serde_json::Value, String> {
@@ -154,10 +175,10 @@ fn update_sqlite_message(
     conn: &rusqlite::Connection,
     message: &serde_json::Value,
 ) -> Result<(), String> {
-    let (id, chat_id, created_at, raw) = serialize_message(message)?;
+    let (id, chat_id, parent_id, created_at, raw) = serialize_message(message)?;
     conn.execute(
-        "UPDATE messages SET chat_id = ?1, created_at = ?2, message_json = ?3 WHERE id = ?4",
-        params![chat_id, created_at, raw, id],
+        "UPDATE messages SET chat_id = ?1, parent_id = ?2, created_at = ?3, message_json = ?4 WHERE id = ?5",
+        params![chat_id, parent_id, created_at, raw, id],
     )
     .map_err(|err| format!("Failed to update SQLite message: {err}"))?;
     Ok(())
@@ -621,11 +642,11 @@ fn sqlite_init_messages(
         .transaction()
         .map_err(|err| format!("Failed to start SQLite migration: {err}"))?;
     for message in messages {
-        let (id, chat_id, created_at, message_raw) = serialize_message(message)?;
+        let (id, chat_id, parent_id, created_at, message_raw) = serialize_message(message)?;
         tx.execute(
-            "INSERT OR IGNORE INTO messages (id, chat_id, created_at, message_json)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![id, chat_id, created_at, message_raw],
+            "INSERT OR IGNORE INTO messages (id, chat_id, parent_id, created_at, message_json)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, chat_id, parent_id, created_at, message_raw],
         )
         .map_err(|err| format!("Failed to migrate SQLite message: {err}"))?;
     }
@@ -695,16 +716,82 @@ fn sqlite_list_recent_messages_by_chat_id(
 }
 
 #[tauri::command]
+fn sqlite_list_child_messages(
+    app: tauri::AppHandle,
+    parent_id: String,
+) -> Result<Vec<serde_json::Value>, String> {
+    let conn = open_sqlite(&app)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT message_json FROM messages
+             WHERE parent_id = ?1
+             ORDER BY created_at ASC, id ASC",
+        )
+        .map_err(|err| format!("Failed to prepare child message query: {err}"))?;
+    let rows = stmt
+        .query_map(params![parent_id], |row| row.get::<_, String>(0))
+        .map_err(|err| format!("Failed to query child messages: {err}"))?;
+
+    let mut messages = Vec::new();
+    for row in rows {
+        messages.push(parse_message_json(row.map_err(|err| {
+            format!("Failed to read child message row: {err}")
+        })?)?);
+    }
+    Ok(messages)
+}
+
+#[tauri::command]
+fn sqlite_migrate_parent_ids(app: tauri::AppHandle) -> Result<usize, String> {
+    let conn = open_sqlite(&app)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, chat_id, created_at FROM messages
+             WHERE parent_id IS NULL
+             ORDER BY chat_id, created_at ASC, id ASC",
+        )
+        .map_err(|err| format!("Failed to prepare parent_id migration query: {err}"))?;
+    let rows: Vec<(String, String, String)> = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|err| format!("Failed to read messages for parent_id migration: {err}"))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let mut count = 0usize;
+    let mut prev_by_chat: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
+    for (id, chat_id, _created_at) in &rows {
+        if let Some(prev_id) = prev_by_chat.get(chat_id) {
+            conn.execute(
+                "UPDATE messages SET parent_id = ?1 WHERE id = ?2",
+                params![prev_id, id],
+            )
+            .map_err(|err| format!("Failed to set parent_id: {err}"))?;
+            count += 1;
+        }
+        prev_by_chat.insert(chat_id.clone(), id.clone());
+    }
+
+    Ok(count)
+}
+
+#[tauri::command]
 fn sqlite_create_message(
     app: tauri::AppHandle,
     message: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let conn = open_sqlite(&app)?;
-    let (id, chat_id, created_at, raw) = serialize_message(&message)?;
+    let (id, chat_id, parent_id, created_at, raw) = serialize_message(&message)?;
     conn.execute(
-        "INSERT OR REPLACE INTO messages (id, chat_id, created_at, message_json)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![id, chat_id, created_at, raw],
+        "INSERT OR REPLACE INTO messages (id, chat_id, parent_id, created_at, message_json)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![id, chat_id, parent_id, created_at, raw],
     )
     .map_err(|err| format!("Failed to create SQLite message: {err}"))?;
     Ok(message)
@@ -771,14 +858,14 @@ fn sqlite_replace_messages_by_chat_id(
         .map_err(|err| format!("Failed to clear SQLite chat messages: {err}"))?;
 
     for message in &messages {
-        let (id, message_chat_id, created_at, raw) = serialize_message(message)?;
+        let (id, message_chat_id, parent_id, created_at, raw) = serialize_message(message)?;
         if message_chat_id != chat_id {
             return Err("Replacement message chatId does not match target chat.".to_string());
         }
         tx.execute(
-            "INSERT OR REPLACE INTO messages (id, chat_id, created_at, message_json)
-             VALUES (?1, ?2, ?3, ?4)",
-            params![id, message_chat_id, created_at, raw],
+            "INSERT OR REPLACE INTO messages (id, chat_id, parent_id, created_at, message_json)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, message_chat_id, parent_id, created_at, raw],
         )
         .map_err(|err| format!("Failed to insert replacement SQLite message: {err}"))?;
     }
@@ -1022,6 +1109,8 @@ pub fn run() {
             sqlite_init_messages,
             sqlite_list_messages_by_chat_id,
             sqlite_list_recent_messages_by_chat_id,
+            sqlite_list_child_messages,
+            sqlite_migrate_parent_ids,
             sqlite_create_message,
             sqlite_update_message,
             sqlite_patch_message,
