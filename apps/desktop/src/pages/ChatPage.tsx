@@ -317,6 +317,7 @@ export function ChatPage() {
   const [savingSavepoint, setSavingSavepoint] = useState(false);
   const [loadingSavepoints, setLoadingSavepoints] = useState(false);
   const [restoringSavepointId, setRestoringSavepointId] = useState<string | null>(null);
+  const [importingSavepointId, setImportingSavepointId] = useState<string | null>(null);
   const [agenticPlayEnabled, setAgenticPlayEnabled] = useState(false);
   const [agenticGameState, setAgenticGameState] = useState<AgenticGameState | null>(null);
   const [dismissedAgenticChoiceMessageId, setDismissedAgenticChoiceMessageId] = useState<string | null>(null);
@@ -1066,6 +1067,24 @@ export function ChatPage() {
       toast("error", "加载存档失败");
     } finally {
       setRestoringSavepointId(null);
+    }
+  };
+
+  const handleImportSavepointAsBranch = async (savepoint: ChatSavepoint) => {
+    if (!currentChat || isGeneratingCurrentChat) return;
+    setImportingSavepointId(savepoint.id);
+    try {
+      const result = await useChatStore.getState().mergeFromSavepoint(currentChat.id, savepoint.messages);
+      if (result.imported > 0) {
+        toast("success", `已导入 ${result.imported} 条新消息为分支`);
+      } else {
+        toast("info", "存档消息与当前对话完全一致，无需导入");
+      }
+      setLoadDialogOpen(false);
+    } catch (err) {
+      toast("error", `导入失败: ${(err as Error).message}`);
+    } finally {
+      setImportingSavepointId(null);
     }
   };
 
@@ -1851,8 +1870,10 @@ export function ChatPage() {
         savepoints={savepoints}
         isLoading={loadingSavepoints}
         restoringSavepointId={restoringSavepointId}
+        importingSavepointId={importingSavepointId}
         isGenerating={isGeneratingCurrentChat}
         onRestore={handleRestoreSavepoint}
+        onImportAsBranch={handleImportSavepointAsBranch}
         onDelete={handleDeleteSavepoint}
         onRefresh={refreshSavepoints}
       />

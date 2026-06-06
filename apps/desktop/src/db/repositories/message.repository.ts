@@ -2,6 +2,7 @@ import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
 const { invoke } = await import("@tauri-apps/api/core");
 import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
+import { diffTreesByContent } from "@neo-tavern/core";
 
 const STORAGE_KEY = "neotavern_messages";
 
@@ -166,6 +167,40 @@ export const messageRepository = {
     const all = await loadAll();
     await saveAll([...all.filter((m) => m.chatId !== chatId), ...restored]);
     return restored.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  /**
+   * Merge savepoint messages into the current tree as a new branch.
+   * Unlike replaceByChatId, this does NOT delete existing messages.
+   * Uses content fingerprinting to skip already-present messages.
+   */
+  async mergeFromSavepoint(chatId: string, savepointMessages: Message[]): Promise<{
+    imported: number;
+    skipped: number;
+    divergencePoints: string[];
+  }> {
+    const current = await this.listByChatId(chatId);
+    const restored = makeRestoredMessages(chatId, savepointMessages);
+    const diff = diffTreesByContent(current, restored);
+
+    if (diff.onlyInB.length === 0) {
+      return { imported: 0, skipped: diff.shared.length, divergencePoints: [] };
+    }
+
+    if (await canUseSqliteMessages()) {
+      for (const msg of diff.onlyInB) {
+        await invoke("sqlite_create_message", { message: msg });
+      }
+    } else {
+      const all = await loadAll();
+      await saveAll([...all, ...diff.onlyInB]);
+    }
+
+    return {
+      imported: diff.onlyInB.length,
+      skipped: diff.shared.length,
+      divergencePoints: diff.divergencePoints,
+    };
   },
 
   async update(id: string, content: string): Promise<Message> {

@@ -1,6 +1,7 @@
 import { Send, ChevronDown, ChevronUp, Pencil, X, Save, FolderOpen, StopCircle } from "lucide-react";
 import { Button, Textarea } from "@neo-tavern/ui";
 import type { PendingSendItem } from "./types";
+import { SyncIndicator } from "@/features/sync";
 
 export interface ChatInputAreaProps {
   displayError: string | null;
@@ -162,6 +163,8 @@ export function ChatInputArea({
               >
                 <FolderOpen className="h-4 w-4" />
               </Button>
+              <span className="mx-1 h-6 w-px bg-border" />
+              <SyncIndicator />
             </div>
             <div className="flex min-w-0 items-end gap-2 rounded-lg border bg-background p-2">
               <Textarea

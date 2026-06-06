@@ -194,8 +194,10 @@ export function LoadDialog({
   savepoints,
   isLoading,
   restoringSavepointId,
+  importingSavepointId,
   isGenerating,
   onRestore,
+  onImportAsBranch,
   onDelete,
   onRefresh,
 }: {
@@ -204,8 +206,10 @@ export function LoadDialog({
   savepoints: ChatSavepoint[];
   isLoading: boolean;
   restoringSavepointId: string | null;
+  importingSavepointId?: string | null;
   isGenerating: boolean;
   onRestore: (savepoint: ChatSavepoint) => void;
+  onImportAsBranch?: (savepoint: ChatSavepoint) => void;
   onDelete: (savepointId: string) => void;
   onRefresh: () => void;
 }) {
@@ -214,7 +218,7 @@ export function LoadDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>加载存档</DialogTitle>
-          <DialogDescription>加载后会用存档内容替换当前聊天消息。</DialogDescription>
+          <DialogDescription>加载会用存档内容替换当前聊天；导入为分支会把新消息合并到当前对话树。</DialogDescription>
         </DialogHeader>
         <div className="max-h-[48vh] space-y-2 overflow-y-auto pr-1">
           {isLoading && <p className="py-6 text-center text-sm text-muted-foreground">Loading...</p>}
@@ -230,24 +234,37 @@ export function LoadDialog({
                     {formatSavepointDate(savepoint.createdAt)} · {savepoint.messageCount} messages
                   </p>
                 </div>
+                <div className="flex items-center gap-1.5">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => onRestore(savepoint)}
-                  disabled={!!restoringSavepointId || isGenerating}
+                  disabled={!!restoringSavepointId || !!importingSavepointId || isGenerating}
                 >
                   {restoringSavepointId === savepoint.id ? "Loading..." : "加载"}
                 </Button>
+                {onImportAsBranch && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onImportAsBranch(savepoint)}
+                    disabled={!!restoringSavepointId || !!importingSavepointId || isGenerating}
+                  >
+                    <GitBranch className="h-3.5 w-3.5 mr-1" />
+                    {importingSavepointId === savepoint.id ? "Importing..." : "导入为分支"}
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={() => onDelete(savepoint.id)}
-                  disabled={!!restoringSavepointId}
+                  disabled={!!restoringSavepointId || !!importingSavepointId}
                   title="删除存档"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
+                </div>
               </div>
             ))}
         </div>

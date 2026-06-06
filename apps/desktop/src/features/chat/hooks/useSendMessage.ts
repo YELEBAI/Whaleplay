@@ -48,6 +48,7 @@ import type { Character, BuiltPrompt, ContextBlock, GenerateMessage, Message, Mo
 import type { ChatMemory, ChatMemorySegment } from "@/db/repositories";
 import type { GenerationPhase } from "../chat.types";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
+import { useSyncTrigger } from "@/features/sync";
 
 interface UseSendMessageOptions {
   character: Character | undefined;
@@ -462,6 +463,7 @@ export function useSendMessage({
   const streamingMessageId = activeChatGeneration?.streamingMessageId ?? null;
   const generationPhase = activeChatGeneration?.generationPhase ?? null;
   const error = chatId ? (errors[chatId] ?? null) : null;
+  const triggerSync = useSyncTrigger();
 
   const setChatError = useCallback((targetChatId: string | null | undefined, message: string | null) => {
     if (!targetChatId) return;
@@ -1296,7 +1298,8 @@ export function useSendMessage({
           void notifyAssistantOutputComplete(character.name);
         }
         void processImageGeneration(chatId, assistant.id, finalContent);
-      } catch (err) {
+        // Sync hook: after bot reply completes, push to peers if connected
+        void triggerSync(useChatStore.getState().messages.filter((m) => m.chatId === chatId).slice(-2));
         if ((err as Error).name === "AbortError") {
           setChatError(chatId, "Generation stopped");
         } else {
@@ -1454,6 +1457,7 @@ export function useSendMessage({
         void notifyAssistantOutputComplete(character.name);
       }
       void processImageGeneration(chatId, assistant.id, finalContent);
+      void triggerSync(useChatStore.getState().messages.filter((m) => m.chatId === chatId).slice(-2));
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         setChatError(chatId, "Generation stopped");

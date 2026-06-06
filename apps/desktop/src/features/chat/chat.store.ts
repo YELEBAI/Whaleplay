@@ -59,6 +59,7 @@ interface ChatState {
   createBranch: (parentId: string, branchName?: string) => Promise<Message>;
   getBranchName: (leafId: string) => string;
   setBranchName: (leafId: string, name: string) => void;
+  mergeFromSavepoint: (chatId: string, savepointMessages: Message[]) => Promise<{ imported: number; skipped: number }>;
   beginSending: (chatId: string) => void;
   setStreamingMessageId: (chatId: string, id: string | null) => void;
   setGenerationPhase: (chatId: string, phase: GenerationPhase) => void;
@@ -535,6 +536,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setBranchName: (leafId: string, name: string) => {
     saveBranchName(leafId, name);
+  },
+
+  mergeFromSavepoint: async (chatId: string, savepointMessages: Message[]) => {
+    const result = await messageRepository.mergeFromSavepoint(chatId, savepointMessages);
+    // Reload the chat to pick up the merged messages
+    const messages = await messageRepository.listByChatId(chatId);
+    set((state) => ({
+      messages: state.currentChat?.id === chatId ? messages : state.messages,
+    }));
+    return result;
   },
 
   deleteMessages: async (ids: string[]) => {

@@ -1,4 +1,5 @@
 pub mod server;
+pub mod sync;
 
 use base64::{engine::general_purpose, Engine as _};
 use rusqlite::{params, OptionalExtension};
@@ -450,7 +451,7 @@ fn try_start_lan_server(handle: tauri::AppHandle) {
 
             // Generate and persist LAN password on first launch
             if !store.contains_key("neotavern_lan_password") {
-                let pw = random_password();
+                let pw = crate::sync::random_password();
                 store.insert("neotavern_lan_password".into(), pw);
                 let _ = write_store_to_path(&store, &std::path::PathBuf::from(&store_path));
             }
@@ -465,21 +466,6 @@ fn try_start_lan_server(handle: tauri::AppHandle) {
             }
         });
     });
-}
-
-fn random_password() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let chars: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&";
-    let mut pw = String::with_capacity(12);
-    for i in 0..12 {
-        let idx = ((seed >> (i * 4)) ^ (seed >> (i * 4 + 16))) as usize % chars.len();
-        pw.push(chars[idx] as char);
-    }
-    pw
 }
 
 fn resolve_frontend_dir(_handle: &tauri::AppHandle) -> String {
