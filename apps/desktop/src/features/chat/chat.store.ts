@@ -29,6 +29,7 @@ interface ChatState {
   streamingMessageId: string | null;
   generationPhase: GenerationPhase | null;
   activeGenerations: Record<string, ActiveGenerationState>;
+  activeLeafId: string | null;
   error: string | null;
   lastDiceResult: DiceRollResult | null;
 
@@ -52,7 +53,12 @@ interface ChatState {
   ) => Promise<void>;
   deleteMessage: (id: string) => Promise<void>;
   deleteMessages: (ids: string[]) => Promise<void>;
-  getActivePath: (chatId: string) => Message[];
+  getActivePath: (_chatId: string) => Message[];
+  getForks: (parentId: string) => Message[];
+  switchBranch: (leafId: string) => void;
+  createBranch: (parentId: string, branchName?: string) => Promise<Message>;
+  getBranchName: (leafId: string) => string;
+  setBranchName: (leafId: string, name: string) => void;
   beginSending: (chatId: string) => void;
   setStreamingMessageId: (chatId: string, id: string | null) => void;
   setGenerationPhase: (chatId: string, phase: GenerationPhase) => void;
@@ -66,6 +72,29 @@ const CHAT_INITIAL_MESSAGE_LIMIT = 80;
 
 let chatLoadSequence = 0;
 let activeHydration: { chatId: string; promise: Promise<Message[]> } | null = null;
+
+// ── Branch name storage ──
+const BRANCH_NAMES_KEY = "neotavern_branch_names";
+
+function loadBranchNames(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(BRANCH_NAMES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveBranchName(leafId: string, name: string) {
+  const names = loadBranchNames();
+  names[leafId] = name;
+  try { localStorage.setItem(BRANCH_NAMES_KEY, JSON.stringify(names)); } catch { /* noop */ }
+}
+
+function getAutoBranchName(leafId: string, siblings: string[]): string {
+  const idx = siblings.indexOf(leafId);
+  return idx >= 0 ? `分支 ${idx + 1}` : `分支`;
+}
 
 function sortChats(chats: Chat[]): Chat[] {
   return [...chats].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -159,6 +188,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingMessageId: null,
   generationPhase: null,
   activeGenerations: {},
+  activeLeafId: null,
   error: null,
   lastDiceResult: null,
 
@@ -274,8 +304,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   ensureMessagesHydrated: async (chatId: string) => {
     const state = get();
-    if (state.currentChat?.id === chatId && state.messagesHydrated) return state.messages;
-    return hydrateMessages(chatId, set, get);
+    const hydrated = state.currentChat?.id === chatId && state.messagesHydrated;
+    const allMessages = hydrated ? state.messages : await hydrateMessages(chatId, set, get);
+    // Return only the active path for prompt building
+    return get().getActivePath(chatId);
   },
 
   addMessage: async (input: CreateMessageInput) => {
@@ -443,16 +475,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   getActivePath: (_chatId: string) => {
-    const messages = get().messages;
+    const { messages, activeLeafId } = get();
     if (messages.length === 0) return [];
 
-    // Find the latest message by createdAt as the leaf
-    const sorted = [...messages].sort((a, b) => {
-      const byTime = b.createdAt.localeCompare(a.createdAt);
-      return byTime === 0 ? b.id.localeCompare(a.id) : byTime;
-    });
-    const leafId = sorted[0].id;
+    // Use active leaf if set, otherwise fall back to the latest message
+    const leafId = activeLeafId ?? (() => {
+      const sorted = [...messages].sort((a, b) => {
+        const byTime = b.createdAt.localeCompare(a.createdAt);
+        return byTime === 0 ? b.id.localeCompare(a.id) : byTime;
+      });
+      return sorted[0].id;
+    })();
+
     return buildMessagePath(messages, leafId);
+  },
+
+  getForks: (parentId: string) => {
+    return get().messages.filter((m) => m.parentId === parentId);
+  },
+
+  switchBranch: (leafId: string) => {
+    set({ activeLeafId: leafId });
+  },
+
+  createBranch: async (parentId: string, branchName?: string) => {
+    // Create an empty assistant message as the branch head
+    const msg = await messageRepository.create({
+      chatId: get().currentChat?.id ?? "",
+      parentId,
+      role: "assistant",
+      content: "",
+    });
+
+    if (branchName) saveBranchName(msg.id, branchName);
+
+    set((state) => ({
+      messages: [...state.messages, msg],
+      activeLeafId: msg.id,
+    }));
+
+    return msg;
+  },
+
+  getBranchName: (leafId: string) => {
+    const names = loadBranchNames();
+    if (names[leafId]) return names[leafId];
+
+    // Auto-generate name from sibling order
+    const msg = get().messages.find((m) => m.id === leafId);
+    if (!msg?.parentId) return "主分支";
+
+    const siblings = get().messages
+      .filter((m) => m.parentId === msg.parentId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((m) => m.id);
+
+    return getAutoBranchName(leafId, siblings);
+  },
+
+  setBranchName: (leafId: string, name: string) => {
+    saveBranchName(leafId, name);
   },
 
   deleteMessages: async (ids: string[]) => {
