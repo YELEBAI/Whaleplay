@@ -2,6 +2,7 @@ import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
 const { invoke } = await import("@tauri-apps/api/core");
 import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
+import { diffTreesByContent } from "@neo-tavern/core";
 
 const STORAGE_KEY = "neotavern_messages";
 
@@ -23,6 +24,7 @@ function makeMessage(input: CreateMessageInput): Message {
   return {
     id: generateId(),
     chatId: input.chatId,
+    parentId: input.parentId ?? null,
     role: input.role,
     content: input.content,
     reasoningContent: input.reasoningContent,
@@ -37,10 +39,52 @@ function makeMessage(input: CreateMessageInput): Message {
   };
 }
 
+/** Build a linear path from leaf to root via parentId chain */
+export function buildMessagePath(allMessages: Message[], leafId: string): Message[] {
+  const byId = new Map(allMessages.map((m) => [m.id, m]));
+  const path: Message[] = [];
+  let current: Message | undefined = byId.get(leafId);
+  while (current) {
+    path.unshift(current);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
+  }
+  return path;
+}
+
+/** Collect all descendant ids for a node (used for cascade delete) */
+export function collectDescendantIds(allMessages: Message[], rootId: string): Set<string> {
+  const byParentId = new Map<string, Message[]>();
+  for (const m of allMessages) {
+    if (m.parentId) {
+      const list = byParentId.get(m.parentId) ?? [];
+      list.push(m);
+      byParentId.set(m.parentId, list);
+    }
+  }
+  const result = new Set<string>();
+  const stack = [rootId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    const children = byParentId.get(id) ?? [];
+    for (const child of children) {
+      if (!result.has(child.id)) {
+        result.add(child.id);
+        stack.push(child.id);
+      }
+    }
+  }
+  return result;
+}
+
 function makeRestoredMessages(chatId: string, messages: Message[]): Message[] {
+  const idMap = new Map<string, string>();
+  for (const m of messages) {
+    idMap.set(m.id, generateId());
+  }
   return messages.map((message) => ({
     ...message,
-    id: generateId(),
+    id: idMap.get(message.id) ?? message.id,
+    parentId: message.parentId ? (idMap.get(message.parentId) ?? message.parentId) : null,
     chatId,
   }));
 }
@@ -70,6 +114,18 @@ export const messageRepository = {
       return invoke<Message[]>("sqlite_list_messages_by_chat_id", { chatId });
     }
     return (await loadAll()).filter((m) => m.chatId === chatId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  async getChildren(parentId: string): Promise<Message[]> {
+    if (await canUseSqliteMessages()) {
+      return invoke<Message[]>("sqlite_list_child_messages", { parentId });
+    }
+    return (await loadAll()).filter((m) => m.parentId === parentId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  async getDescendantIds(chatId: string, rootId: string): Promise<Set<string>> {
+    const all = await this.listByChatId(chatId);
+    return collectDescendantIds(all, rootId);
   },
 
   async listRecentByChatId(chatId: string, limit: number): Promise<Message[]> {
@@ -111,6 +167,40 @@ export const messageRepository = {
     const all = await loadAll();
     await saveAll([...all.filter((m) => m.chatId !== chatId), ...restored]);
     return restored.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+
+  /**
+   * Merge savepoint messages into the current tree as a new branch.
+   * Unlike replaceByChatId, this does NOT delete existing messages.
+   * Uses content fingerprinting to skip already-present messages.
+   */
+  async mergeFromSavepoint(chatId: string, savepointMessages: Message[]): Promise<{
+    imported: number;
+    skipped: number;
+    divergencePoints: string[];
+  }> {
+    const current = await this.listByChatId(chatId);
+    const restored = makeRestoredMessages(chatId, savepointMessages);
+    const diff = diffTreesByContent(current, restored);
+
+    if (diff.onlyInB.length === 0) {
+      return { imported: 0, skipped: diff.shared.length, divergencePoints: [] };
+    }
+
+    if (await canUseSqliteMessages()) {
+      for (const msg of diff.onlyInB) {
+        await invoke("sqlite_create_message", { message: msg });
+      }
+    } else {
+      const all = await loadAll();
+      await saveAll([...all, ...diff.onlyInB]);
+    }
+
+    return {
+      imported: diff.onlyInB.length,
+      skipped: diff.shared.length,
+      divergencePoints: diff.divergencePoints,
+    };
   },
 
   async update(id: string, content: string): Promise<Message> {
@@ -160,5 +250,36 @@ export const messageRepository = {
     }
     const idSet = new Set(ids);
     await saveAll((await loadAll()).filter((m) => !idSet.has(m.id)));
+  },
+
+  async migrateParentIds(): Promise<number> {
+    if (await canUseSqliteMessages()) {
+      return invoke<number>("sqlite_migrate_parent_ids", {});
+    }
+    // localStorage path: compute parentId from chronological order
+    const all = await loadAll();
+    if (all.every((m) => m.parentId != null)) return 0;
+
+    const chatGroups = new Map<string, Message[]>();
+    for (const m of all) {
+      const list = chatGroups.get(m.chatId) ?? [];
+      list.push(m);
+      chatGroups.set(m.chatId, list);
+    }
+
+    let count = 0;
+    let changed = false;
+    for (const [, msgs] of chatGroups) {
+      msgs.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+      for (let i = 1; i < msgs.length; i++) {
+        if (msgs[i].parentId !== msgs[i - 1].id) {
+          msgs[i].parentId = msgs[i - 1].id;
+          count++;
+          changed = true;
+        }
+      }
+    }
+    if (changed) await saveAll(all);
+    return count;
   },
 };

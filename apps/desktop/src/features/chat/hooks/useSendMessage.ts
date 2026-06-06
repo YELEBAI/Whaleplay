@@ -49,6 +49,7 @@ import type { ChatMemory, ChatMemorySegment } from "@/db/repositories";
 import type { GenerationPhase } from "../chat.types";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
 
+
 interface UseSendMessageOptions {
   character: Character | undefined;
   chatId: string | undefined;
@@ -65,7 +66,7 @@ interface SendMessageOptions {
 
 interface UseSendMessageReturn {
   sendMessage: (content: string, options?: SendMessageOptions) => Promise<void>;
-  regenerate: () => Promise<void>;
+  regenerate: (mode?: "replace" | "fork") => Promise<void>;
   abort: () => void;
   sending: boolean;
   sendingChatId: string | null;
@@ -451,6 +452,7 @@ export function useSendMessage({
   const patchMessage = useChatStore((s) => s.patchMessage);
   const deleteMessage = useChatStore((s) => s.deleteMessage);
   const ensureMessagesHydrated = useChatStore((s) => s.ensureMessagesHydrated);
+  const getActivePath = useChatStore((s) => s.getActivePath);
   const activeChatGeneration = useChatStore((s) => (chatId ? s.activeGenerations[chatId] : undefined));
   const beginSending = useChatStore((s) => s.beginSending);
   const setStreamingMessageId = useChatStore((s) => s.setStreamingMessageId);
@@ -461,6 +463,7 @@ export function useSendMessage({
   const streamingMessageId = activeChatGeneration?.streamingMessageId ?? null;
   const generationPhase = activeChatGeneration?.generationPhase ?? null;
   const error = chatId ? (errors[chatId] ?? null) : null;
+
 
   const setChatError = useCallback((targetChatId: string | null | undefined, message: string | null) => {
     if (!targetChatId) return;
@@ -1185,15 +1188,20 @@ export function useSendMessage({
 
       const controller = new AbortController();
       const generationId = beginGeneration(chatId, controller);
-      let assistantId: string | null = null;
 
       try {
-        await addMessage({
+        const activePath = getActivePath(chatId);
+        const lastMessageId = activePath.length > 0 ? activePath[activePath.length - 1].id : null;
+
+        const userMsg = await addMessage({
           chatId,
+          parentId: lastMessageId,
           role: "user",
           content: trimmedContent,
           hidden: !!options.hiddenUserMessage,
-          metadata: options.metadata ?? (options.hiddenUserMessage ? { hiddenReason: options.hiddenReason ?? "hidden" } : undefined),
+          metadata:
+            options.metadata ??
+            (options.hiddenUserMessage ? { hiddenReason: options.hiddenReason ?? "hidden" } : undefined),
         });
 
         const recentMessages = await ensureMessagesHydrated(chatId);
@@ -1248,10 +1256,10 @@ export function useSendMessage({
 
         const assistant = await addMessage({
           chatId,
+          parentId: userMsg.id,
           role: "assistant",
           content: "",
         });
-        assistantId = assistant.id;
         setStreamingMessageId(chatId, assistant.id);
         const debugContext: DebugPromptContext | undefined = useSettingsStore.getState().debugMode
           ? {
@@ -1290,13 +1298,13 @@ export function useSendMessage({
           void notifyAssistantOutputComplete(character.name);
         }
         void processImageGeneration(chatId, assistant.id, finalContent);
+        await removeEmptyStreamingDraft(assistant.id);
       } catch (err) {
         if ((err as Error).name === "AbortError") {
           setChatError(chatId, "Generation stopped");
         } else {
           setChatError(chatId, (err as Error).message || "Failed to send message");
         }
-        await removeEmptyStreamingDraft(assistantId);
       } finally {
         finishGeneration(generationId, chatId);
       }
@@ -1316,145 +1324,168 @@ export function useSendMessage({
 
   const clearError = useCallback(() => setChatError(chatId, null), [chatId, setChatError]);
 
-  const regenerate = useCallback(async () => {
-    if (!chatId || !character) return;
+  const regenerate = useCallback(
+    async (mode: "replace" | "fork" = "replace") => {
+      if (!chatId || !character) return;
 
-    const controller = new AbortController();
-    const generationId = beginGeneration(chatId, controller);
-    let assistantId: string | null = null;
+      const controller = new AbortController();
+      const generationId = beginGeneration(chatId, controller);
+      let assistantId: string | null = null;
 
-    try {
-      const allMessages = await ensureMessagesHydrated(chatId);
+      try {
+        const allMessages = await ensureMessagesHydrated(chatId);
 
-      let lastAssistantIdx = -1;
-      for (let i = allMessages.length - 1; i >= 0; i--) {
-        if (allMessages[i].role === "assistant") {
-          lastAssistantIdx = i;
-          break;
-        }
-      }
-      if (lastAssistantIdx < 0) {
-        setChatError(chatId, "No AI response to regenerate");
-        return;
-      }
-
-      const lastAssistantMsg = allMessages[lastAssistantIdx];
-      cancelImageGeneration(lastAssistantMsg.id);
-      await deleteMessage(lastAssistantMsg.id);
-
-      let lastUserIdx = lastAssistantIdx - 1;
-      while (lastUserIdx >= 0 && allMessages[lastUserIdx].role !== "user") lastUserIdx--;
-      if (lastUserIdx < 0) {
-        setChatError(chatId, "No user message found to regenerate from");
-        return;
-      }
-      const userContent = allMessages[lastUserIdx].content;
-
-      const afterDelete = allMessages.filter((message) => message.id !== lastAssistantMsg.id);
-      const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
-
-      const activePresetId = await presetRepository.getActivePresetId();
-      let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
-      if (activePresetId) {
-        const preset = await presetRepository.getById(activePresetId);
-        if (preset) {
-          presetItems = preset.items
-            .filter((i) => i.enabled)
-            .map((i) => ({ role: i.role, content: i.content, injectionOrder: i.injectionOrder }));
-        }
-      }
-
-      const historyMessages = afterDelete.slice(0, -1);
-      const memoryPlan = await getMemoryPromptPlan(historyMessages, chatId, controller.signal);
-      const worldbookBlocks = await getWorldbookContextBlocks(userContent, stripMessages(afterDelete));
-      const agenticRecord =
-        agenticPlayEnabled && character ? await agenticPlayStateRepository.getOrCreate(chatId, character, true) : null;
-      const agenticBlock = agenticRecord ? createAgenticPlayContextBlock(agenticRecord.gameState) : null;
-      const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
-        Boolean,
-      ) as ContextBlock[];
-      const effectivePresetItems = agenticRecord ? buildAgenticPlayPresetItems(character.name) : presetItems;
-
-      const built = buildChatPrompt({
-        character,
-        recentMessages: stripMessages(memoryPlan.recentMessages) as Message[],
-        userInput: userContent,
-        maxTotalTokens: contextTokens,
-        presetItems: effectivePresetItems,
-        contextBlocks,
-        userName: useSettingsStore.getState().personaName,
-      });
-
-      if (onPromptBuilt) onPromptBuilt(built);
-
-      const modelConfig = useSettingsStore.getState().modelConfig;
-      if (!modelConfig) throw new Error("Model not configured. Please set up API settings first.");
-
-      const assistant = await addMessage({
-        chatId,
-        role: "assistant",
-        content: "",
-      });
-      assistantId = assistant.id;
-      setStreamingMessageId(chatId, assistant.id);
-      const debugContext: DebugPromptContext | undefined = useSettingsStore.getState().debugMode
-        ? {
-            chatId,
-            characterId: character.id,
-            characterName: character.name,
-            contextTokens,
-            round: getNextDebugRound(afterDelete),
-            assistantMessageId: assistant.id,
-            baseTrigger: "regenerate",
-            hiddenUserMessage: false,
+        let lastAssistantIdx = -1;
+        for (let i = allMessages.length - 1; i >= 0; i--) {
+          if (allMessages[i].role === "assistant") {
+            lastAssistantIdx = i;
+            break;
           }
-        : undefined;
-      const finalContent =
-        agenticRecord && agenticPlayEnabled
-          ? await generateAgenticAssistantWithEmptyRetry(
+        }
+        if (lastAssistantIdx < 0) {
+          setChatError(chatId, "No AI response to regenerate");
+          return;
+        }
+
+        const lastAssistantMsg = allMessages[lastAssistantIdx];
+
+        let lastUserIdx = lastAssistantIdx - 1;
+        while (lastUserIdx >= 0 && allMessages[lastUserIdx].role !== "user") lastUserIdx--;
+        if (lastUserIdx < 0) {
+          setChatError(chatId, "No user message found to regenerate from");
+          return;
+        }
+        const userContent = allMessages[lastUserIdx].content;
+
+        const isFork = mode === "fork";
+
+        // In replace mode, delete old assistant; in fork mode, keep it
+        if (!isFork) {
+          cancelImageGeneration(lastAssistantMsg.id);
+          await deleteMessage(lastAssistantMsg.id);
+        }
+
+        const messagesForPrompt = isFork
+          ? allMessages
+          : allMessages.filter((message) => message.id !== lastAssistantMsg.id);
+        const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
+
+        const activePresetId = await presetRepository.getActivePresetId();
+        let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
+        if (activePresetId) {
+          const preset = await presetRepository.getById(activePresetId);
+          if (preset) {
+            presetItems = preset.items
+              .filter((i) => i.enabled)
+              .map((i) => ({ role: i.role, content: i.content, injectionOrder: i.injectionOrder }));
+          }
+        }
+
+        const historyMessages = messagesForPrompt.slice(0, -1);
+        const memoryPlan = await getMemoryPromptPlan(historyMessages, chatId, controller.signal);
+        const worldbookBlocks = await getWorldbookContextBlocks(userContent, stripMessages(messagesForPrompt));
+        const agenticRecord =
+          agenticPlayEnabled && character
+            ? await agenticPlayStateRepository.getOrCreate(chatId, character, true)
+            : null;
+        const agenticBlock = agenticRecord ? createAgenticPlayContextBlock(agenticRecord.gameState) : null;
+        const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
+          Boolean,
+        ) as ContextBlock[];
+        const effectivePresetItems = agenticRecord ? buildAgenticPlayPresetItems(character.name) : presetItems;
+
+        const built = buildChatPrompt({
+          character,
+          recentMessages: stripMessages(memoryPlan.recentMessages) as Message[],
+          userInput: userContent,
+          maxTotalTokens: contextTokens,
+          presetItems: effectivePresetItems,
+          contextBlocks,
+          userName: useSettingsStore.getState().personaName,
+        });
+
+        if (onPromptBuilt) onPromptBuilt(built);
+
+        const modelConfig = useSettingsStore.getState().modelConfig;
+        if (!modelConfig) throw new Error("Model not configured. Please set up API settings first.");
+
+        const assistant = await addMessage({
+          chatId,
+          parentId: allMessages[lastUserIdx].id,
+          role: "assistant",
+          content: "",
+        });
+        assistantId = assistant.id;
+        setStreamingMessageId(chatId, assistant.id);
+
+        // In fork mode, switch to the new branch
+        if (isFork) {
+          useChatStore.getState().switchBranch(assistant.id);
+        }
+
+        const promptMessages = isFork
+          ? messagesForPrompt
+          : messagesForPrompt.filter((message) => message.id !== lastAssistantMsg.id);
+        const debugContext: DebugPromptContext | undefined = useSettingsStore.getState().debugMode
+          ? {
               chatId,
-              assistant.id,
-              built,
-              modelConfig,
-              agenticRecord.gameState,
-              controller,
-              generationId,
-              debugContext,
-            )
-          : await generateAssistantWithEmptyRetry(
-              chatId,
-              assistant.id,
-              built,
-              modelConfig,
-              controller,
-              generationId,
-              debugContext,
-            );
-      if (isGenerationActive(chatId, generationId)) {
-        void notifyAssistantOutputComplete(character.name);
+              characterId: character.id,
+              characterName: character.name,
+              contextTokens,
+              round: getNextDebugRound(promptMessages),
+              assistantMessageId: assistant.id,
+              baseTrigger: "regenerate",
+              hiddenUserMessage: false,
+            }
+          : undefined;
+        const finalContent =
+          agenticRecord && agenticPlayEnabled
+            ? await generateAgenticAssistantWithEmptyRetry(
+                chatId,
+                assistant.id,
+                built,
+                modelConfig,
+                agenticRecord.gameState,
+                controller,
+                generationId,
+                debugContext,
+              )
+            : await generateAssistantWithEmptyRetry(
+                chatId,
+                assistant.id,
+                built,
+                modelConfig,
+                controller,
+                generationId,
+                debugContext,
+              );
+        if (isGenerationActive(chatId, generationId)) {
+          void notifyAssistantOutputComplete(character.name);
+        }
+        void processImageGeneration(chatId, assistant.id, finalContent);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") {
+          setChatError(chatId, "Generation stopped");
+        } else {
+          setChatError(chatId, (err as Error).message || "Failed to regenerate");
+        }
+        await removeEmptyStreamingDraft(assistantId);
+      } finally {
+        finishGeneration(generationId, chatId);
       }
-      void processImageGeneration(chatId, assistant.id, finalContent);
-    } catch (err) {
-      if ((err as Error).name === "AbortError") {
-        setChatError(chatId, "Generation stopped");
-      } else {
-        setChatError(chatId, (err as Error).message || "Failed to regenerate");
-      }
-      await removeEmptyStreamingDraft(assistantId);
-    } finally {
-      finishGeneration(generationId, chatId);
-    }
-  }, [
-    character,
-    chatId,
-    addMessage,
-    patchMessage,
-    deleteMessage,
-    ensureMessagesHydrated,
-    agenticPlayEnabled,
-    onAgenticPlayStateUpdated,
-    onPromptBuilt,
-  ]);
+    },
+    [
+      character,
+      chatId,
+      addMessage,
+      patchMessage,
+      deleteMessage,
+      ensureMessagesHydrated,
+      agenticPlayEnabled,
+      onAgenticPlayStateUpdated,
+      onPromptBuilt,
+    ],
+  );
 
   return {
     sendMessage,

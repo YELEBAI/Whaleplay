@@ -1,5 +1,6 @@
 import React from "react";
-import { RotateCcw, Copy, BarChart3, Trash2, Brain } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { RotateCcw, Copy, BarChart3, Trash2, Brain, GitBranch } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -18,6 +19,11 @@ import type { TokenUsageView } from "@/pages/chat/types";
 import { formatSavepointDate, formatCompactToken } from "@/pages/chat/utils";
 import { formatCnyCost, formatCnyExact } from "@/features/billing/deepseek-billing";
 import { toast } from "@/utils/toast";
+
+// ── Shared classNames ────────────────────────────────
+const iconSm = "h-3.5 w-3.5 mr-1";
+const dialogMax80vh = "max-h-[80vh]";
+const dialogScrollContent = "overflow-y-auto max-h-[60vh]";
 
 // ── TokenDialog shared types ─────────────────────────
 
@@ -62,32 +68,33 @@ export function ImagePromptDialog({
   onSave: () => void;
   onSaveAndRegenerate: () => void;
 }) {
+  const { t } = useTranslation("chat");
   const disabled = !draft.trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>修改图片提示词</DialogTitle>
-          <DialogDescription>保存后会更新这张图片的提示词；也可以直接保存并重新生成。</DialogDescription>
+          <DialogTitle>{t("imagePromptDialog.title")}</DialogTitle>
+          <DialogDescription>{t("imagePromptDialog.description")}</DialogDescription>
         </DialogHeader>
         <Textarea
           value={draft}
           onChange={(e) => onDraftChange(e.target.value)}
           rows={8}
           className="font-mono text-xs"
-          placeholder="English image prompt..."
+          placeholder={t("imagePromptDialog.placeholder")}
         />
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button variant="outline" onClick={onSave} disabled={disabled}>
-            保存提示词
+            {t("imagePromptDialog.savePrompt")}
           </Button>
           <Button onClick={onSaveAndRegenerate} disabled={disabled}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1" />
-            保存并重新生成
+            <RotateCcw className={iconSm} />
+            {t("imagePromptDialog.saveAndRegenerate")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -106,30 +113,32 @@ export function PromptDialog({
   onOpenChange: (open: boolean) => void;
   previewText: string;
 }) {
+  const { t } = useTranslation("chat");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
+      <DialogContent className={`max-w-3xl ${dialogMax80vh}`}>
         <DialogHeader>
-          <DialogTitle>Full Prompt</DialogTitle>
+          <DialogTitle>{t("promptDialog.title")}</DialogTitle>
         </DialogHeader>
-        <div className="overflow-y-auto max-h-[60vh]">
+        <div className={dialogScrollContent}>
           <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground">
-            {previewText || "(no prompt data)"}
+            {previewText || t("promptDialog.noData")}
           </pre>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            {t("close")}
           </Button>
           <Button
             variant="outline"
             onClick={() => {
               navigator.clipboard.writeText(previewText);
-              toast("success", "Copied");
+              toast("success", t("toast.copied"));
             }}
           >
-            <Copy className="h-3.5 w-3.5 mr-1" />
-            Copy Prompt
+            <Copy className={iconSm} />
+            {t("promptDialog.copyPrompt")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -158,12 +167,14 @@ export function SaveDialog({
   isSaving: boolean;
   hasCurrentChat: boolean;
 }) {
+  const { t } = useTranslation("chat");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>创建存档点</DialogTitle>
-          <DialogDescription>保存当前聊天的消息快照。名字可以留空，系统会自动生成。</DialogDescription>
+          <DialogTitle>{t("savepointDialog.title")}</DialogTitle>
+          <DialogDescription>{t("savepointDialog.description")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <Input
@@ -175,10 +186,10 @@ export function SaveDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button onClick={onSave} disabled={isSaving || !hasCurrentChat}>
-            {isSaving ? "Saving..." : "Save"}
+            {isSaving ? t("saving") : t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -194,8 +205,10 @@ export function LoadDialog({
   savepoints,
   isLoading,
   restoringSavepointId,
+  importingSavepointId,
   isGenerating,
   onRestore,
+  onImportAsBranch,
   onDelete,
   onRefresh,
 }: {
@@ -204,22 +217,26 @@ export function LoadDialog({
   savepoints: ChatSavepoint[];
   isLoading: boolean;
   restoringSavepointId: string | null;
+  importingSavepointId?: string | null;
   isGenerating: boolean;
   onRestore: (savepoint: ChatSavepoint) => void;
+  onImportAsBranch?: (savepoint: ChatSavepoint) => void;
   onDelete: (savepointId: string) => void;
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation("chat");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>加载存档</DialogTitle>
-          <DialogDescription>加载后会用存档内容替换当前聊天消息。</DialogDescription>
+          <DialogTitle>{t("loadDialog.title")}</DialogTitle>
+          <DialogDescription>{t("loadDialog.description")}</DialogDescription>
         </DialogHeader>
         <div className="max-h-[48vh] space-y-2 overflow-y-auto pr-1">
-          {isLoading && <p className="py-6 text-center text-sm text-muted-foreground">Loading...</p>}
+          {isLoading && <p className="py-6 text-center text-sm text-muted-foreground">{t("loadDialog.loading")}</p>}
           {!isLoading && savepoints.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">还没有存档点。</p>
+            <p className="py-6 text-center text-sm text-muted-foreground">{t("loadDialog.noSavepoints")}</p>
           )}
           {!isLoading &&
             savepoints.map((savepoint) => (
@@ -227,36 +244,52 @@ export function LoadDialog({
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{savepoint.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatSavepointDate(savepoint.createdAt)} · {savepoint.messageCount} messages
+                    {formatSavepointDate(savepoint.createdAt)} ·{" "}
+                    {t("loadDialog.messages", { count: savepoint.messageCount })}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onRestore(savepoint)}
-                  disabled={!!restoringSavepointId || isGenerating}
-                >
-                  {restoringSavepointId === savepoint.id ? "Loading..." : "加载"}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => onDelete(savepoint.id)}
-                  disabled={!!restoringSavepointId}
-                  title="删除存档"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onRestore(savepoint)}
+                    disabled={!!restoringSavepointId || !!importingSavepointId || isGenerating}
+                  >
+                    {restoringSavepointId === savepoint.id ? t("loadDialog.loading") : t("loadDialog.load")}
+                  </Button>
+                  {onImportAsBranch && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onImportAsBranch(savepoint)}
+                      disabled={!!restoringSavepointId || !!importingSavepointId || isGenerating}
+                    >
+                      <GitBranch className={iconSm} />
+                      {importingSavepointId === savepoint.id
+                        ? t("loadDialog.importing")
+                        : t("loadDialog.importAsBranch")}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => onDelete(savepoint.id)}
+                    disabled={!!restoringSavepointId || !!importingSavepointId}
+                    title={t("loadDialog.delete")}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            {t("close")}
           </Button>
           <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
-            Refresh
+            {t("loadDialog.refresh")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -289,13 +322,15 @@ export function TokenDialog({
   contextUsageTone: string;
   contextUsageDisplay: string;
 }) {
+  const { t } = useTranslation("chat");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh]">
+      <DialogContent className={`max-w-3xl ${dialogMax80vh}`}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Token Usage &amp; Cache Hit
+            {t("tokenDialog.title")}
           </DialogTitle>
         </DialogHeader>
         <div className="grid grid-cols-2 rounded-md border bg-background p-1">
@@ -308,7 +343,7 @@ export function TokenDialog({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Main API
+            {t("tokenDialog.tabs.main")}
           </button>
           <button
             type="button"
@@ -319,15 +354,13 @@ export function TokenDialog({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            Secondary API
+            {t("tokenDialog.tabs.secondary")}
           </button>
         </div>
-        <div className="overflow-y-auto max-h-[60vh]">
+        <div className={dialogScrollContent}>
           {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
-              {tokenUsageView === "main"
-                ? "No main API usage data yet. Send a message to see stats."
-                : "No secondary API usage data yet. It appears after memory compression or image planning uses a secondary model."}
+              {tokenUsageView === "main" ? t("tokenDialog.noDataMain") : t("tokenDialog.noDataSecondary")}
             </p>
           ) : (
             <>
@@ -336,7 +369,7 @@ export function TokenDialog({
                   <p className="text-lg font-bold tabular-nums leading-tight truncate">
                     {formatCompactToken(totals.prompt)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Prompt</p>
+                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.prompt")}</p>
                 </div>
                 <div
                   className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
@@ -345,7 +378,7 @@ export function TokenDialog({
                   <p className="text-lg font-bold tabular-nums leading-tight truncate">
                     {formatCompactToken(totals.completion)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Completion</p>
+                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.completion")}</p>
                 </div>
                 <div
                   className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
@@ -354,7 +387,7 @@ export function TokenDialog({
                   <p className="text-lg font-bold tabular-nums leading-tight truncate">
                     {formatCompactToken(totals.prompt + totals.completion)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Total</p>
+                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.total")}</p>
                 </div>
                 <div
                   className="min-w-0 bg-emerald-500/10 rounded-lg p-3 text-center"
@@ -363,13 +396,13 @@ export function TokenDialog({
                   <p className="text-lg font-bold tabular-nums leading-tight truncate text-emerald-600">
                     {formatCompactToken(totals.cacheHit)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Cache Hit</p>
+                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.cacheHit")}</p>
                 </div>
                 <div className="min-w-0 bg-blue-500/10 rounded-lg p-3 text-center" title={`${totals.cacheRate}%`}>
                   <p className="text-lg font-bold tabular-nums leading-tight truncate text-blue-600">
                     {totals.cacheRate}%
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Hit Rate</p>
+                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.hitRate")}</p>
                 </div>
                 <div
                   className="min-w-0 bg-purple-500/10 rounded-lg p-3 text-center"
@@ -385,7 +418,7 @@ export function TokenDialog({
                     {tokenUsageView === "main" ? contextUsageDisplay : secondaryUsageRecordsCount.toLocaleString()}
                   </p>
                   <p className="text-[10px] text-muted-foreground">
-                    {tokenUsageView === "main" ? "1M Context" : "Calls"}
+                    {tokenUsageView === "main" ? t("tokenDialog.columns.context") : t("tokenDialog.columns.calls")}
                   </p>
                 </div>
                 <div
@@ -395,28 +428,29 @@ export function TokenDialog({
                   <p className="text-lg font-bold tabular-nums leading-tight truncate text-amber-600">
                     {formatCnyCost(totals.costCny)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Cost (RMB)</p>
+                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.cost")}</p>
                 </div>
               </div>
               {totals.cacheRate === "-" && (
-                <p className="text-xs text-muted-foreground mb-2 px-1">
-                  ⚠ Cache hit data unavailable — your API may not support prompt caching (Ollama/vLLM most instances do
-                  not). Supported by DeepSeek, OpenAI recent models, Anthropic.
-                </p>
+                <p className="text-xs text-muted-foreground mb-2 px-1">{t("tokenDialog.cacheHint")}</p>
               )}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted">
-                      <th className="text-left p-2">{tokenUsageView === "main" ? "Round" : "Call"}</th>
-                      {tokenUsageView === "secondary" && <th className="text-left p-2">Model</th>}
-                      <th className="text-right p-2">Prompt</th>
-                      <th className="text-right p-2">Completion</th>
-                      <th className="text-right p-2">Total</th>
-                      <th className="text-right p-2">🔥 Hit</th>
-                      <th className="text-right p-2">📉 Miss</th>
-                      <th className="text-right p-2">Rate</th>
-                      <th className="text-right p-2">Cost (RMB)</th>
+                      <th className="text-left p-2">
+                        {tokenUsageView === "main" ? t("tokenDialog.table.round") : t("tokenDialog.table.call")}
+                      </th>
+                      {tokenUsageView === "secondary" && (
+                        <th className="text-left p-2">{t("tokenDialog.table.model")}</th>
+                      )}
+                      <th className="text-right p-2">{t("tokenDialog.table.prompt")}</th>
+                      <th className="text-right p-2">{t("tokenDialog.table.completion")}</th>
+                      <th className="text-right p-2">{t("tokenDialog.table.total")}</th>
+                      <th className="text-right p-2">{t("tokenDialog.table.hit")}</th>
+                      <th className="text-right p-2">{t("tokenDialog.table.miss")}</th>
+                      <th className="text-right p-2">{t("tokenDialog.table.rate")}</th>
+                      <th className="text-right p-2">{t("tokenDialog.table.cost")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -477,7 +511,7 @@ export function TokenDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            {t("close")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -496,21 +530,21 @@ export function DeleteMessageDialog({
   onOpenChange: (open: boolean) => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation("chat");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Message</DialogTitle>
+          <DialogTitle>{t("deleteMessage.title")}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Delete this message? If it's a user message followed by an AI reply, the AI reply will also be deleted.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("deleteMessage.description")}</p>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button variant="destructive" onClick={onDelete}>
-            Delete
+            {t("deleteBtn")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -529,33 +563,126 @@ export function ThinkingDialog({
   onOpenChange: (open: boolean) => void;
   reasoningContent: string | undefined;
 }) {
+  const { t } = useTranslation("chat");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className={`max-w-2xl ${dialogMax80vh}`}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-purple-400" />
-            创作过程
+            {t("thinkingDialog.title")}
           </DialogTitle>
         </DialogHeader>
-        <div className="overflow-y-auto max-h-[60vh]">
+        <div className={dialogScrollContent}>
           <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground bg-muted/40 p-4 rounded-lg">
-            {reasoningContent || "(暂无创作过程数据)"}
+            {reasoningContent || t("thinkingDialog.noData")}
           </pre>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            {t("close")}
           </Button>
           <Button
             variant="outline"
             onClick={() => {
               navigator.clipboard.writeText(reasoningContent || "");
-              toast("success", "Copied");
+              toast("success", t("toast.copied"));
             }}
           >
-            <Copy className="h-3.5 w-3.5 mr-1" />
-            Copy
+            <Copy className={iconSm} />
+            {t("copy")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── 8. RegenerateDialog ───────────────────────────────
+
+export type RegenerateMode = "replace" | "fork";
+
+export function RegenerateDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (mode: RegenerateMode) => void;
+}) {
+  const { t } = useTranslation("chat");
+  const [mode, setMode] = React.useState<RegenerateMode>("fork");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("regenerateDialog.title")}</DialogTitle>
+          <DialogDescription>{t("regenerateDialog.description")}</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+              mode === "fork" ? "border-primary bg-primary/5" : "hover:bg-accent"
+            }`}
+          >
+            <input
+              type="radio"
+              name="regenerateMode"
+              className="mt-0.5"
+              checked={mode === "fork"}
+              onChange={() => setMode("fork")}
+            />
+            <div className="min-w-0">
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                <GitBranch className="h-4 w-4 text-primary" />
+                {t("regenerateDialog.fork.label")}
+              </span>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t("regenerateDialog.fork.description")}</p>
+            </div>
+          </label>
+
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+              mode === "replace" ? "border-primary bg-primary/5" : "hover:bg-accent"
+            }`}
+          >
+            <input
+              type="radio"
+              name="regenerateMode"
+              className="mt-0.5"
+              checked={mode === "replace"}
+              onChange={() => setMode("replace")}
+            />
+            <div className="min-w-0">
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                <RotateCcw className="h-4 w-4" />
+                {t("regenerateDialog.replace.label")}
+              </span>
+              <p className="mt-0.5 text-xs text-muted-foreground">{t("regenerateDialog.replace.description")}</p>
+            </div>
+          </label>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {t("cancel")}
+          </Button>
+          <Button onClick={() => onConfirm(mode)}>
+            {mode === "fork" ? (
+              <>
+                <GitBranch className={iconSm} />
+                {t("regenerateDialog.forkAndRegenerate")}
+              </>
+            ) : (
+              <>
+                <RotateCcw className={iconSm} />
+                {t("regenerateDialog.replaceRegenerate")}
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

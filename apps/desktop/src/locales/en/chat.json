@@ -20,6 +20,11 @@
   "startConversation": "Start a conversation with {{name}}",
   "noPromptPreview": "Type a message to see prompt preview",
   "dismiss": "Dismiss",
+  "close": "Close",
+  "cancel": "Cancel",
+  "save": "Save",
+  "copy": "Copy",
+  "deleteBtn": "Delete",
   "contextUsage": {
     "title": "{{current}} / {{limit}} current conversation context tokens",
     "noData": "No context usage data yet"
@@ -40,6 +45,13 @@
     "title": "Delete Message",
     "description": "Delete this message? If it's a user message followed by an AI reply, the AI reply will also be deleted."
   },
+  "imagePromptDialog": {
+    "title": "Edit Image Prompt",
+    "description": "Saving will update this image's prompt. You can also save and regenerate directly.",
+    "placeholder": "English image prompt...",
+    "savePrompt": "Save Prompt",
+    "saveAndRegenerate": "Save & Regenerate"
+  },
   "savepointDialog": {
     "title": "Create Savepoint",
     "description": "Save a snapshot of the current conversation. The name can be left blank and will be auto-generated.",
@@ -47,12 +59,14 @@
   },
   "loadDialog": {
     "title": "Load Savepoint",
-    "description": "Loading will replace the current chat messages with the savepoint content.",
+    "description": "Loading replaces the current chat with savepoint content. Importing as a branch merges new messages into the conversation tree.",
     "loading": "Loading...",
     "noSavepoints": "No savepoints yet.",
     "messages": "{{count}} messages",
     "load": "Load",
     "delete": "Delete savepoint",
+    "importAsBranch": "Import as Branch",
+    "importing": "Importing...",
     "refresh": "Refresh",
     "close": "Close"
   },
@@ -74,9 +88,29 @@
       "total": "Total",
       "cacheHit": "Cache Hit",
       "hitRate": "Hit Rate",
-      "context": "1M Context"
+      "context": "1M Context",
+      "calls": "Calls",
+      "cost": "Cost (RMB)"
     },
     "tableHeaders": ["#", "Prompt", "Completion", "Total", "🔥 Hit", "📉 Miss", "Rate"],
+    "tabs": {
+      "main": "Main API",
+      "secondary": "Secondary API"
+    },
+    "table": {
+      "round": "Round",
+      "call": "Call",
+      "model": "Model",
+      "prompt": "Prompt",
+      "completion": "Completion",
+      "total": "Total",
+      "hit": "🔥 Hit",
+      "miss": "📉 Miss",
+      "rate": "Rate",
+      "cost": "Cost (RMB)"
+    },
+    "noDataMain": "No main API usage data yet. Send a message to see stats.",
+    "noDataSecondary": "No secondary API usage data yet. It appears after memory compression or image planning uses a secondary model.",
     "cacheHint": "⚠ Cache hit data unavailable — your API may not support prompt caching (Ollama/vLLM most instances do not). Supported by DeepSeek, OpenAI recent models, Anthropic."
   },
   "generationStatus": {
@@ -96,13 +130,75 @@
     "savepointLoaded": "Savepoint loaded",
     "savepointLoadFailed": "Failed to load savepoint",
     "savepointDeleted": "Savepoint deleted",
+    "savepointImportedAsBranch": "Imported {{count}} new messages as branch",
+    "savepointNoNewMessages": "Savepoint messages are identical to current conversation, nothing to import",
+    "savepointImportFailed": "Import failed: {{message}}",
     "messagesDeleted": "Messages deleted",
     "messageDeleted": "Message deleted",
     "deleteFailed": "Failed to delete",
     "copied": "Copied"
   },
+  "regenerateDialog": {
+    "title": "Regenerate",
+    "description": "Choose how to handle the current AI reply.",
+    "fork": {
+      "label": "Create New Branch",
+      "description": "Keep the current reply; the new reply will be mounted as a branch. You can freely switch between branches in the sidebar."
+    },
+    "replace": {
+      "label": "Replace Current Reply",
+      "description": "Discard the current reply and regenerate. The old reply will be permanently deleted."
+    },
+    "forkAndRegenerate": "Fork & Regenerate",
+    "replaceRegenerate": "Replace & Regenerate"
+  },
   "oldMessages": {
     "collapse": "Collapse older messages, keep recent {{limit}} turns",
     "show": "Show older messages: {{count}} turns / {{messages}} messages"
+  },
+  "rightPanel": {
+    "tabs": {
+      "stats": "Status",
+      "branches": "Branches"
+    },
+    "dice": {
+      "criticalSuccess": "Critical Success!",
+      "criticalFailure": "Critical Failure!",
+      "success": "Success",
+      "failure": "Failure",
+      "rolled": "Rolled",
+      "dc": "DC {{value}}",
+      "successRate": "Success Rate {{rate}}%"
+    },
+    "tree": {
+      "thinking": "(Thinking...)",
+      "empty": "(Empty)",
+      "createBranch": "Create branch",
+      "noBranches": "No conversation branches yet",
+      "unexplored": "Unexplored",
+      "unexploredOption": "Unexplored option: {{action}}",
+      "unexploredOptionWithDc": "Unexplored option: {{action}} (DC {{difficulty}})"
+    },
+    "overview": {
+      "title": "Run Overview",
+      "expand": "Expand run overview",
+      "collapse": "Collapse run overview",
+      "messages": "Messages",
+      "messageCount": "{{count}} messages",
+      "tokenUsage": "Token Usage",
+      "viewDetails": "View details →",
+      "tokenStats": "P:{{prompt}} C:{{completion}} | cache {{rate}}%",
+      "noStats": "No stats yet",
+      "context": "Context"
+    },
+    "agentic": {
+      "sceneStatus": "Scene Status",
+      "dynamicVariables": "Dynamic Variables",
+      "judgment": "Judgment",
+      "judging": "Judging in progress",
+      "waitingJudgment": "Waiting for action judgment",
+      "judgingHint": "The game master is evaluating risks, rolling dice, or compiling results.",
+      "waitingJudgmentHint": "After a player chooses an action, risky actions will trigger a dice judgment."
+    }
   }
 }

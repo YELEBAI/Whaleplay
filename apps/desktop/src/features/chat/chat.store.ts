@@ -5,6 +5,8 @@ import {
   chatSavepointRepository,
   agenticPlayStateRepository,
   messageRepository,
+  buildMessagePath,
+  collectDescendantIds,
   secondaryApiUsageRepository,
 } from "@/db/repositories";
 import type { Chat, Message, CreateChatInput, CreateMessageInput } from "@neo-tavern/shared";
@@ -27,6 +29,7 @@ interface ChatState {
   streamingMessageId: string | null;
   generationPhase: GenerationPhase | null;
   activeGenerations: Record<string, ActiveGenerationState>;
+  activeLeafId: string | null;
   error: string | null;
   lastDiceResult: DiceRollResult | null;
 
@@ -50,6 +53,12 @@ interface ChatState {
   ) => Promise<void>;
   deleteMessage: (id: string) => Promise<void>;
   deleteMessages: (ids: string[]) => Promise<void>;
+  getActivePath: (_chatId: string) => Message[];
+  switchBranch: (leafId: string) => void;
+  createBranch: (parentId: string, branchName?: string) => Promise<Message>;
+  getBranchName: (leafId: string) => string;
+  setBranchName: (leafId: string, name: string) => void;
+  mergeFromSavepoint: (chatId: string, savepointMessages: Message[]) => Promise<{ imported: number; skipped: number }>;
   beginSending: (chatId: string) => void;
   setStreamingMessageId: (chatId: string, id: string | null) => void;
   setGenerationPhase: (chatId: string, phase: GenerationPhase) => void;
@@ -63,6 +72,29 @@ const CHAT_INITIAL_MESSAGE_LIMIT = 80;
 
 let chatLoadSequence = 0;
 let activeHydration: { chatId: string; promise: Promise<Message[]> } | null = null;
+
+// ── Branch name storage ──
+const BRANCH_NAMES_KEY = "neotavern_branch_names";
+
+function loadBranchNames(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(BRANCH_NAMES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveBranchName(leafId: string, name: string) {
+  const names = loadBranchNames();
+  names[leafId] = name;
+  try { localStorage.setItem(BRANCH_NAMES_KEY, JSON.stringify(names)); } catch { /* noop */ }
+}
+
+function getAutoBranchName(leafId: string, siblings: string[]): string {
+  const idx = siblings.indexOf(leafId);
+  return idx >= 0 ? `分支 ${idx + 1}` : `分支`;
+}
 
 function sortChats(chats: Chat[]): Chat[] {
   return [...chats].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -156,6 +188,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingMessageId: null,
   generationPhase: null,
   activeGenerations: {},
+  activeLeafId: null,
   error: null,
   lastDiceResult: null,
 
@@ -271,8 +304,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   ensureMessagesHydrated: async (chatId: string) => {
     const state = get();
-    if (state.currentChat?.id === chatId && state.messagesHydrated) return state.messages;
-    return hydrateMessages(chatId, set, get);
+    const hydrated = state.currentChat?.id === chatId && state.messagesHydrated;
+    if (!hydrated) await hydrateMessages(chatId, set, get);
+    return get().messages.filter((m) => m.chatId === chatId);
   },
 
   addMessage: async (input: CreateMessageInput) => {
@@ -420,16 +454,92 @@ export const useChatStore = create<ChatState>((set, get) => ({
   deleteMessage: async (id: string) => {
     try {
       const target = get().messages.find((m) => m.id === id);
-      await messageRepository.deleteMessage(id);
-      const chat = target ? await chatRepository.update(target.chatId, {}) : null;
+      if (!target) return;
+
+      // Cascade: collect all descendant ids
+      const descendantIds = collectDescendantIds(get().messages, id);
+      const allIds = [id, ...descendantIds];
+
+      await messageRepository.deleteMessages(allIds);
+      const chat = await chatRepository.update(target.chatId, {});
+      const idSet = new Set(allIds);
       set((state) => ({
-        messages: state.messages.filter((m) => m.id !== id),
-        ...(chat ? applyTouchedChat(state, chat) : {}),
+        messages: state.messages.filter((m) => !idSet.has(m.id)),
+        ...applyTouchedChat(state, chat),
       }));
     } catch (err) {
       set({ error: (err as Error).message });
       throw err;
     }
+  },
+
+  getActivePath: (_chatId: string) => {
+    const { messages, activeLeafId } = get();
+    if (messages.length === 0) return [];
+
+    // Use active leaf if set, otherwise fall back to the latest message
+    const leafId = activeLeafId ?? (() => {
+      const sorted = [...messages].sort((a, b) => {
+        const byTime = b.createdAt.localeCompare(a.createdAt);
+        return byTime === 0 ? b.id.localeCompare(a.id) : byTime;
+      });
+      return sorted[0].id;
+    })();
+
+    return buildMessagePath(messages, leafId);
+  },
+
+  switchBranch: (leafId: string) => {
+    set({ activeLeafId: leafId });
+  },
+
+  createBranch: async (parentId: string, branchName?: string) => {
+    // Create an empty assistant message as the branch head
+    const msg = await messageRepository.create({
+      chatId: get().currentChat?.id ?? "",
+      parentId,
+      role: "assistant",
+      content: "",
+    });
+
+    if (branchName) saveBranchName(msg.id, branchName);
+
+    set((state) => ({
+      messages: [...state.messages, msg],
+      activeLeafId: msg.id,
+    }));
+
+    return msg;
+  },
+
+  getBranchName: (leafId: string) => {
+    const names = loadBranchNames();
+    if (names[leafId]) return names[leafId];
+
+    // Auto-generate name from sibling order
+    const msg = get().messages.find((m) => m.id === leafId);
+    if (!msg?.parentId) return "主分支";
+
+    const siblings = get().messages
+      .filter((m) => m.parentId === msg.parentId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map((m) => m.id);
+
+    return getAutoBranchName(leafId, siblings);
+  },
+
+  setBranchName: (leafId: string, name: string) => {
+    saveBranchName(leafId, name);
+  },
+
+  mergeFromSavepoint: async (chatId: string, savepointMessages: Message[]) => {
+    const result = await messageRepository.mergeFromSavepoint(chatId, savepointMessages);
+    // Reload the chat to pick up the merged messages
+    const messages = await messageRepository.listByChatId(chatId);
+    set((state) => ({
+      messages: state.currentChat?.id === chatId ? messages : state.messages,
+    }));
+    return result;
   },
 
   deleteMessages: async (ids: string[]) => {

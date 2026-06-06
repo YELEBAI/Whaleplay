@@ -49,6 +49,7 @@ export interface MessageMetadata {
 export interface Message {
   id: string
   chatId: string
+  parentId: string | null
   role: MessageRole
   content: string
   reasoningContent?: string
@@ -64,6 +65,7 @@ export interface Message {
 
 export interface CreateMessageInput {
   chatId: string
+  parentId?: string | null
   role: MessageRole
   content: string
   reasoningContent?: string
