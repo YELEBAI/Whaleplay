@@ -27,7 +27,7 @@ import {
   resolveAgenticStatusMeters,
   type ResolvedAgenticStatusMeter,
 } from "@/features/agentic-play/status-assets";
-import type { Message } from "@neo-tavern/shared";
+import type { Message, MessageAgenticOption } from "@neo-tavern/shared";
 
 // ── Component ─────────────────────────────────────────
 
@@ -53,6 +53,7 @@ export interface ChatRightPanelProps {
   onCreateBranch?: (parentId: string) => void;
   getBranchName?: (leafId: string) => string;
   onRenameBranch?: (leafId: string, name: string) => void;
+  onExploreAgenticOption?: (option: MessageAgenticOption, parentMessageId: string) => void;
 }
 
 // ── Dice Slot Machine ───────────────────────────────
@@ -170,6 +171,7 @@ export function ChatRightPanel({
   onCreateBranch,
   getBranchName: _getBranchName,
   onRenameBranch: _onRenameBranch,
+  onExploreAgenticOption,
 }: ChatRightPanelProps) {
   const hasUsage = usageMessagesCount > 0;
   const statusMeters = agenticPlayEnabled ? resolveAgenticStatusMeters(agenticGameState) : [];
@@ -225,6 +227,24 @@ export function ChatRightPanel({
     const isExpanded = expandedNodes.has(message.id) || depth < 2; // auto-expand shallow nodes
     const isOnActivePath = activePathIds.has(message.id);
     const preview = message.content.slice(0, 60).replace(/\n/g, " ") || (message.role === "assistant" ? "(思考中...)" : "(空)");
+
+    // Find untaken agentic options (available but never chosen)
+    const untakenOptions: MessageAgenticOption[] = [];
+    if (agenticPlayEnabled && message.agenticOptions && message.agenticOptions.length > 0 && onExploreAgenticOption) {
+      const takenLabels = new Set(
+        children
+          .filter((c) => c.role === "user" && c.hidden)
+          .map((c) => (typeof c.metadata?.agenticAction === "object" && c.metadata.agenticAction
+            ? (c.metadata.agenticAction as Record<string, unknown>).label
+            : undefined))
+          .filter(Boolean) as string[],
+      );
+      for (const opt of message.agenticOptions) {
+        if (!takenLabels.has(opt.label)) {
+          untakenOptions.push(opt);
+        }
+      }
+    }
 
     return (
       <div key={message.id}>
@@ -295,6 +315,25 @@ export function ChatRightPanel({
         {hasChildren && isExpanded &&
           children.map((child) => renderTreeNode(child, depth + 1))
         }
+
+        {/* Untaken agentic options (potential branches) */}
+        {isExpanded && untakenOptions.length > 0 && untakenOptions.map((opt) => (
+          <div
+            key={`untaken-${message.id}-${opt.id}`}
+            className="flex items-center gap-1 py-0.5 text-xs hover:bg-accent/50 rounded text-muted-foreground cursor-pointer"
+            style={{ paddingLeft: `${8 + (depth + 1) * 14}px`, paddingRight: 4 }}
+            title={`未探索选项: ${opt.action}${opt.difficulty ? ` (DC ${opt.difficulty})` : ""}`}
+            onClick={() => onExploreAgenticOption?.(opt, message.id)}
+          >
+            <span className="w-4 shrink-0" />
+            <Dice5 className="h-3 w-3 shrink-0 text-amber-400/60" />
+            <span className="min-w-0 truncate italic">{opt.label}</span>
+            {opt.difficulty !== undefined && (
+              <span className="shrink-0 text-[10px] text-muted-foreground/50">DC{opt.difficulty}</span>
+            )}
+            <span className="shrink-0 rounded bg-amber-400/10 px-1 py-0.5 text-[10px] text-amber-400/70">未探索</span>
+          </div>
+        ))}
       </div>
     );
   };

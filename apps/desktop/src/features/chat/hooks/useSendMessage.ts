@@ -65,7 +65,7 @@ interface SendMessageOptions {
 
 interface UseSendMessageReturn {
   sendMessage: (content: string, options?: SendMessageOptions) => Promise<void>;
-  regenerate: () => Promise<void>;
+  regenerate: (mode?: "replace" | "fork") => Promise<void>;
   abort: () => void;
   sending: boolean;
   sendingChatId: string | null;
@@ -1322,7 +1322,7 @@ export function useSendMessage({
 
   const clearError = useCallback(() => setChatError(chatId, null), [chatId, setChatError]);
 
-  const regenerate = useCallback(async () => {
+  const regenerate = useCallback(async (mode: "replace" | "fork" = "replace") => {
     if (!chatId || !character) return;
 
     const controller = new AbortController();
@@ -1345,8 +1345,6 @@ export function useSendMessage({
       }
 
       const lastAssistantMsg = allMessages[lastAssistantIdx];
-      cancelImageGeneration(lastAssistantMsg.id);
-      await deleteMessage(lastAssistantMsg.id);
 
       let lastUserIdx = lastAssistantIdx - 1;
       while (lastUserIdx >= 0 && allMessages[lastUserIdx].role !== "user") lastUserIdx--;
@@ -1356,7 +1354,15 @@ export function useSendMessage({
       }
       const userContent = allMessages[lastUserIdx].content;
 
-      const afterDelete = allMessages.filter((message) => message.id !== lastAssistantMsg.id);
+      const isFork = mode === "fork";
+
+      // In replace mode, delete old assistant; in fork mode, keep it
+      if (!isFork) {
+        cancelImageGeneration(lastAssistantMsg.id);
+        await deleteMessage(lastAssistantMsg.id);
+      }
+
+      const messagesForPrompt = isFork ? allMessages : allMessages.filter((message) => message.id !== lastAssistantMsg.id);
       const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
 
       const activePresetId = await presetRepository.getActivePresetId();
@@ -1370,9 +1376,9 @@ export function useSendMessage({
         }
       }
 
-      const historyMessages = afterDelete.slice(0, -1);
+      const historyMessages = messagesForPrompt.slice(0, -1);
       const memoryPlan = await getMemoryPromptPlan(historyMessages, chatId, controller.signal);
-      const worldbookBlocks = await getWorldbookContextBlocks(userContent, stripMessages(afterDelete));
+      const worldbookBlocks = await getWorldbookContextBlocks(userContent, stripMessages(messagesForPrompt));
       const agenticRecord =
         agenticPlayEnabled && character ? await agenticPlayStateRepository.getOrCreate(chatId, character, true) : null;
       const agenticBlock = agenticRecord ? createAgenticPlayContextBlock(agenticRecord.gameState) : null;
@@ -1404,13 +1410,20 @@ export function useSendMessage({
       });
       assistantId = assistant.id;
       setStreamingMessageId(chatId, assistant.id);
+
+      // In fork mode, switch to the new branch
+      if (isFork) {
+        useChatStore.getState().switchBranch(assistant.id);
+      }
+
+      const promptMessages = isFork ? messagesForPrompt : messagesForPrompt.filter((message) => message.id !== lastAssistantMsg.id);
       const debugContext: DebugPromptContext | undefined = useSettingsStore.getState().debugMode
         ? {
             chatId,
             characterId: character.id,
             characterName: character.name,
             contextTokens,
-            round: getNextDebugRound(afterDelete),
+            round: getNextDebugRound(promptMessages),
             assistantMessageId: assistant.id,
             baseTrigger: "regenerate",
             hiddenUserMessage: false,

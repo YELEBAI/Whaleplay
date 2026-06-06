@@ -104,6 +104,7 @@ import {
   TokenDialog,
   DeleteMessageDialog,
   ThinkingDialog,
+  RegenerateDialog,
 } from "@/pages/chat/ChatDialogs";
 
 function isVisibleChatMessage(message: Message) {
@@ -308,6 +309,7 @@ export function ChatPage() {
   const [fontSize, setFontSize] = useState(15);
   const [chatListCollapsed, setChatListCollapsed] = useState(false);
   const [thinkingMsg, setThinkingMsg] = useState<Message | null>(null);
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [loadDialogOpen, setLoadDialogOpen] = useState(false);
   const [savepointName, setSavepointName] = useState("");
@@ -1536,7 +1538,7 @@ export function ChatPage() {
                                     className="h-6 w-6 text-muted-foreground hover:text-foreground"
                                     title="Regenerate"
                                     onClick={() => {
-                                      if (!sending) regenerate();
+                                      if (!sending) setRegenerateDialogOpen(true);
                                     }}
                                     disabled={sending}
                                   >
@@ -1779,6 +1781,35 @@ export function ChatPage() {
             onCreateBranch={(parentId) => { void createBranch(parentId); }}
             getBranchName={getBranchName}
             onRenameBranch={setBranchName}
+            onExploreAgenticOption={agenticPlayEnabled ? (option, parentId) => {
+              // Switch to the parent message branch first, then submit
+              switchBranch(parentId);
+              const roll = rollDice({
+                dice: "1d20",
+                difficulty: option.difficulty,
+                success_probability: option.probability,
+                reason: option.action,
+              });
+              useChatStore.getState().setLastDiceResult(roll);
+              const payload = buildAgenticChoicePayload(
+                { label: option.label, action: option.action, probability: option.probability, difficulty: option.difficulty },
+                roll,
+              );
+              void submitContent(payload, {
+                hiddenUserMessage: true,
+                label: option.label,
+                metadata: {
+                  hiddenReason: "agentic_choice",
+                  agenticAction: {
+                    label: option.label,
+                    action: option.action,
+                    success_probability: option.probability,
+                    difficulty: option.difficulty,
+                    dice_result: roll,
+                  },
+                },
+              });
+            } : undefined}
           />
         </div>
       </div>
@@ -1845,6 +1876,15 @@ export function ChatPage() {
           if (!v) setDeleteMsgTarget(null);
         }}
         onDelete={handleDeleteMessage}
+      />
+
+      <RegenerateDialog
+        open={regenerateDialogOpen}
+        onOpenChange={setRegenerateDialogOpen}
+        onConfirm={(mode) => {
+          setRegenerateDialogOpen(false);
+          void regenerate(mode);
+        }}
       />
 
       <ThinkingDialog

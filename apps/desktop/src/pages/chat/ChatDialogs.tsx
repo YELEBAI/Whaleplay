@@ -1,5 +1,5 @@
 import React from "react";
-import { RotateCcw, Copy, BarChart3, Trash2, Brain } from "lucide-react";
+import { RotateCcw, Copy, BarChart3, Trash2, Brain, GitBranch } from "lucide-react";
 import {
   Button,
   Dialog,
@@ -556,6 +556,100 @@ export function ThinkingDialog({
           >
             <Copy className="h-3.5 w-3.5 mr-1" />
             Copy
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── 8. RegenerateDialog ───────────────────────────────
+
+export type RegenerateMode = "replace" | "fork";
+
+export function RegenerateDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (mode: RegenerateMode) => void;
+}) {
+  const [mode, setMode] = React.useState<RegenerateMode>("fork");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>重新生成</DialogTitle>
+          <DialogDescription>选择如何处理当前 AI 回复。</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+              mode === "fork" ? "border-primary bg-primary/5" : "hover:bg-accent"
+            }`}
+          >
+            <input
+              type="radio"
+              name="regenerateMode"
+              className="mt-0.5"
+              checked={mode === "fork"}
+              onChange={() => setMode("fork")}
+            />
+            <div className="min-w-0">
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                <GitBranch className="h-4 w-4 text-primary" />
+                创建新分支
+              </span>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                保留当前回复，新回复作为分支挂载。可在侧边栏分支视图自由切换。
+              </p>
+            </div>
+          </label>
+
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+              mode === "replace" ? "border-primary bg-primary/5" : "hover:bg-accent"
+            }`}
+          >
+            <input
+              type="radio"
+              name="regenerateMode"
+              className="mt-0.5"
+              checked={mode === "replace"}
+              onChange={() => setMode("replace")}
+            />
+            <div className="min-w-0">
+              <span className="flex items-center gap-1.5 text-sm font-medium">
+                <RotateCcw className="h-4 w-4" />
+                替换当前回复
+              </span>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                丢弃当前回复并重新生成。旧的回复将被永久删除。
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => onConfirm(mode)}>
+            {mode === "fork" ? (
+              <>
+                <GitBranch className="h-3.5 w-3.5 mr-1" />
+                分叉并重新生成
+              </>
+            ) : (
+              <>
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                替换重新生成
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
