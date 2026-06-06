@@ -17,7 +17,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { Button, Card, CardContent } from "@neo-tavern/ui";
-import { BranchIndicator, BranchPanel } from "@/components";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useChatStore } from "@/features/chat/chat.store";
 import { useSendMessage } from "@/features/chat/hooks/useSendMessage";
@@ -106,20 +105,6 @@ import {
   DeleteMessageDialog,
   ThinkingDialog,
 } from "@/pages/chat/ChatDialogs";
-
-type RenderedMessage =
-  | {
-      type: "message";
-      msg: Message;
-      isUser: boolean;
-      isFinalAi: boolean;
-      split: { displayContent?: string; promptContent?: string; images?: MessageImage[] } | null;
-      displayContent: string;
-      agenticOptions: Message["agenticOptions"];
-      isStreamingAi: boolean;
-      hasDisplayContent: boolean;
-    }
-  | { type: "fork"; parentId: string; forkCount: number };
 
 function isVisibleChatMessage(message: Message) {
   return !message.hidden;
@@ -259,8 +244,8 @@ export function ChatPage() {
     patchMessage,
     deleteMessages,
     lastDiceResult,
+    activeLeafId,
     getActivePath,
-    getForks,
     switchBranch,
     createBranch,
     getBranchName,
@@ -288,9 +273,9 @@ export function ChatPage() {
   const visibleMessages = useMemo(() => {
     const path = getActivePath(currentChat?.id ?? "");
     return path.filter(isVisibleChatMessage);
-  }, [messages, currentChat?.id, getActivePath]);
+  }, [currentChat?.id, getActivePath]);
 
-  // Compute which message ids are fork points (have 2+ children)
+  // Compute which message ids are fork points (have 2+ children) - used by right panel
   const forkParents = useMemo(() => {
     const childCounts = new Map<string, number>();
     for (const m of messages) {
@@ -300,9 +285,6 @@ export function ChatPage() {
     }
     return new Set([...childCounts].filter(([, c]) => c >= 2).map(([id]) => id));
   }, [messages]);
-
-  // Branch panel state
-  const [branchPanelParentId, setBranchPanelParentId] = useState<string | null>(null);
 
   const [input, setInput] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -1211,8 +1193,8 @@ export function ChatPage() {
       : "No context usage data yet";
 
   const renderedMessages = useMemo(
-    () => {
-      const items = visibleMessages.map((msg) => {
+    () =>
+      visibleMessages.map((msg) => {
         const isUser = msg.role === "user";
         const isFinalAi = !isUser && msg.id === lastAssistantId;
         const split =
@@ -1226,8 +1208,7 @@ export function ChatPage() {
         const isStreamingAi = !isUser && isGeneratingCurrentChat && msg.id === streamingMessageId;
         const hasDisplayContent = displayContent.trim().length > 0;
 
-        const renderItem: RenderedMessage = {
-          type: "message",
+        return {
           msg,
           isUser,
           isFinalAi,
@@ -1237,33 +1218,8 @@ export function ChatPage() {
           isStreamingAi,
           hasDisplayContent,
         };
-        return renderItem;
-      });
-
-      // Insert branch indicators between messages where forks exist
-      const result: RenderedMessage[] = [];
-      for (let i = 0; i < items.length; i++) {
-        if (i > 0 && forkParents.has(items[i - 1].msg.id)) {
-          const parentId = items[i - 1].msg.id;
-          const forkCount = messages.filter((m) => m.parentId === parentId).length;
-          if (forkCount >= 2) {
-            result.push({ type: "fork", parentId, forkCount });
-          }
-        }
-        result.push(items[i]);
-      }
-      // Also check the last message
-      const lastItem = items[items.length - 1];
-      if (lastItem && forkParents.has(lastItem.msg.id)) {
-        const forkCount = messages.filter((m) => m.parentId === lastItem.msg.id).length;
-        if (forkCount >= 2) {
-          result.push({ type: "fork", parentId: lastItem.msg.id, forkCount });
-        }
-      }
-
-      return result;
-    },
-    [activeRegexRules, agenticPlayEnabled, isGeneratingCurrentChat, lastAssistantId, streamingMessageId, visibleMessages, forkParents, messages],
+      }),
+    [activeRegexRules, agenticPlayEnabled, isGeneratingCurrentChat, lastAssistantId, streamingMessageId, visibleMessages],
   );
   const activeAgenticChoiceBlock = useMemo(() => {
     const latest = renderedMessages[renderedMessages.length - 1];
@@ -1390,7 +1346,7 @@ export function ChatPage() {
           onToggleCollapsed={() => setChatListCollapsed((value) => !value)}
         />
 
-        <section className="flex chat-grid-cell flex-col rounded-lg border bg-background relative">
+        <section className="flex chat-grid-cell flex-col rounded-lg border bg-background">
           <div
             ref={messagesContainerRef}
             onScroll={handleChatScroll}
@@ -1434,32 +1390,8 @@ export function ChatPage() {
                 }}
               >
                 {chatVirtualizer.getVirtualItems().map((virtualItem) => {
-                  const item = renderedMessages[virtualItem.index];
-
-                  // Branch indicator at fork points
-                  if (item.type === "fork") {
-                    return (
-                      <div
-                        key={virtualItem.key}
-                        data-index={virtualItem.index}
-                        ref={chatVirtualizer.measureElement}
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          width: "100%",
-                          transform: `translateY(${virtualItem.start}px)`,
-                        }}
-                      >
-                        <BranchIndicator
-                          forkCount={item.forkCount}
-                          onClick={() => setBranchPanelParentId(item.parentId)}
-                        />
-                      </div>
-                    );
-                  }
-
-                  const { msg, isUser, isFinalAi, split, displayContent, isStreamingAi, hasDisplayContent } = item;
+                  const { msg, isUser, isFinalAi, split, displayContent, isStreamingAi, hasDisplayContent } =
+                    renderedMessages[virtualItem.index];
                   const aiName = character?.name ?? "AI";
                   let imageBlockIndex = 0;
                   const isMessageImageBusy =
@@ -1766,27 +1698,6 @@ export function ChatPage() {
             </div>
           </div>
 
-          {/* Branch panel overlay */}
-          {branchPanelParentId && (
-            <div className="absolute bottom-24 right-8 z-20">
-              <BranchPanel
-                branches={messages.filter((m) => m.parentId === branchPanelParentId)}
-                activeLeafId={useChatStore.getState().activeLeafId}
-                onSwitch={(leafId) => {
-                  switchBranch(leafId);
-                  setBranchPanelParentId(null);
-                }}
-                onCreateBranch={(parentId) => {
-                  createBranch(parentId);
-                  setBranchPanelParentId(null);
-                }}
-                getBranchName={getBranchName}
-                onRename={setBranchName}
-                onClose={() => setBranchPanelParentId(null)}
-              />
-            </div>
-          )}
-
           {activeAgenticChoiceBlock && activeAgenticPanelChoices.length > 0 ? (
             <div className="shrink-0 border-t bg-card p-4">
               <div className={`mx-auto w-full min-w-0 ${chatContentWidthClass}`}>
@@ -1861,6 +1772,13 @@ export function ChatPage() {
             agenticGameState={agenticGameState}
             isGeneratingCurrentChat={isGeneratingCurrentChat}
             lastDiceResult={lastDiceResult}
+            allMessages={messages}
+            forkParentIds={forkParents}
+            activeLeafId={activeLeafId}
+            onSwitchBranch={switchBranch}
+            onCreateBranch={(parentId) => { void createBranch(parentId); }}
+            getBranchName={getBranchName}
+            onRenameBranch={setBranchName}
           />
         </div>
       </div>

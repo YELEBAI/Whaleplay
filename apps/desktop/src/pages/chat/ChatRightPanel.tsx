@@ -1,19 +1,24 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
   Brain,
   BrainCircuit,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   Dice5,
+  GitBranch,
   HeartPulse,
+  MessageCircle,
+  Plus,
   ShieldCheck,
   Skull,
   SmilePlus,
   Sparkles,
   Star,
   Trophy,
+  User,
   Zap,
 } from "lucide-react";
 import { StatusMeter } from "@neo-tavern/ui";
@@ -22,6 +27,7 @@ import {
   resolveAgenticStatusMeters,
   type ResolvedAgenticStatusMeter,
 } from "@/features/agentic-play/status-assets";
+import type { Message } from "@neo-tavern/shared";
 
 // ── Component ─────────────────────────────────────────
 
@@ -39,6 +45,14 @@ export interface ChatRightPanelProps {
   agenticGameState?: AgenticGameState | null;
   isGeneratingCurrentChat?: boolean;
   lastDiceResult?: DiceRollResult | null;
+  // Branch tree props
+  allMessages?: Message[];
+  forkParentIds?: Set<string>;
+  activeLeafId?: string | null;
+  onSwitchBranch?: (leafId: string) => void;
+  onCreateBranch?: (parentId: string) => void;
+  getBranchName?: (leafId: string) => string;
+  onRenameBranch?: (leafId: string, name: string) => void;
 }
 
 // ── Dice Slot Machine ───────────────────────────────
@@ -149,141 +163,308 @@ export function ChatRightPanel({
   agenticGameState,
   isGeneratingCurrentChat = false,
   lastDiceResult,
+  allMessages,
+  forkParentIds,
+  activeLeafId,
+  onSwitchBranch,
+  onCreateBranch,
+  getBranchName: _getBranchName,
+  onRenameBranch: _onRenameBranch,
 }: ChatRightPanelProps) {
   const hasUsage = usageMessagesCount > 0;
   const statusMeters = agenticPlayEnabled ? resolveAgenticStatusMeters(agenticGameState) : [];
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
+  const [activeView, setActiveView] = useState<"stats" | "tree">("stats");
+  const hasBranchTree = allMessages && allMessages.length > 0 && forkParentIds && forkParentIds.size > 0;
+
+  // ── Tree data ──
+  const childrenMap = useMemo(() => {
+    if (!allMessages) return new Map<string | null, Message[]>();
+    const map = new Map<string | null, Message[]>();
+    for (const m of allMessages) {
+      const key = m.parentId;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(m);
+    }
+    return map;
+  }, [allMessages]);
+
+  const activePathIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!allMessages || !activeLeafId) return ids;
+    const idMap = new Map(allMessages.map((m) => [m.id, m]));
+    let current: Message | undefined = idMap.get(activeLeafId);
+    while (current) {
+      ids.add(current.id);
+      current = current.parentId ? idMap.get(current.parentId) : undefined;
+    }
+    return ids;
+  }, [allMessages, activeLeafId]);
+
+  const rootMessages = useMemo(() => {
+    if (!allMessages) return [];
+    return (childrenMap.get(null) ?? []);
+  }, [allMessages, childrenMap]);
+
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
+
+  const toggleExpand = (id: string) => {
+    setExpandedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // ── Tree node renderer ──
+  const renderTreeNode = (message: Message, depth: number): React.ReactNode => {
+    const children = childrenMap.get(message.id) ?? [];
+    const hasChildren = children.length > 0;
+    const isFork = children.length >= 2;
+    const isExpanded = expandedNodes.has(message.id) || depth < 2; // auto-expand shallow nodes
+    const isOnActivePath = activePathIds.has(message.id);
+    const preview = message.content.slice(0, 60).replace(/\n/g, " ") || (message.role === "assistant" ? "(思考中...)" : "(空)");
+
+    return (
+      <div key={message.id}>
+        <div
+          className={`flex items-center gap-1 py-0.5 text-xs hover:bg-accent/50 rounded ${
+            isOnActivePath ? "bg-accent/30" : ""
+          }`}
+          style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: 4 }}
+        >
+          {/* Expand chevron */}
+          {hasChildren ? (
+            <button
+              type="button"
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+              onClick={() => toggleExpand(message.id)}
+            >
+              {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            </button>
+          ) : (
+            <span className="w-4 shrink-0" />
+          )}
+
+          {/* Role icon */}
+          {message.role === "user" ? (
+            <User className="h-3 w-3 shrink-0 text-blue-400" />
+          ) : (
+            <MessageCircle className="h-3 w-3 shrink-0 text-emerald-400" />
+          )}
+
+          {/* Content preview + switch action */}
+          <button
+            type="button"
+            className={`min-w-0 truncate text-left ${
+              isOnActivePath ? "font-medium text-primary" : "text-foreground"
+            }`}
+            title={message.content.slice(0, 200)}
+            onClick={() => onSwitchBranch?.(message.id)}
+          >
+            {preview}
+          </button>
+
+          {/* Fork badge */}
+          {isFork && (
+            <span className="flex shrink-0 items-center gap-0.5 rounded bg-amber-400/15 px-1 py-0.5 text-[10px] text-amber-400">
+              <GitBranch className="h-2.5 w-2.5" />
+              {children.length}
+            </span>
+          )}
+
+          {/* Create branch button (on any non-leaf node) */}
+          {hasChildren && onCreateBranch && (
+            <button
+              type="button"
+              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover:opacity-100"
+              style={{ opacity: isFork ? undefined : 0 }}
+              title="Create branch"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateBranch(message.id);
+              }}
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Children */}
+        {hasChildren && isExpanded &&
+          children.map((child) => renderTreeNode(child, depth + 1))
+        }
+      </div>
+    );
+  };
 
   return (
     <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
-      <div className="shrink-0 border-b p-4">
-        <h2 className="font-semibold">会话状态</h2>
-      </div>
-
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
-        <section className="rounded-lg border bg-background/45 p-3">
+      {/* Header with toggle */}
+      <div className="shrink-0 border-b p-3">
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            className="flex w-full items-center justify-between gap-3 text-left"
-            onClick={() => setOverviewCollapsed((value) => !value)}
-            aria-expanded={!overviewCollapsed}
-            title={overviewCollapsed ? "展开运行概览" : "收纳运行概览"}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              activeView === "stats" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setActiveView("stats")}
           >
-            <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-              <BarChart3 className="h-4 w-4 shrink-0" />
-              <span className="truncate">运行概览</span>
-            </span>
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-              {overviewCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-            </span>
+            <BarChart3 className="h-3.5 w-3.5" />
+            状态
           </button>
+          <button
+            type="button"
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              activeView === "tree" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setActiveView("tree")}
+            disabled={!hasBranchTree}
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            分支
+          </button>
+        </div>
+      </div>
 
-          {!overviewCollapsed && (
-            <div className="mt-3 space-y-2">
-              <div className="rounded-md border bg-card/60 p-3">
-                <div className="text-xs text-muted-foreground">消息</div>
-                <div className="mt-1 text-sm font-medium">{messagesCount} messages</div>
-              </div>
+      {/* Body */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
+        {activeView === "tree" ? (
+          <div className="space-y-0.5">
+            {rootMessages.length === 0 ? (
+              <p className="text-xs text-muted-foreground">暂无对话分支</p>
+            ) : (
+              rootMessages.map((msg) => renderTreeNode(msg, 0))
+            )}
+          </div>
+        ) : (
+          <>
+            <section className="rounded-lg border bg-background/45 p-3">
               <button
                 type="button"
-                onClick={onTokenDialogOpen}
-                className="w-full rounded-md border bg-card/60 p-3 text-left transition-colors hover:bg-accent"
+                className="flex w-full items-center justify-between gap-3 text-left"
+                onClick={() => setOverviewCollapsed((value) => !value)}
+                aria-expanded={!overviewCollapsed}
+                title={overviewCollapsed ? "展开运行概览" : "收纳运行概览"}
               >
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-muted-foreground">Token 用量</div>
-                  <span className="text-xs text-primary">查看详细 →</span>
-                </div>
-                <div className="mt-1 text-sm font-medium">
-                  {hasUsage ? `P:${totalPrompt} C:${totalCompletion} | cache ${cacheRate}%` : "暂无统计"}
-                </div>
-                {hasUsage && (
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={`h-full rounded-full transition-[width] ${contextUsageBarTone}`}
-                      style={{ width: `${contextUsagePercent}%` }}
-                    />
-                  </div>
-                )}
+                <span className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                  <BarChart3 className="h-4 w-4 shrink-0" />
+                  <span className="truncate">运行概览</span>
+                </span>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                  {overviewCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                </span>
               </button>
-              {hasUsage && (
-                <div className="rounded-md border bg-card/60 p-3">
-                  <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                    <span>Context</span>
-                    <span>{contextUsageDisplay}</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <span
-                      className={`block h-full rounded-full transition-[width] ${contextUsageBarTone}`}
-                      style={{ width: `${contextUsagePercent}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
 
-        {agenticPlayEnabled && (
-          <section className="mt-5">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <Brain className="h-4 w-4" />
-              场景状态
-            </div>
-            <div className="space-y-2">
-              {statusMeters.length > 0 && (
-                <div className="space-y-2">
-                  <div className="px-1 text-xs font-semibold text-muted-foreground">动态变量</div>
-                  {statusMeters.slice(0, 8).map((meter) => (
-                    <StatusMeter
-                      key={meter.id}
-                      compact
-                      label={meter.label}
-                      value={meter.value}
-                      max={meter.max}
-                      min={meter.min}
-                      tone={meter.tone}
-                      icon={<StatusAssetIcon name={meter.icon} />}
-                      description={meter.description}
-                      valueLabel={meter.valueLabel}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <section className="mt-5">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                <Dice5 className="h-4 w-4" />
-                判定
-              </div>
-              <div className="rounded-md border bg-background p-4">
-                {lastDiceResult ? (
-                  <DiceSlotMachine result={lastDiceResult} isGenerating={isGeneratingCurrentChat} />
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-md border bg-card">
-                      <Dice5
-                        className={`h-6 w-6 text-primary ${
-                          isGeneratingCurrentChat ? "animate-spin" : "animate-pulse"
-                        }`}
-                      />
-                      <span className="absolute inset-1 rounded-md border border-primary/20" />
+              {!overviewCollapsed && (
+                <div className="mt-3 space-y-2">
+                  <div className="rounded-md border bg-card/60 p-3">
+                    <div className="text-xs text-muted-foreground">消息</div>
+                    <div className="mt-1 text-sm font-medium">{messagesCount} messages</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onTokenDialogOpen}
+                    className="w-full rounded-md border bg-card/60 p-3 text-left transition-colors hover:bg-accent"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-muted-foreground">Token 用量</div>
+                      <span className="text-xs text-primary">查看详细 →</span>
                     </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">
-                        {isGeneratingCurrentChat ? "判定进行中" : "等待行动判定"}
+                    <div className="mt-1 text-sm font-medium">
+                      {hasUsage ? `P:${totalPrompt} C:${totalCompletion} | cache ${cacheRate}%` : "暂无统计"}
+                    </div>
+                    {hasUsage && (
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={`h-full rounded-full transition-[width] ${contextUsageBarTone}`}
+                          style={{ width: `${contextUsagePercent}%` }}
+                        />
                       </div>
-                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                        {isGeneratingCurrentChat
-                          ? "主持人正在判断风险、调用骰子或整理结果。"
-                          : "玩家选择行动后，风险动作会触发骰子判定。"}
-                      </p>
+                    )}
+                  </button>
+                  {hasUsage && (
+                    <div className="rounded-md border bg-card/60 p-3">
+                      <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Context</span>
+                        <span>{contextUsageDisplay}</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <span
+                          className={`block h-full rounded-full transition-[width] ${contextUsageBarTone}`}
+                          style={{ width: `${contextUsagePercent}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
             </section>
-          </section>
+
+            {agenticPlayEnabled && (
+              <section className="mt-5">
+                <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                  <Brain className="h-4 w-4" />
+                  场景状态
+                </div>
+                <div className="space-y-2">
+                  {statusMeters.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="px-1 text-xs font-semibold text-muted-foreground">动态变量</div>
+                      {statusMeters.slice(0, 8).map((meter) => (
+                        <StatusMeter
+                          key={meter.id}
+                          compact
+                          label={meter.label}
+                          value={meter.value}
+                          max={meter.max}
+                          min={meter.min}
+                          tone={meter.tone}
+                          icon={<StatusAssetIcon name={meter.icon} />}
+                          description={meter.description}
+                          valueLabel={meter.valueLabel}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <section className="mt-5">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                    <Dice5 className="h-4 w-4" />
+                    判定
+                  </div>
+                  <div className="rounded-md border bg-background p-4">
+                    {lastDiceResult ? (
+                      <DiceSlotMachine result={lastDiceResult} isGenerating={isGeneratingCurrentChat} />
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-md border bg-card">
+                          <Dice5
+                            className={`h-6 w-6 text-primary ${
+                              isGeneratingCurrentChat ? "animate-spin" : "animate-pulse"
+                            }`}
+                          />
+                          <span className="absolute inset-1 rounded-md border border-primary/20" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium">
+                            {isGeneratingCurrentChat ? "判定进行中" : "等待行动判定"}
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                            {isGeneratingCurrentChat
+                              ? "主持人正在判断风险、调用骰子或整理结果。"
+                              : "玩家选择行动后，风险动作会触发骰子判定。"}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </section>
+            )}
+          </>
         )}
       </div>
     </aside>
