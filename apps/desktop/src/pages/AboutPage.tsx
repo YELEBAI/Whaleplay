@@ -66,7 +66,7 @@ export function AboutPage() {
 
           <Button
             variant="outline"
-            onClick={() => window.open("https://github.com/YELEBAI/Whaleplay/tree/main/docs/zh/index.md", "_blank")}
+            onClick={() => window.open("https://github.com/YELEBAI/Whaleplay/tree/main/docs/zh", "_blank")}
             className="gap-2"
           >
             <BookOpen className="h-4 w-4" />
