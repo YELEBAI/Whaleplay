@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { FileText, Sparkles, Trash2 } from "lucide-react";
+import { cn } from "@neo-tavern/ui";
 import type { BuilderWorkspaceRecord } from "./types";
-import { getWorkspaceRecordStatus, getWorkspaceRecordStatusClass, formatCharacterUpdatedAt } from "./utils";
+import { getWorkspaceRecordStatus, formatCharacterUpdatedAt } from "./utils";
 
 export function BuilderWorkspaceList({
   records,
@@ -58,7 +59,7 @@ export function BuilderWorkspaceList({
                   <span className="min-w-0 truncate text-sm font-medium">{record.title}</span>
                 </div>
                 <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs">
-                  <span className={`shrink-0 ${getWorkspaceRecordStatusClass(record)}`}>
+                  <span className={cn("shrink-0", record.savedCharacterId ? "text-emerald-500" : record.draft?.name?.trim() ? "text-amber-500" : "text-muted-foreground")}>
                     {getWorkspaceRecordStatus(record)}
                   </span>
                   <span className="min-w-0 truncate text-muted-foreground">

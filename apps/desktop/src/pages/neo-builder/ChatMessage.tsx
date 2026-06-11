@@ -10,6 +10,7 @@ import {
   Loader2,
   User,
 } from "lucide-react";
+import { cn } from "@neo-tavern/ui";
 import type { BuilderMessage } from "./types";
 import type { NeoCreationPlan } from "@/features/character/neo-character-builder";
 import { formatCnyCost } from "@/features/billing/deepseek-billing";
@@ -80,7 +81,7 @@ export function BuilderActivityTimeline({ message }: { message: BuilderMessage }
               )}
             </button>
             {thinkingOpen && message.reasoningContent ? (
-              <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+              <div className="mt-2 whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-muted-foreground">
                 {message.reasoningContent}
               </div>
             ) : null}
@@ -154,21 +155,21 @@ export function BuilderChatMessage({ message, creationPlan }: { message: Builder
   const { t } = useTranslation("neo-builder");
   const isUser = message.role === "user";
   return (
-    <div className={`flex min-w-0 gap-3 ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={cn("flex min-w-0 gap-3", isUser ? "justify-end" : "justify-start")}>
       {!isUser && (
         <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <Bot className="h-4 w-4" />
         </div>
       )}
       <div
-        className={`min-w-0 overflow-hidden ${isUser ? "max-w-[min(82%,48rem)] rounded-lg border bg-primary p-4 text-primary-foreground" : "w-full max-w-4xl py-1"}`}
+        className={cn("min-w-0 overflow-hidden", isUser ? "max-w-[min(82%,48rem)] rounded-lg border bg-primary p-4 text-primary-foreground" : "w-full max-w-4xl py-1")}
       >
         {!isUser && <BuilderActivityTimeline message={message} />}
 
         {!isUser && message.backgroundCreation ? (
           <BuilderBackgroundMonitor plan={creationPlan} running={!!message.pending} />
         ) : message.content ? (
-          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+          <div className="whitespace-pre-wrap wrap-break-word text-sm leading-relaxed">
             {message.content}
           </div>
         ) : null}

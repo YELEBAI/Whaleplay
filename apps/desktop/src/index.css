@@ -1,7 +1,62 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
+/* @theme — design tokens mapped to utility classes (bg-primary, text-foreground, etc.) */
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --default-font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* ── Custom keyframes ───────────────────────────────────── */
+@keyframes dice-spin {
+  0% {
+    transform: rotateY(0deg) scale(1);
+  }
+  50% {
+    transform: rotateY(180deg) scale(0.85);
+  }
+  100% {
+    transform: rotateY(360deg) scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/*
+ * :root CSS variables — theme channel values (NOT utility-mapped).
+ * These hold raw HSL numbers so dark/sepia/blue themes can override them.
+ * Variables like --scrollbar-*, --rail-*, --sidebar-*, --panel-shadow are
+ * CSS-only; they do NOT generate Tailwind utilities.
+ */
 :root {
   --background: 0 0% 100%;
   --foreground: 0 0% 3.9%;
@@ -139,6 +194,7 @@
   --panel-shadow: 210 52% 5%;
 }
 
+/* ── Scrollbar ───────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--scrollbar-thumb) / 0.72) hsl(var(--scrollbar-track) / 0.35);
@@ -171,6 +227,7 @@
   background: transparent;
 }
 
+/* ── Custom details/summary components ───────────────────── */
 .neo-summary {
   margin-top: 0.25rem;
   border: 1px solid hsl(var(--border));
@@ -257,16 +314,13 @@
   color: hsl(var(--muted-foreground));
 }
 
+/* ── Base layer ──────────────────────────────────────────── */
 @layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
-    font-family:
-      system-ui,
-      -apple-system,
-      sans-serif;
   }
 
   select option {
@@ -277,41 +331,31 @@
   :root {
     color-scheme: light;
   }
-
   :root.dark {
     color-scheme: dark;
   }
-
   :root.sepia {
     color-scheme: light;
   }
-
   :root.blue {
     color-scheme: dark;
   }
 }
 
-.animate-delay-0 {
-  animation-delay: 0ms;
-}
-.animate-delay-150 {
-  animation-delay: 150ms;
-}
-.animate-delay-300 {
-  animation-delay: 300ms;
-}
-
-@keyframes dice-spin {
-  0% { transform: rotateY(0deg) scale(1); }
-  50% { transform: rotateY(180deg) scale(0.85); }
-  100% { transform: rotateY(360deg) scale(1); }
-}
-
+/* ── Shared component classes ────────────────────────────── */
 @layer components {
-  .info-block { @apply rounded-md border px-3 py-2 text-xs text-muted-foreground; }
-  .setting-row { @apply flex items-center justify-between gap-4 rounded-md border px-3 py-3; }
-  .card-title-row { @apply flex items-center gap-2; }
-  .chat-grid-cell { @apply min-h-0 min-w-0 overflow-hidden; }
+  .info-block {
+    @apply rounded-md border px-3 py-2 text-xs text-muted-foreground;
+  }
+  .setting-row {
+    @apply flex items-center justify-between gap-4 rounded-md border px-3 py-3;
+  }
+  .card-title-row {
+    @apply flex items-center gap-2;
+  }
+  .chat-grid-cell {
+    @apply min-h-0 min-w-0 overflow-hidden;
+  }
   .app-rail {
     background: linear-gradient(
       90deg,
@@ -323,13 +367,12 @@
     box-shadow: inset -1px 0 0 hsl(var(--foreground) / 0.03);
   }
   .app-sidebar-gradient {
-    background:
-      linear-gradient(
-        90deg,
-        hsl(var(--sidebar-gradient-from)) 0%,
-        hsl(var(--sidebar-gradient-mid)) 50%,
-        hsl(var(--sidebar-gradient-to)) 100%
-      );
+    background: linear-gradient(
+      90deg,
+      hsl(var(--sidebar-gradient-from)) 0%,
+      hsl(var(--sidebar-gradient-mid)) 50%,
+      hsl(var(--sidebar-gradient-to)) 100%
+    );
     border-color: hsl(var(--sidebar-border) / 0.86);
     box-shadow: 0 12px 34px hsl(var(--panel-shadow) / 0.18);
   }

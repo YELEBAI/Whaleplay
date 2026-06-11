@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, BookOpen, CheckCircle2, FileText, KeyRound, Plus, Power, Save, Trash2, X } from "lucide-react";
 import {
   Button,
+  cn,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -356,12 +357,12 @@ export function WorldbookPage() {
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 break-words text-sm font-semibold leading-5">{worldbook.name}</span>
+                    <span className="min-w-0 wrap-break-word text-sm font-semibold leading-5">{worldbook.name}</span>
                     {activeWorldbookId === worldbook.id && (
                       <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
                     )}
                   </div>
-                  <p className="mt-1 line-clamp-2 break-words text-xs leading-5 text-muted-foreground">
+                  <p className="mt-1 line-clamp-2 wrap-break-word text-xs leading-5 text-muted-foreground">
                     {worldbook.description || t("noDescription")}
                   </p>
                   <div className="mt-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -562,7 +563,7 @@ export function WorldbookPage() {
                                   isLong ? (isExpanded ? "max-h-80 overflow-y-auto" : "max-h-36 overflow-hidden") : ""
                                 }`}
                               >
-                                <div className="whitespace-pre-wrap break-words">{entry.content || "No content"}</div>
+                                <div className="whitespace-pre-wrap wrap-break-word">{entry.content || "No content"}</div>
                                 {isLong && !isExpanded && (
                                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
                                 )}
@@ -773,7 +774,7 @@ export function WorldbookPage() {
                               key={mode}
                               type="button"
                               onClick={() => setEntrySelectiveLogic(mode)}
-                              className={`rounded px-2 py-1 text-xs font-medium ${entrySelectiveLogic === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}
+                              className={cn("rounded px-2 py-1 text-xs font-medium", entrySelectiveLogic === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent")}
                             >
                               {mode.toUpperCase()}
                             </button>

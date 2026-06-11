@@ -22,7 +22,7 @@ import {
   User,
   Zap,
 } from "lucide-react";
-import { StatusMeter } from "@neo-tavern/ui";
+import { cn, StatusMeter } from "@neo-tavern/ui";
 import type { AgenticGameState, DiceRollResult } from "@/features/agentic-play/agentic-play";
 import { resolveAgenticStatusMeters, type ResolvedAgenticStatusMeter } from "@/features/agentic-play/status-assets";
 import type { Message, MessageAgenticOption } from "@neo-tavern/shared";
@@ -128,8 +128,8 @@ function DiceSlotMachine({ result, isGenerating }: { result: DiceRollResult; isG
 
       {/* Outcome */}
       <div className={`flex items-center justify-center gap-1.5 rounded-md bg-muted/50 px-3 py-1.5`}>
-        <OutcomeIcon className={`h-4 w-4 ${outcomeColor}`} />
-        <span className={`text-sm font-semibold ${outcomeColor}`}>{outcomeLabel}</span>
+        <OutcomeIcon className={cn("h-4 w-4", outcomeColor)} />
+        <span className={cn("text-sm font-semibold", outcomeColor)}>{outcomeLabel}</span>
       </div>
 
       {/* Reason */}
@@ -283,7 +283,7 @@ export function ChatRightPanel({
           {/* Content preview + switch action */}
           <button
             type="button"
-            className={`min-w-0 truncate text-left ${isOnActivePath ? "font-medium text-primary" : "text-foreground"}`}
+            className={cn("min-w-0 truncate text-left", isOnActivePath ? "font-medium text-primary" : "text-foreground")}
             title={message.content.slice(0, 200)}
             onClick={() => onSwitchBranch?.(message.id)}
           >
@@ -435,7 +435,7 @@ export function ChatRightPanel({
                     {hasUsage && (
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                         <div
-                          className={`h-full rounded-full transition-[width] ${contextUsageBarTone}`}
+                          className={cn("h-full rounded-full transition-[width]", contextUsageBarTone)}
                           style={{ width: `${contextUsagePercent}%` }}
                         />
                       </div>
@@ -449,7 +449,7 @@ export function ChatRightPanel({
                       </div>
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <span
-                          className={`block h-full rounded-full transition-[width] ${contextUsageBarTone}`}
+                          className={cn("block h-full rounded-full transition-[width]", contextUsageBarTone)}
                           style={{ width: `${contextUsagePercent}%` }}
                         />
                       </div>

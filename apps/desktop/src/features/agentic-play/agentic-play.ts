@@ -449,7 +449,7 @@ function stripInlineOptionList(content: string) {
       const trimmed = line.trim();
       if (!trimmed) return true;
       if (/^#{1,6}\s*(?:你可以选择|可选行动|选项|行动选项)/i.test(trimmed)) return false;
-      return !/^(?:[-*]\s*)?(?:选项\s*)?(?:\d+|[A-EＡ-Ｅ])[\.、):：]\s+.*(?:成功率|DC|难度|%|％)/i.test(trimmed);
+      return !/^(?:[-*]\s*)?(?:选项\s*)?(?:\d+|[A-EＡ-Ｅ])[.)、:：]\s+.*(?:成功率|DC|难度|%|％)/i.test(trimmed);
     })
     .join("\n")
     .trim();

@@ -1,6 +1,7 @@
 import type { Message } from "@neo-tavern/shared";
 import type { SideBlock, DisplayBlock } from "@neo-tavern/core";
 import type { GenerationPhase } from "@/features/chat/chat.types";
+import { cn } from "@neo-tavern/ui";
 
 // ── Constants ─────────────────────────────────────────
 export const DEEPSEEK_CONTEXT_LIMIT = 1_000_000;
@@ -97,7 +98,7 @@ export function Avatar({ name, src, isUser }: { name: string; src?: string; isUs
     return <img src={src} alt={name} className="w-8 h-8 rounded-full object-cover border border-border/30 shrink-0" />;
   }
   return (
-    <div className={`w-8 h-8 rounded-full ${bg} flex items-center justify-center shrink-0`}>
+    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", bg)}>
       <span className="text-white text-xs font-bold">{initial}</span>
     </div>
   );

@@ -1,5 +1,5 @@
 import { Send, ChevronDown, ChevronUp, Pencil, X, Save, FolderOpen, StopCircle } from "lucide-react";
-import { Button, Textarea } from "@neo-tavern/ui";
+import { Button, Textarea, cn } from "@neo-tavern/ui";
 import { useTranslation } from "react-i18next";
 import type { PendingSendItem } from "./types";
 // ── Static JSX fragments ────────────────────────────
@@ -85,7 +85,7 @@ export function ChatInputArea({
       )}
 
       <div className="shrink-0 border-t bg-card p-4">
-        <div className={`mx-auto w-full min-w-0 ${contentWidthClass} space-y-2`}>
+        <div className={cn("mx-auto w-full min-w-0 space-y-2", contentWidthClass)}>
           {pendingSendCount > 0 && hasChat && (
             <div className="bg-primary/5 p-2">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -102,7 +102,7 @@ export function ChatInputArea({
                       key={`${item.chatId}-${item.index}`}
                       className="flex items-start gap-2 rounded-md border bg-background/85 px-2 py-1.5"
                     >
-                      <p className="min-w-0 flex-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                      <p className="min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
                         {item.label ?? item.content}
                       </p>
                       <Button
@@ -214,7 +214,7 @@ export function ChatInputArea({
 
       {previewOpen && (
         <div className="border-t p-4 bg-background">
-          <div className={`${previewWidthClass} mx-auto`}>
+          <div className={cn(previewWidthClass, "mx-auto")}>
             <pre className="text-xs whitespace-pre-wrap font-mono max-h-64 overflow-auto leading-relaxed bg-muted/20 rounded-md p-3">
               {previewText ? (
                 previewText.split("\n").map((line, i) => {

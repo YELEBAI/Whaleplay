@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, CornerDownLeft, MessageSquare, X } from "lucide-react";
 import { Button } from "@neo-tavern/ui";
 
@@ -76,8 +76,10 @@ export function ChoiceInputPanel({
   const currentQuestionNumber = Math.min(questionIndex + 1, totalQuestions);
 
   useEffect(() => {
-    setQuestionIndex(0);
-    setDraftAnswers({});
+    startTransition(() => {
+      setQuestionIndex(0);
+      setDraftAnswers({});
+    });
   }, [questionsKey]);
 
   const setCurrentDraft = (patch: Partial<DraftAnswer>) => {
@@ -219,7 +221,7 @@ export function ChoiceInputPanel({
             <MessageSquare className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0">
-            <h3 className="min-w-0 break-words text-sm font-semibold leading-relaxed [overflow-wrap:anywhere]">
+            <h3 className="min-w-0 wrap-break-word text-sm font-semibold leading-relaxed">
               {currentQuestion?.title ?? title}
             </h3>
             {currentQuestion?.description ? (
@@ -276,7 +278,7 @@ export function ChoiceInputPanel({
               }}
               disabled={disabled}
             >
-              <span className="min-w-0 break-words text-sm leading-relaxed [overflow-wrap:anywhere]">
+              <span className="min-w-0 wrap-break-word text-sm leading-relaxed">
                 <span className="font-semibold">{choice.label}</span>
                 {choice.description ? <span className="ml-2 text-muted-foreground">{choice.description}</span> : null}
               </span>

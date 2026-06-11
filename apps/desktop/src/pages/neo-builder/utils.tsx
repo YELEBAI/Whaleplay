@@ -8,6 +8,7 @@ import type {
   NeoCreationPlanEntry,
 } from "@/features/character/neo-character-builder";
 import { CheckCircle2, ChevronRight, Loader2, Wrench, XCircle } from "lucide-react";
+import { cn } from "@neo-tavern/ui";
 import {
   BUILDER_WORKSPACE_RECORDS_STORAGE_KEY,
   BUILDER_WORKSPACE_STORAGE_KEY,
@@ -189,12 +190,6 @@ export function getWorkspaceRecordStatus(record: BuilderWorkspaceRecord) {
   if (record.savedCharacterId) return "已保存";
   if (record.draft?.name?.trim()) return "待保存";
   return "构思中";
-}
-
-export function getWorkspaceRecordStatusClass(record: BuilderWorkspaceRecord) {
-  if (record.savedCharacterId) return "text-emerald-500";
-  if (record.draft?.name?.trim()) return "text-amber-500";
-  return "text-muted-foreground";
 }
 
 export function readInitialBuilderSnapshot() {
@@ -382,7 +377,7 @@ export function ToolTimeline({ events }: { events: NeoBuilderToolEvent[] | undef
         )}
       </span>
       <div
-        className={`flex min-w-0 items-center gap-1 text-xs ${hasError ? "text-destructive" : "text-muted-foreground"}`}
+        className={cn("flex min-w-0 items-center gap-1 text-xs", hasError ? "text-destructive" : "text-muted-foreground")}
       >
         <Wrench className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 truncate" title={events.map((event) => event.label).join("、")}>

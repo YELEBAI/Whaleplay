@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useState, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   Button,
+  cn,
   Input,
   Textarea,
   Label,
@@ -253,7 +254,7 @@ export function PresetPage() {
     );
   };
 
-  const handleItemPointerDown = (e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => {
+  const handleItemPointerDown = useCallback((e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => {
     if (!selected || e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
@@ -340,7 +341,7 @@ export function PresetPage() {
     window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", finishDrag);
     window.addEventListener("pointercancel", cancelDrag);
-  };
+  }, [selected, secretUnlocked, store]);
 
   const handleExport = async () => {
     if (!selected) return;
@@ -439,8 +440,7 @@ export function PresetPage() {
               <button
                 key={p.id}
                 onClick={() => handleSelect(p.id)}
-                className={`text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center justify-between gap-1
-                  ${selectedId === p.id ? "bg-accent text-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"}`}
+                className={cn("text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center justify-between gap-1", selectedId === p.id ? "bg-accent text-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground")}
               >
                 <span className="truncate">{p.name}</span>
                 {store.activePresetId === p.id && <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-500" />}
@@ -565,13 +565,11 @@ export function PresetPage() {
                         if (node) itemRefs.current.set(item.id, node);
                         else itemRefs.current.delete(item.id);
                       }}
-                      className={`relative transition-all ${!item.enabled ? "opacity-50" : ""}
-                        ${draggedItemId === item.id ? "opacity-40" : ""}
-                        ${dragOverItemId === item.id && draggedItemId !== item.id ? "ring-1 ring-primary/40 bg-accent/20" : ""}`}
+                      className={cn("relative transition-all", !item.enabled && "opacity-50", draggedItemId === item.id && "opacity-40", dragOverItemId === item.id && draggedItemId !== item.id && "ring-1 ring-primary/40 bg-accent/20")}
                     >
                       {dragOverItemId === item.id && draggedItemId !== item.id && (
                         <div
-                          className={`pointer-events-none absolute left-3 right-3 z-10 h-0.5 rounded-full bg-primary ${dropPlacement === "before" ? "top-0" : "bottom-0"}`}
+                          className={cn("pointer-events-none absolute left-3 right-3 z-10 h-0.5 rounded-full bg-primary", dropPlacement === "before" ? "top-0" : "bottom-0")}
                         />
                       )}
                       <CardHeader className="p-3 pb-0">
@@ -591,11 +589,11 @@ export function PresetPage() {
                             role="switch"
                             aria-checked={item.enabled}
                             onClick={() => handleToggleItem(item)}
-                            className={`mt-0.5 shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer ${item.enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+                            className={cn("mt-0.5 shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer", item.enabled ? "bg-primary" : "bg-muted-foreground/30")}
                             title={item.enabled ? "Disable" : "Enable"}
                           >
                             <span
-                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${item.enabled ? "translate-x-[18px]" : "translate-x-[4px]"}`}
+                              className={cn("inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform", item.enabled ? "translate-x-[18px]" : "translate-x-[4px]")}
                             />
                           </button>
                           <div className="flex-1 min-w-0">

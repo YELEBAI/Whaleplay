@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { RotateCcw, Copy, BarChart3, Trash2, Brain, GitBranch } from "lucide-react";
 import {
   Button,
+  cn,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -117,7 +118,7 @@ export function PromptDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`max-w-3xl ${dialogMax80vh}`}>
+      <DialogContent className={cn("max-w-3xl", dialogMax80vh)}>
         <DialogHeader>
           <DialogTitle>{t("promptDialog.title")}</DialogTitle>
         </DialogHeader>
@@ -326,7 +327,7 @@ export function TokenDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`max-w-3xl ${dialogMax80vh}`}>
+      <DialogContent className={cn("max-w-3xl", dialogMax80vh)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
@@ -567,7 +568,7 @@ export function ThinkingDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`max-w-2xl ${dialogMax80vh}`}>
+      <DialogContent className={cn("max-w-2xl", dialogMax80vh)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-purple-400" />

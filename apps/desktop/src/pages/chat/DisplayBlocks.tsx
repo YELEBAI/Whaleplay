@@ -1,5 +1,5 @@
 import { Pencil, RotateCcw, Trash2, Check, X, Image as ImageIcon } from "lucide-react";
-import { Button } from "@neo-tavern/ui";
+import { Button, cn } from "@neo-tavern/ui";
 import { generateId, type MessageImage, type ModelConfig } from "@neo-tavern/shared";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { settingsRepository } from "@/db/repositories";
@@ -57,7 +57,7 @@ export function ImageDisplayBlockView({
           disabled={isGenerating}
           title="重新生成图片"
         >
-          <RotateCcw className={`h-3.5 w-3.5 ${isGenerating ? "animate-spin" : ""}`} />
+          <RotateCcw className={cn("h-3.5 w-3.5", isGenerating && "animate-spin")} />
         </Button>
         <Button
           variant="outline"

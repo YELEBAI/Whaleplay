@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Save, Plug, Trash2, KeyRound, Server, Zap, Wallet } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label } from "@neo-tavern/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label, cn } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { toast } from "@/utils/toast";
 import { fetchDeepSeekBalance, formatCnyCost, type DeepSeekBalanceResult } from "@/features/billing/deepseek-billing";
@@ -22,14 +22,10 @@ function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: 
       aria-checked={checked}
       aria-label={label}
       onClick={onClick}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-        checked ? "bg-primary" : "bg-muted-foreground/30"
-      }`}
+      className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors", checked ? "bg-primary" : "bg-muted-foreground/30")}
     >
       <span
-        className={`inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform ${
-          checked ? "translate-x-5" : "translate-x-0.5"
-        }`}
+        className={cn("inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform", checked ? "translate-x-5" : "translate-x-0.5")}
       />
     </button>
   );
@@ -337,18 +333,12 @@ export function ApiSection({ t }: ApiSectionProps) {
                       setModel(option.id);
                       if (!name.trim() || name.startsWith("DeepSeek")) setName(option.label);
                     }}
-                    className={`rounded-md border p-3 text-left transition-colors ${
-                      model === option.id
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border hover:bg-accent/50"
-                    }`}
+                    className={cn("rounded-md border p-3 text-left transition-colors", model === option.id ? "border-primary bg-primary/10 text-foreground" : "border-border hover:bg-accent/50")}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium">{t("api.models." + option.id + ".label")}</span>
                       <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                          model === option.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                        }`}
+                        className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", model === option.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}
                       >
                         {t("api.models." + option.id + ".badge")}
                       </span>
@@ -406,7 +396,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                   </div>
                 </div>
 
-                <div className={`grid gap-4 ${temperatureLocked ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+                <div className={cn("grid gap-4", temperatureLocked ? "md:grid-cols-2" : "md:grid-cols-3")}>
                   {!temperatureLocked && (
                     <div>
                       <Label htmlFor="temperature">{t("api.temperature")}</Label>

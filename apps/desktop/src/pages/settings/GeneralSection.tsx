@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Bell, Bug } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Input, Label, Button } from "@neo-tavern/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, Input, Label, Button, cn } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { getStorageItem, setStorageItem } from "@/db/storage";
 import { changeLocale, type Locale } from "@/i18n";
@@ -15,10 +15,10 @@ function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: 
       aria-checked={checked}
       aria-label={label}
       onClick={onClick}
-      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted-foreground/30"}`}
+      className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors", checked ? "bg-primary" : "bg-muted-foreground/30")}
     >
       <span
-        className={`inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform ${checked ? "translate-x-5" : "translate-x-0.5"}`}
+        className={cn("inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform", checked ? "translate-x-5" : "translate-x-0.5")}
       />
     </button>
   );
@@ -141,7 +141,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
               <div
-                className={`h-full rounded-full transition-all ${dailyCostRate >= 80 ? "bg-destructive" : "bg-primary"}`}
+                className={cn("h-full rounded-full transition-all", dailyCostRate >= 80 ? "bg-destructive" : "bg-primary")}
                 style={{ width: `${Math.min(100, dailyCostRate)}%` }}
               />
             </div>
@@ -188,10 +188,10 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                   setLanEnabled(next);
                   await setStorageItem("neotavern_lan_enabled", String(next));
                 }}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${lanEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+                className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors", lanEnabled ? "bg-primary" : "bg-muted-foreground/30")}
               >
                 <span
-                  className={`inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform ${lanEnabled ? "translate-x-5" : "translate-x-0.5"}`}
+                  className={cn("inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform", lanEnabled ? "translate-x-5" : "translate-x-0.5")}
                 />
               </button>
             </div>

@@ -1,5 +1,5 @@
 import { SlidersHorizontal } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@neo-tavern/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, cn } from "@neo-tavern/ui";
 
 interface ContextSectionProps {
   contextTokens: number;
@@ -54,7 +54,7 @@ export function ContextSection({ contextTokens, setContextTokens, t }: ContextSe
             <button
               key={preset.value}
               onClick={() => setContextTokens(preset.value)}
-              className={`rounded-lg border p-2 text-center transition-colors ${contextTokens === preset.value ? "border-primary bg-primary/10" : "border-border hover:bg-accent"}`}
+              className={cn("rounded-lg border p-2 text-center transition-colors", contextTokens === preset.value ? "border-primary bg-primary/10" : "border-border hover:bg-accent")}
             >
               <p className="text-xs font-medium">{preset.label}</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{preset.desc}</p>

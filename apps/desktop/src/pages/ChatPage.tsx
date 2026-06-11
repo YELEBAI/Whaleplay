@@ -16,7 +16,7 @@ import {
   CircleDashed,
   CheckCircle2,
 } from "lucide-react";
-import { Button, Card, CardContent } from "@neo-tavern/ui";
+import { Button, Card, CardContent, cn } from "@neo-tavern/ui";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useChatStore } from "@/features/chat/chat.store";
 import { useSendMessage } from "@/features/chat/hooks/useSendMessage";
@@ -201,7 +201,7 @@ function ChatActivityTimeline({
             )}
           </button>
           {thinkingOpen && message.reasoningContent ? (
-            <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed text-muted-foreground">
+            <div className="mt-2 whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-muted-foreground">
               {message.reasoningContent}
             </div>
           ) : null}
@@ -1244,7 +1244,7 @@ export function ChatPage() {
   return (
     <div className="flex h-full flex-col" style={{ "--chat-font-size": fontSize + "px" } as React.CSSProperties}>
       <div
-        className={`grid grid-cols-1 ${chatLayoutColumns} flex-1 gap-3 overflow-hidden p-4 transition-[grid-template-columns] duration-200`}
+        className={cn("grid grid-cols-1 flex-1 gap-3 overflow-hidden p-4 transition-[grid-template-columns] duration-200", chatLayoutColumns)}
       >
         <ChatSidebar
           chats={chatRecords}
@@ -1264,7 +1264,7 @@ export function ChatPage() {
           >
             {loading && <p className="text-sm text-muted-foreground text-center">Loading...</p>}
             {!loading && branch.visibleMessages.length === 0 && !isGeneratingCurrentChat && (
-              <div className={`${chatContentWidthClass} mx-auto`}>
+              <div className={cn(chatContentWidthClass, "mx-auto")}>
                 {character ? (
                   <div>
                     <div className="flex items-center gap-2 mb-1.5 px-1">
@@ -1272,7 +1272,7 @@ export function ChatPage() {
                       <span className="text-xs font-medium text-muted-foreground">{character.name}</span>
                     </div>
                     <div className="flex gap-3">
-                      <div className={`${firstMessageWidthClass} min-w-0`}>
+                      <div className={cn(firstMessageWidthClass, "min-w-0")}>
                         <Card>
                           <CardContent className="p-3">
                             <p className="whitespace-pre-wrap" style={{ fontSize: `${fontSize}px` }}>
@@ -1291,7 +1291,7 @@ export function ChatPage() {
                 )}
               </div>
             )}
-            <div className={`${chatContentWidthClass} mx-auto`}>
+            <div className={cn(chatContentWidthClass, "mx-auto")}>
               <div
                 style={{
                   height: `${chatVirtualizer.getTotalSize()}px`,
@@ -1322,7 +1322,7 @@ export function ChatPage() {
                     >
                       {isUser ? (
                         <div className="flex min-w-0 justify-end gap-3 pb-5">
-                          <div className={`min-w-0 ${userBubbleWidthClass} overflow-hidden`}>
+                          <div className={cn("min-w-0 overflow-hidden", userBubbleWidthClass)}>
                             <div className="mb-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity hover:opacity-100">
                               <Button
                                 variant="ghost"
@@ -1357,7 +1357,7 @@ export function ChatPage() {
                               />
                             ) : (
                               <p
-                                className="whitespace-pre-wrap break-words leading-relaxed"
+                                className="whitespace-pre-wrap wrap-break-word leading-relaxed"
                                 style={{ fontSize: `${fontSize}px` }}
                               >
                                 {displayContent}
@@ -1374,7 +1374,7 @@ export function ChatPage() {
                           <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                             <Bot className="h-4 w-4" />
                           </div>
-                          <div className={`group min-w-0 w-full ${chatContentWidthClass} overflow-hidden py-1`}>
+                          <div className={cn("group min-w-0 w-full overflow-hidden py-1", chatContentWidthClass)}>
                             <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
                               <span className="min-w-0 truncate text-xs font-medium text-muted-foreground">
                                 {aiName}
@@ -1435,7 +1435,7 @@ export function ChatPage() {
                                       disabled={isMessageImageBusy}
                                     >
                                       <ImageIcon
-                                        className={`h-3.5 w-3.5 ${isMessageImageBusy ? "animate-pulse" : ""}`}
+                                        className={cn("h-3.5 w-3.5", isMessageImageBusy && "animate-pulse")}
                                       />
                                     </Button>
                                   )}
@@ -1513,7 +1513,7 @@ export function ChatPage() {
                                         {block.speaker}
                                       </span>
                                       <p
-                                        className="whitespace-pre-wrap break-words pt-0.5"
+                                        className="whitespace-pre-wrap wrap-break-word pt-0.5"
                                         style={{ fontSize: `${fontSize}px` }}
                                       >
                                         {block.content}
@@ -1522,7 +1522,7 @@ export function ChatPage() {
                                   ) : (
                                     <p
                                       key={bi}
-                                      className="whitespace-pre-wrap break-words leading-relaxed"
+                                      className="whitespace-pre-wrap wrap-break-word leading-relaxed"
                                       style={{ fontSize: `${fontSize}px` }}
                                     >
                                       {block.content}
@@ -1534,23 +1534,14 @@ export function ChatPage() {
                               <div className="space-y-2">
                                 <p className="text-sm text-muted-foreground">{generationStatus.detail}</p>
                                 <div className="flex gap-1" aria-label={generationStatus.label}>
-                                  <span
-                                    className="h-2 w-2 animate-bounce rounded-full bg-primary/50"
-                                    style={{ animationDelay: "0ms" }}
-                                  />
-                                  <span
-                                    className="h-2 w-2 animate-bounce rounded-full bg-primary/50"
-                                    style={{ animationDelay: "150ms" }}
-                                  />
-                                  <span
-                                    className="h-2 w-2 animate-bounce rounded-full bg-primary/50"
-                                    style={{ animationDelay: "300ms" }}
-                                  />
+                                  <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:0ms]" />
+                                  <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:150ms]" />
+                                  <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:300ms]" />
                                 </div>
                               </div>
                             ) : (
                               <p
-                                className="whitespace-pre-wrap break-words leading-relaxed"
+                                className="whitespace-pre-wrap wrap-break-word leading-relaxed"
                                 style={{ fontSize: `${fontSize}px` }}
                               >
                                 {displayContent}
@@ -1574,7 +1565,7 @@ export function ChatPage() {
                   <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                     <Bot className="h-4 w-4" />
                   </div>
-                  <div className={`min-w-0 w-full ${chatContentWidthClass} py-1`}>
+                  <div className={cn("min-w-0 w-full py-1", chatContentWidthClass)}>
                     <div className="mb-3 min-w-0 border-l border-border/80">
                       <div className="relative pb-3">
                         <span className="absolute left-0 top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background text-primary">
@@ -1589,18 +1580,9 @@ export function ChatPage() {
                       </div>
                     </div>
                     <div className="flex gap-1" aria-label={generationStatus.label}>
-                      <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-primary/50"
-                        style={{ animationDelay: "0ms" }}
-                      />
-                      <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-primary/50"
-                        style={{ animationDelay: "150ms" }}
-                      />
-                      <span
-                        className="h-2 w-2 animate-bounce rounded-full bg-primary/50"
-                        style={{ animationDelay: "300ms" }}
-                      />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:0ms]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:150ms]" />
+                      <span className="h-2 w-2 animate-bounce rounded-full bg-primary/50 [animation-delay:300ms]" />
                     </div>
                   </div>
                 </div>
@@ -1610,7 +1592,7 @@ export function ChatPage() {
 
           {activeAgenticChoiceBlock && activeAgenticPanelChoices.length > 0 ? (
             <div className="shrink-0 border-t bg-card p-4">
-              <div className={`mx-auto w-full min-w-0 ${chatContentWidthClass}`}>
+              <div className={cn("mx-auto w-full min-w-0", chatContentWidthClass)}>
                 <ChoiceInputPanel
                   key={activeAgenticChoiceBlock.msg.id}
                   title={character ? `你要在 ${character.name} 的场景里采取什么行动？` : "你下一步要怎么做？"}

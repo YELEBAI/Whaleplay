@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  cn,
 } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { toast } from "@/utils/toast";
@@ -204,8 +205,7 @@ export function RegexSection({ t }: RegexSectionProps) {
               <button
                 key={p.id}
                 onClick={() => handleSelectRegexPreset(p.id)}
-                className={`text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center justify-between gap-1
-                  ${selectedRegexPresetId === p.id ? "bg-accent text-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground"}`}
+                className={cn("text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center justify-between gap-1", selectedRegexPresetId === p.id ? "bg-accent text-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground")}
               >
                 <span className="truncate text-xs">{p.name}</span>
                 {activeRegexPresetId === p.id && <CheckCircle2 className="h-3 w-3 shrink-0 text-green-500" />}
@@ -294,10 +294,10 @@ export function RegexSection({ t }: RegexSectionProps) {
                       role="switch"
                       aria-checked={regexEnabled}
                       onClick={() => setRegexEnabled(!regexEnabled)}
-                      className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${regexEnabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+                      className={cn("relative inline-flex h-4 w-7 items-center rounded-full transition-colors", regexEnabled ? "bg-primary" : "bg-muted-foreground/30")}
                     >
                       <span
-                        className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${regexEnabled ? "translate-x-[14px]" : "translate-x-[2px]"}`}
+                        className={cn("inline-block h-3 w-3 transform rounded-full bg-white transition-transform", regexEnabled ? "translate-x-[14px]" : "translate-x-[2px]")}
                       />
                     </button>
                     <span className="text-[10px]">{t("regex.on")}</span>
@@ -308,10 +308,10 @@ export function RegexSection({ t }: RegexSectionProps) {
                       role="switch"
                       aria-checked={regexStrip}
                       onClick={() => setRegexStrip(!regexStrip)}
-                      className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${regexStrip ? "bg-primary" : "bg-muted-foreground/30"}`}
+                      className={cn("relative inline-flex h-4 w-7 items-center rounded-full transition-colors", regexStrip ? "bg-primary" : "bg-muted-foreground/30")}
                     >
                       <span
-                        className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${regexStrip ? "translate-x-[14px]" : "translate-x-[2px]"}`}
+                        className={cn("inline-block h-3 w-3 transform rounded-full bg-white transition-transform", regexStrip ? "translate-x-[14px]" : "translate-x-[2px]")}
                       />
                     </button>
                     <span className="text-[10px]">{t("regex.strip")}</span>
@@ -368,17 +368,17 @@ export function RegexSection({ t }: RegexSectionProps) {
                 {selectedRules.map((rule) => (
                   <div
                     key={rule.id}
-                    className={`flex items-center gap-2 p-2 rounded-lg ${!rule.enabled ? "opacity-40" : "hover:bg-accent/50"}`}
+                    className={cn("flex items-center gap-2 p-2 rounded-lg", !rule.enabled ? "opacity-40" : "hover:bg-accent/50")}
                   >
                     <button
                       type="button"
                       role="switch"
                       aria-checked={rule.enabled}
                       onClick={() => handleToggleRule(rule.id)}
-                      className={`shrink-0 relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${rule.enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
+                      className={cn("shrink-0 relative inline-flex h-4 w-7 items-center rounded-full transition-colors", rule.enabled ? "bg-primary" : "bg-muted-foreground/30")}
                     >
                       <span
-                        className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${rule.enabled ? "translate-x-[14px]" : "translate-x-[2px]"}`}
+                        className={cn("inline-block h-3 w-3 transform rounded-full bg-white transition-transform", rule.enabled ? "translate-x-[14px]" : "translate-x-[2px]")}
                       />
                     </button>
                     <div className="flex-1 min-w-0">
