@@ -57,6 +57,9 @@ interface SettingsState {
   dailyCostWarningEnabled: boolean;
   dailyCostWarningLimitCny: number;
   dailyCostSpentCny: number;
+  webSearchProvider: "default" | "tavily";
+  tavilyApiKey: string;
+  tavilySearchDepth: "basic" | "advanced" | "fast" | "ultra-fast";
 
   loadAllConfigs: () => Promise<void>;
   selectConfig: (id: string) => Promise<void>;
@@ -91,6 +94,10 @@ interface SettingsState {
   loadDailyCostSpent: () => Promise<void>;
   setDailyCostWarningEnabled: (enabled: boolean) => void;
   setDailyCostWarningLimitCny: (limitCny: number) => void;
+  loadWebSearchSettings: () => Promise<void>;
+  setWebSearchProvider: (provider: "default" | "tavily") => void;
+  setTavilyApiKey: (key: string) => void;
+  setTavilySearchDepth: (depth: "basic" | "advanced" | "fast" | "ultra-fast") => void;
   clearError: () => void;
 }
 
@@ -116,6 +123,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   dailyCostWarningEnabled: false,
   dailyCostWarningLimitCny: DEFAULT_DAILY_COST_WARNING_LIMIT_CNY,
   dailyCostSpentCny: 0,
+  webSearchProvider: "default" as const,
+  tavilyApiKey: "",
+  tavilySearchDepth: "basic" as const,
 
   loadAllConfigs: async () => {
     set({ loading: true, error: null });
@@ -281,6 +291,34 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       : DEFAULT_DAILY_COST_WARNING_LIMIT_CNY;
     void saveDailyCostWarningLimitCny(next);
     set({ dailyCostWarningLimitCny: next });
+  },
+
+  loadWebSearchSettings: async () => {
+    const provider = await settingsRepository.get("webSearchProvider");
+    if (provider === "tavily" || provider === "default") {
+      set({ webSearchProvider: provider });
+    }
+    const key = await settingsRepository.get("tavilyApiKey");
+    if (key) set({ tavilyApiKey: key });
+    const depth = await settingsRepository.get("tavilySearchDepth");
+    if (depth === "basic" || depth === "advanced" || depth === "fast" || depth === "ultra-fast") {
+      set({ tavilySearchDepth: depth });
+    }
+  },
+
+  setWebSearchProvider: (provider) => {
+    void settingsRepository.set("webSearchProvider", provider);
+    set({ webSearchProvider: provider });
+  },
+
+  setTavilyApiKey: (key) => {
+    void settingsRepository.set("tavilyApiKey", key);
+    set({ tavilyApiKey: key });
+  },
+
+  setTavilySearchDepth: (depth) => {
+    void settingsRepository.set("tavilySearchDepth", depth);
+    set({ tavilySearchDepth: depth });
   },
 
   clearError: () => set({ error: null }),

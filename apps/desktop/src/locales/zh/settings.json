@@ -189,5 +189,19 @@
       "description": "确定删除「{{name}}」及其所有规则？此操作不可撤销。"
     },
     "quickSummary": "快速：Summary"
+  },
+  "websearch": {
+    "title": "联网搜索",
+    "description": "Neo Builder 角色卡生成时使用的搜索引擎。切换后立即生效。",
+    "provider": "搜索引擎",
+    "default": "内置搜索 (默认)",
+    "help": "Tavily 需要 API Key 才能使用。在 tavily.com 注册免费额度。API Key 留空将自动回退到内置搜索。",
+    "depth": "搜索深度",
+    "depthFast": "快速 — 低延迟",
+    "depthBasic": "基础 — 平衡 (推荐)",
+    "depthAdvanced": "高级 — 高精度",
+    "depthUltraFast": "极速 — 最低延迟",
+    "tavilyKey": "Tavily API Key",
+    "tavilyKeyHint": "在 tavily.com 注册后获取。留空将回退到内置搜索。"
   }
 }

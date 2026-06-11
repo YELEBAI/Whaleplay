@@ -53,6 +53,7 @@ function AppContent() {
       await useSettingsStore.getState().loadDebugMode();
       await useSettingsStore.getState().loadDailyCostWarningSettings();
       await useSettingsStore.getState().loadDailyCostSpent();
+      await useSettingsStore.getState().loadWebSearchSettings();
       await useWorldbookStore.getState().loadWorldbooks();
     })();
   }, [themeInit]);

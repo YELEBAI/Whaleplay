@@ -190,5 +190,19 @@
       "description": "Delete \"{{name}}\" and all its rules? This cannot be undone."
     },
     "quickSummary": "Quick: Summary"
+  },
+  "websearch": {
+    "title": "Web Search",
+    "description": "Search engine used by Neo Builder for character creation. Changes take effect immediately.",
+    "provider": "Search Engine",
+    "default": "Built-in (Default)",
+    "help": "Tavily requires an API key. Sign up at tavily.com for free credits. Falls back to built-in search if no key is provided.",
+    "depth": "Search Depth",
+    "depthFast": "Fast — Low latency",
+    "depthBasic": "Basic — Balanced (Recommended)",
+    "depthAdvanced": "Advanced — High precision",
+    "depthUltraFast": "Ultra Fast — Lowest latency",
+    "tavilyKey": "Tavily API Key",
+    "tavilyKeyHint": "Get your key at tavily.com. Leave empty to fall back to built-in search."
   }
 }

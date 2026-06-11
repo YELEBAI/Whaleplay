@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Bug } from "lucide-react";
+import { Bell, Bug, Globe } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Input, Label, Button, cn } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { getStorageItem, setStorageItem } from "@/db/storage";
@@ -38,6 +38,12 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
   const dailyCostSpentCny = useSettingsStore((s) => s.dailyCostSpentCny);
   const setDailyCostWarningEnabled = useSettingsStore((s) => s.setDailyCostWarningEnabled);
   const setDailyCostWarningLimitCny = useSettingsStore((s) => s.setDailyCostWarningLimitCny);
+  const webSearchProvider = useSettingsStore((s) => s.webSearchProvider);
+  const tavilyApiKey = useSettingsStore((s) => s.tavilyApiKey);
+  const tavilySearchDepth = useSettingsStore((s) => s.tavilySearchDepth);
+  const setWebSearchProvider = useSettingsStore((s) => s.setWebSearchProvider);
+  const setTavilyApiKey = useSettingsStore((s) => s.setTavilyApiKey);
+  const setTavilySearchDepth = useSettingsStore((s) => s.setTavilySearchDepth);
 
   const [lanEnabled, setLanEnabled] = useState(false);
   const [lanAddr, setLanAddr] = useState("0.0.0.0");
@@ -236,6 +242,73 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                       {t("appearance.lanPasswordGenerate")}
                     </Button>
                   </div>
+                </div>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Web Search */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="card-title-row">
+            <Globe className="h-5 w-5" />
+            {t("websearch.title")}
+          </CardTitle>
+          <CardDescription>{t("websearch.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Provider selector */}
+            <div>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <span className="text-xs font-medium">{t("websearch.provider")}</span>
+                <span className="group relative inline-flex">
+                  <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground">?</span>
+                  <span className="pointer-events-none absolute -top-7 left-0 whitespace-nowrap rounded bg-foreground px-2 py-1 text-[11px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+                    {t("websearch.help")}
+                  </span>
+                </span>
+              </div>
+              <select
+                value={webSearchProvider}
+                onChange={(e) => setWebSearchProvider(e.target.value as typeof webSearchProvider)}
+                className="w-52 rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="default">{t("websearch.default")}</option>
+                <option value="tavily">Tavily</option>
+              </select>
+            </div>
+
+            {/* Tavily config */}
+            {webSearchProvider === "tavily" && (
+              <>
+                <div className="border-t pt-4">
+                  <Label htmlFor="tavily-key" className="text-xs">{t("websearch.tavilyKey")}</Label>
+                  <Input
+                    id="tavily-key"
+                    type="password"
+                    value={tavilyApiKey}
+                    onChange={(e) => setTavilyApiKey(e.target.value)}
+                    placeholder="tvly-..."
+                    className="mt-1 h-8 text-xs w-52"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">{t("websearch.tavilyKeyHint")}</p>
+                </div>
+                <div>
+                  <Label htmlFor="tavily-depth" className="text-xs">{t("websearch.depth")}</Label>
+                  <select
+                    id="tavily-depth"
+                    value={tavilySearchDepth}
+                    onChange={(e) => setTavilySearchDepth(e.target.value as typeof tavilySearchDepth)}
+                    className="mt-1 w-52 rounded-md border bg-background px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="fast">{t("websearch.depthFast")}</option>
+                    <option value="basic">{t("websearch.depthBasic")}</option>
+                    <option value="advanced">{t("websearch.depthAdvanced")}</option>
+                    <option value="ultra-fast">{t("websearch.depthUltraFast")}</option>
+                  </select>
                 </div>
               </>
             )}
