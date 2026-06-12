@@ -1,5 +1,5 @@
 import { ArrowLeft, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { Avatar } from "@/pages/chat/utils";
+import { Avatar } from "@/pages/chat/display";
 import type { Character, Chat } from "@neo-tavern/shared";
 
 interface ChatSidebarProps {

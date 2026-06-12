@@ -80,10 +80,8 @@ import {
 } from "@/pages/chat/DisplayBlocks";
 import { toast } from "@/utils/toast";
 
+import { Avatar, SideBlockView, TemplateDisplayBlockView } from "@/pages/chat/display";
 import {
-  Avatar,
-  SideBlockView,
-  TemplateDisplayBlockView,
   CONTINUE_PROMPT,
   DEEPSEEK_CONTEXT_LIMIT,
   CHAT_FONT_SIZE_KEY,
