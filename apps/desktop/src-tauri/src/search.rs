@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 #[derive(Serialize)]
@@ -7,6 +8,14 @@ pub(crate) struct WebSearchResult {
     url: String,
     snippet: String,
 }
+
+static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(12))
+        .user_agent("WhalePlay/0.1 (+https://local.whale-play)")
+        .build()
+        .expect("Failed to create search client")
+});
 
 pub(crate) fn short_body(body: &str) -> String {
     body.chars().take(200).collect()
@@ -141,19 +150,21 @@ pub(crate) async fn web_search(
     }
 
     let limit = limit.unwrap_or(5).clamp(1, 8);
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(12))
-        .user_agent("WhalePlay/0.1 (+https://local.whale-play)")
-        .build()
-        .map_err(|err| format!("Failed to create search client: {err}"))?;
     let url =
         reqwest::Url::parse_with_params("https://duckduckgo.com/html/", &[("q", clean_query)])
             .map_err(|err| format!("Failed to build search URL: {err}"))?;
-    let response = client
+    let response = CLIENT
         .get(url)
         .send()
         .await
         .map_err(|err| format!("Search request failed: {err}"))?;
+
+    if let Some(len) = response.content_length() {
+        if len > 2 * 1024 * 1024 {
+            return Err("Search response exceeds 2 MB limit".to_string());
+        }
+    }
+
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();

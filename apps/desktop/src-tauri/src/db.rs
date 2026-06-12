@@ -1,6 +1,9 @@
 use rusqlite::{params, OptionalExtension};
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
+
+static DB: OnceLock<Result<Mutex<rusqlite::Connection>, String>> = OnceLock::new();
 
 fn sqlite_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
@@ -57,6 +60,13 @@ fn open_sqlite(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
     }
 
     Ok(conn)
+}
+
+fn get_db(app: &tauri::AppHandle) -> Result<&Mutex<rusqlite::Connection>, String> {
+    match DB.get_or_init(|| open_sqlite(app).map(Mutex::new)) {
+        Ok(mutex_conn) => Ok(mutex_conn),
+        Err(e) => Err(e.clone()),
+    }
 }
 
 fn json_string_field<'a>(value: &'a serde_json::Value, field: &str) -> Result<&'a str, String> {
@@ -143,7 +153,9 @@ pub(crate) fn sqlite_init_messages(
     app: tauri::AppHandle,
     legacy_messages_json: Option<String>,
 ) -> Result<(), String> {
-    let mut conn = open_sqlite(&app)?;
+    let mut conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let count = conn
         .query_row("SELECT COUNT(*) FROM messages", [], |row| {
             row.get::<_, i64>(0)
@@ -189,12 +201,15 @@ pub(crate) fn sqlite_list_messages_by_chat_id(
     app: tauri::AppHandle,
     chat_id: String,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let mut stmt = conn
         .prepare(
             "SELECT message_json FROM messages
              WHERE chat_id = ?1
-             ORDER BY created_at ASC, id ASC",
+             ORDER BY created_at ASC, id ASC
+             LIMIT 1000",
         )
         .map_err(|err| format!("Failed to prepare SQLite message query: {err}"))?;
     let rows = stmt
@@ -216,7 +231,9 @@ pub(crate) fn sqlite_list_recent_messages_by_chat_id(
     chat_id: String,
     limit: i64,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let capped_limit = limit.max(1).min(500);
     let mut stmt = conn
         .prepare(
@@ -249,12 +266,15 @@ pub(crate) fn sqlite_list_child_messages(
     app: tauri::AppHandle,
     parent_id: String,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let mut stmt = conn
         .prepare(
             "SELECT message_json FROM messages
              WHERE parent_id = ?1
-             ORDER BY created_at ASC, id ASC",
+             ORDER BY created_at ASC, id ASC
+             LIMIT 1000",
         )
         .map_err(|err| format!("Failed to prepare child message query: {err}"))?;
     let rows = stmt
@@ -272,7 +292,9 @@ pub(crate) fn sqlite_list_child_messages(
 
 #[tauri::command]
 pub(crate) fn sqlite_migrate_parent_ids(app: tauri::AppHandle) -> Result<usize, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let mut stmt = conn
         .prepare(
             "SELECT id, chat_id, created_at FROM messages
@@ -280,32 +302,36 @@ pub(crate) fn sqlite_migrate_parent_ids(app: tauri::AppHandle) -> Result<usize, 
              ORDER BY chat_id, created_at ASC, id ASC",
         )
         .map_err(|err| format!("Failed to prepare parent_id migration query: {err}"))?;
-    let rows: Vec<(String, String, String)> = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })
-        .map_err(|err| format!("Failed to read messages for parent_id migration: {err}"))?
-        .filter_map(|r| r.ok())
-        .collect();
-
     let mut count = 0usize;
     let mut prev_by_chat: std::collections::HashMap<String, String> =
         std::collections::HashMap::new();
 
-    for (id, chat_id, _created_at) in &rows {
-        if let Some(prev_id) = prev_by_chat.get(chat_id) {
-            conn.execute(
-                "UPDATE messages SET parent_id = ?1 WHERE id = ?2",
-                params![prev_id, id],
-            )
-            .map_err(|err| format!("Failed to set parent_id: {err}"))?;
-            count += 1;
+    // Scope the SELECT so the statement borrow is released before we issue UPDATEs.
+    let pending: Vec<(String, String)> = {
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|err| format!("Failed to read messages for parent_id migration: {err}"))?;
+        let mut pending = Vec::new();
+        for row in rows {
+            let (id, chat_id) =
+                row.map_err(|err| format!("Failed to read migration row: {err}"))?;
+            if let Some(prev_id) = prev_by_chat.get(&chat_id) {
+                pending.push((prev_id.clone(), id.clone()));
+            }
+            prev_by_chat.insert(chat_id, id);
         }
-        prev_by_chat.insert(chat_id.clone(), id.clone());
+        pending
+    }; // stmt borrow released here
+
+    for (prev_id, id) in &pending {
+        conn.execute(
+            "UPDATE messages SET parent_id = ?1 WHERE id = ?2",
+            params![prev_id, id],
+        )
+        .map_err(|err| format!("Failed to set parent_id: {err}"))?;
+        count += 1;
     }
 
     Ok(count)
@@ -316,7 +342,9 @@ pub(crate) fn sqlite_create_message(
     app: tauri::AppHandle,
     message: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let (id, chat_id, parent_id, created_at, raw) = serialize_message(&message)?;
     conn.execute(
         "INSERT OR REPLACE INTO messages (id, chat_id, parent_id, created_at, message_json)
@@ -333,7 +361,9 @@ pub(crate) fn sqlite_update_message(
     id: String,
     content: String,
 ) -> Result<serde_json::Value, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let mut message = read_sqlite_message(&conn, &id)?;
     let Some(object) = message.as_object_mut() else {
         return Err("Stored message is not a JSON object.".to_string());
@@ -349,7 +379,9 @@ pub(crate) fn sqlite_patch_message(
     id: String,
     patch: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let mut message = read_sqlite_message(&conn, &id)?;
     let Some(message_object) = message.as_object_mut() else {
         return Err("Stored message is not a JSON object.".to_string());
@@ -371,7 +403,9 @@ pub(crate) fn sqlite_delete_messages_by_chat_id(
     app: tauri::AppHandle,
     chat_id: String,
 ) -> Result<(), String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     conn.execute("DELETE FROM messages WHERE chat_id = ?1", params![chat_id])
         .map_err(|err| format!("Failed to delete SQLite messages by chat: {err}"))?;
     Ok(())
@@ -383,7 +417,9 @@ pub(crate) fn sqlite_replace_messages_by_chat_id(
     chat_id: String,
     messages: Vec<serde_json::Value>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut conn = open_sqlite(&app)?;
+    let mut conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let tx = conn
         .transaction()
         .map_err(|err| format!("Failed to start SQLite replace transaction: {err}"))?;
@@ -410,7 +446,9 @@ pub(crate) fn sqlite_replace_messages_by_chat_id(
 
 #[tauri::command]
 pub(crate) fn sqlite_delete_message(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     conn.execute("DELETE FROM messages WHERE id = ?1", params![id])
         .map_err(|err| format!("Failed to delete SQLite message: {err}"))?;
     Ok(())
@@ -421,7 +459,9 @@ pub(crate) fn sqlite_delete_messages(
     app: tauri::AppHandle,
     ids: Vec<String>,
 ) -> Result<(), String> {
-    let mut conn = open_sqlite(&app)?;
+    let mut conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let tx = conn
         .transaction()
         .map_err(|err| format!("Failed to start SQLite delete transaction: {err}"))?;
@@ -439,7 +479,9 @@ pub(crate) fn sqlite_init_agentic_play_states(
     app: tauri::AppHandle,
     legacy_states_json: Option<String>,
 ) -> Result<(), String> {
-    let mut conn = open_sqlite(&app)?;
+    let mut conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let count = conn
         .query_row("SELECT COUNT(*) FROM agentic_play_states", [], |row| {
             row.get::<_, i64>(0)
@@ -486,7 +528,9 @@ pub(crate) fn sqlite_get_agentic_play_state(
     app: tauri::AppHandle,
     chat_id: String,
 ) -> Result<Option<serde_json::Value>, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let raw = conn
         .query_row(
             "SELECT record_json FROM agentic_play_states WHERE chat_id = ?1",
@@ -503,7 +547,9 @@ pub(crate) fn sqlite_upsert_agentic_play_state(
     app: tauri::AppHandle,
     record: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     let (chat_id, character_id, enabled, created_at, updated_at, raw) =
         serialize_agentic_play_state(&record)?;
     conn.execute(
@@ -520,7 +566,9 @@ pub(crate) fn sqlite_delete_agentic_play_state(
     app: tauri::AppHandle,
     chat_id: String,
 ) -> Result<(), String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     conn.execute(
         "DELETE FROM agentic_play_states WHERE chat_id = ?1",
         params![chat_id],
@@ -531,7 +579,9 @@ pub(crate) fn sqlite_delete_agentic_play_state(
 
 #[tauri::command]
 pub(crate) fn sqlite_clear_agentic_play_states(app: tauri::AppHandle) -> Result<(), String> {
-    let conn = open_sqlite(&app)?;
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
     conn.execute("DELETE FROM agentic_play_states", [])
         .map_err(|err| format!("Failed to clear SQLite Agentic Play states: {err}"))?;
     Ok(())

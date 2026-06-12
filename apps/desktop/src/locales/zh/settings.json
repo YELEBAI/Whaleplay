@@ -94,6 +94,7 @@
     "lanRestartHint": "修改后需重启应用生效。",
     "lanPassword": "访问密码",
     "lanPasswordHint": "局域网内其他设备访问时需要输入此密码。",
+    "lanPasswordNote": "密码在首次启动时随机生成并持久保存，应用重启后保持不变。",
     "lanPasswordGenerate": "重新生成"
   },
   "general": {

@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use actix_files::Files;
 use actix_web::{
@@ -12,8 +13,16 @@ use serde_json::Value;
 
 use crate::AppStore;
 
-/// In-memory session tokens
-type TokenStore = Arc<Mutex<std::collections::HashMap<String, ()>>>;
+/// In-memory session tokens.
+///
+/// Tokens are held in memory only and are destroyed when the server shuts
+/// down (i.e. when the app closes). No explicit cleanup is needed — the
+/// HashMap is simply dropped.
+type TokenStore = Arc<Mutex<std::collections::HashMap<String, Instant>>>;
+
+/// Channel used to signal the LAN server to shut down gracefully.
+static SHUTDOWN_TX: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>> =
+    std::sync::Mutex::new(None);
 
 /// Start the LAN HTTP server.
 pub async fn start(
@@ -22,6 +31,7 @@ pub async fn start(
     store: Arc<Mutex<AppStore>>,
     store_path: String,
     web_dir: String,
+    mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> std::io::Result<()> {
     let tokens: TokenStore = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
@@ -31,7 +41,7 @@ pub async fn start(
     });
     let store_path_data = web::Data::new(store_path);
 
-    HttpServer::new(move || {
+    let server = HttpServer::new(move || {
         let web = web_dir.clone();
         App::new()
             .app_data(state.clone())
@@ -51,8 +61,17 @@ pub async fn start(
             .service(Files::new("/", &web).index_file("index.html"))
     })
     .bind((addr.as_str(), port))?
-    .run()
-    .await
+    .run();
+
+    let handle = server.handle();
+
+    tokio::select! {
+        result = server => result,
+        _ = &mut shutdown_rx => {
+            handle.stop(true).await;
+            Ok(())
+        }
+    }
 }
 
 struct ServerState {
@@ -89,7 +108,21 @@ async fn auth_middleware(
 
     let authed = token.as_ref().is_some_and(|t| {
         req.app_data::<web::Data<ServerState>>()
-            .map(|s| s.tokens.lock().unwrap().contains_key(t.as_str()))
+            .map(|s| {
+                let mut tokens = s.tokens.lock().unwrap();
+                match tokens.get(t.as_str()) {
+                    Some(instant)
+                        if instant.elapsed() < std::time::Duration::from_secs(24 * 3600) =>
+                    {
+                        true
+                    }
+                    Some(_) => {
+                        tokens.remove(t.as_str());
+                        false
+                    }
+                    None => false,
+                }
+            })
             .unwrap_or(false)
     });
 
@@ -129,21 +162,19 @@ async fn login(
 
     match stored_pw {
         Some(pw) if pw == body.password => {
-            let token = uuid_v4();
-            state.tokens.lock().unwrap().insert(token.clone(), ());
+            // Generate a cryptographically secure random token (32 hex chars)
+            let token: String = (0..16)
+                .map(|_| format!("{:02x}", rand::random::<u8>()))
+                .collect();
+            let mut tokens = state.tokens.lock().unwrap();
+            // Sweep expired tokens (older than 24 hours)
+            tokens
+                .retain(|_, instant| instant.elapsed() < std::time::Duration::from_secs(24 * 3600));
+            tokens.insert(token.clone(), std::time::Instant::now());
             HttpResponse::Ok().json(serde_json::json!({ "token": token }))
         }
         _ => HttpResponse::Unauthorized().json(serde_json::json!({ "error": "invalid password" })),
     }
-}
-
-fn uuid_v4() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    format!("{:016x}", ts)
 }
 
 // ── Store handlers ─────────────────────────────────────
@@ -162,11 +193,12 @@ async fn set_store(
     key: web::Path<String>,
     body: web::Json<Value>,
 ) -> HttpResponse {
-    let mut store = state.store.lock().unwrap();
-    let value = body.get("value").and_then(|v| v.as_str()).unwrap_or("");
-    store.insert(key.into_inner(), value.to_string());
-
-    let raw = serde_json::to_string_pretty(&*store).unwrap();
+    let raw = {
+        let mut store = state.store.lock().unwrap();
+        let value = body.get("value").and_then(|v| v.as_str()).unwrap_or("");
+        store.insert(key.into_inner(), value.to_string());
+        serde_json::to_string_pretty(&*store).unwrap()
+    };
     let _ = std::fs::write(store_path.get_ref(), raw);
     HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
 }
@@ -176,18 +208,18 @@ async fn delete_store(
     store_path: web::Data<String>,
     key: web::Path<String>,
 ) -> HttpResponse {
-    let mut store = state.store.lock().unwrap();
-    store.remove(&key.into_inner());
-
-    let raw = serde_json::to_string_pretty(&*store).unwrap();
+    let raw = {
+        let mut store = state.store.lock().unwrap();
+        store.remove(&key.into_inner());
+        serde_json::to_string_pretty(&*store).unwrap()
+    };
     let _ = std::fs::write(store_path.get_ref(), raw);
     HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
 }
 
 async fn list_store(state: web::Data<ServerState>) -> HttpResponse {
     let store = state.store.lock().unwrap();
-    let entries: Vec<_> = store.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-    HttpResponse::Ok().json(entries)
+    HttpResponse::Ok().json(&*store)
 }
 
 // ── LAN server commands ────────────────────────────────
@@ -212,6 +244,14 @@ pub(crate) fn lan_server_status(app: tauri::AppHandle) -> Result<String, String>
         Ok(format!("Running on {addr}:{port}"))
     } else {
         Ok("Disabled".into())
+    }
+}
+
+/// Signal the LAN server to stop gracefully.
+/// Call this on Tauri app exit so the server thread can join.
+pub(crate) fn shutdown_lan_server() {
+    if let Some(tx) = SHUTDOWN_TX.lock().unwrap().take() {
+        let _ = tx.send(());
     }
 }
 
@@ -251,7 +291,10 @@ pub(crate) fn try_start_lan_server(handle: tauri::AppHandle) {
             let web_dir = resolve_web_dir(&handle);
             let shared_store: Arc<Mutex<AppStore>> = Arc::new(Mutex::new(store));
 
-            if let Err(e) = start(addr, port, shared_store, store_path, web_dir).await {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            *SHUTDOWN_TX.lock().unwrap() = Some(tx);
+
+            if let Err(e) = start(addr, port, shared_store, store_path, web_dir, rx).await {
                 eprintln!("LAN server failed: {e}");
             }
         });

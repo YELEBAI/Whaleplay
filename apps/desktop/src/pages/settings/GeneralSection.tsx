@@ -231,6 +231,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                 <div className="pt-2 border-t">
                   <Label className="text-xs">{t("appearance.lanPassword")}</Label>
                   <p className="text-[10px] text-muted-foreground mb-1">{t("appearance.lanPasswordHint")}</p>
+                  <p className="text-[10px] text-muted-foreground/70 mb-2">{t("appearance.lanPasswordNote")}</p>
                   <div className="flex gap-2">
                     <Input value={lanPassword} readOnly className="h-7 text-xs font-mono flex-1" />
                     <Button

@@ -3,13 +3,14 @@ use serde_json::json;
 use std::time::Duration;
 
 use crate::search;
+use std::sync::LazyLock;
 
-fn comfy_client() -> Result<reqwest::Client, String> {
+static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
-        .map_err(|err| format!("Failed to create HTTP client: {err}"))
-}
+        .expect("Failed to create ComfyUI HTTP client")
+});
 
 fn clean_base_url(base_url: &str) -> String {
     base_url.trim().trim_end_matches('/').to_string()
@@ -19,6 +20,12 @@ async fn read_comfy_json_response(
     response: reqwest::Response,
     label: &str,
 ) -> Result<serde_json::Value, String> {
+    if let Some(len) = response.content_length() {
+        if len > 10 * 1024 * 1024 {
+            return Err(format!("{label} response exceeds 10 MB limit"));
+        }
+    }
+
     let status = response.status();
     if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
@@ -36,9 +43,8 @@ async fn read_comfy_json_response(
 
 #[tauri::command]
 pub(crate) async fn comfy_get_system_stats(base_url: String) -> Result<serde_json::Value, String> {
-    let client = comfy_client()?;
     let url = format!("{}/system_stats", clean_base_url(&base_url));
-    let response = client
+    let response = CLIENT
         .get(url)
         .send()
         .await
@@ -53,9 +59,8 @@ pub(crate) async fn comfy_queue_prompt(
     prompt: serde_json::Value,
     client_id: String,
 ) -> Result<serde_json::Value, String> {
-    let client = comfy_client()?;
     let url = format!("{}/prompt", clean_base_url(&base_url));
-    let response = client
+    let response = CLIENT
         .post(url)
         .json(&json!({ "prompt": prompt, "client_id": client_id }))
         .send()
@@ -70,9 +75,8 @@ pub(crate) async fn comfy_get_history(
     base_url: String,
     prompt_id: String,
 ) -> Result<serde_json::Value, String> {
-    let client = comfy_client()?;
     let url = format!("{}/history/{}", clean_base_url(&base_url), prompt_id);
-    let response = client
+    let response = CLIENT
         .get(url)
         .send()
         .await
@@ -88,7 +92,6 @@ pub(crate) async fn comfy_get_image_data_url(
     subfolder: Option<String>,
     image_type: Option<String>,
 ) -> Result<String, String> {
-    let client = comfy_client()?;
     let mut url = reqwest::Url::parse(&format!("{}/view", clean_base_url(&base_url)))
         .map_err(|err| format!("Invalid ComfyUI image URL: {err}"))?;
 
@@ -103,7 +106,7 @@ pub(crate) async fn comfy_get_image_data_url(
         }
     }
 
-    let response = client
+    let response = CLIENT
         .get(url)
         .send()
         .await
@@ -123,6 +126,13 @@ pub(crate) async fn comfy_get_image_data_url(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("image/png")
         .to_string();
+
+    if let Some(len) = response.content_length() {
+        if len > 50 * 1024 * 1024 {
+            return Err("ComfyUI image exceeds 50 MB limit".to_string());
+        }
+    }
+
     let bytes = response
         .bytes()
         .await

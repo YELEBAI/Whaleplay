@@ -95,6 +95,7 @@
     "lanRestartHint": "Restart the app after changing these settings.",
     "lanPassword": "Access Password",
     "lanPasswordHint": "Other devices on your LAN will need this password to connect.",
+    "lanPasswordNote": "Password is randomly generated on first launch and persists across restarts.",
     "lanPasswordGenerate": "Regenerate"
   },
   "general": {

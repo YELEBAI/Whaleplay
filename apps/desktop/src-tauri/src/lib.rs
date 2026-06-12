@@ -5,6 +5,7 @@ pub mod lan;
 pub mod search;
 
 use std::{collections::BTreeMap, fs, path::PathBuf};
+use tauri::Listener;
 use tauri::Manager;
 
 pub type AppStore = BTreeMap<String, String>;
@@ -115,6 +116,10 @@ pub fn run() {
         ])
         .setup(|app| {
             crate::lan::try_start_lan_server(app.handle().clone());
+            // Graceful LAN server shutdown on app exit
+            app.handle().listen_any("tauri://destroyed", |_| {
+                crate::lan::shutdown_lan_server();
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

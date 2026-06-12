@@ -15,6 +15,11 @@ pub(crate) fn save_text_file(
         return Ok(None);
     };
 
+    const MAX_FILE_SIZE: usize = 100 * 1024 * 1024;
+    if content.len() > MAX_FILE_SIZE {
+        return Err("File content exceeds 100 MB size limit".to_string());
+    }
+
     fs::write(&path, content).map_err(|err| format!("Failed to save file: {err}"))?;
     Ok(Some(path.to_string_lossy().to_string()))
 }
@@ -47,11 +52,14 @@ pub(crate) fn save_workspace_dir(
     dir.push("worldbook_workspaces");
     dir.push(&session_id);
 
-    // Clear existing workspace files
-    if dir.exists() {
-        fs::remove_dir_all(&dir).map_err(|err| format!("Failed to clear workspace dir: {err}"))?;
+    // Write to a temporary directory first, then atomically rename
+    let tmp_dir = dir.with_extension("tmp");
+    if tmp_dir.exists() {
+        fs::remove_dir_all(&tmp_dir)
+            .map_err(|err| format!("Failed to clear temp workspace dir: {err}"))?;
     }
-    fs::create_dir_all(&dir).map_err(|err| format!("Failed to create workspace dir: {err}"))?;
+    fs::create_dir_all(&tmp_dir)
+        .map_err(|err| format!("Failed to create temp workspace dir: {err}"))?;
 
     let entries: Vec<serde_json::Value> = serde_json::from_str(&entries_json)
         .map_err(|err| format!("Invalid entries JSON: {err}"))?;
@@ -63,13 +71,19 @@ pub(crate) fn save_workspace_dir(
             continue;
         }
 
-        let file_path = dir.join(path_str);
+        let file_path = tmp_dir.join(path_str);
         if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).map_err(|err| format!("Failed to create dir: {err}"))?;
         }
         fs::write(&file_path, content)
             .map_err(|err| format!("Failed to write entry file {}: {err}", path_str))?;
     }
+
+    // Atomically replace the real directory
+    if dir.exists() {
+        fs::remove_dir_all(&dir).map_err(|err| format!("Failed to clear workspace dir: {err}"))?;
+    }
+    fs::rename(&tmp_dir, &dir).map_err(|err| format!("Failed to finalize workspace dir: {err}"))?;
 
     Ok(())
 }
@@ -108,6 +122,12 @@ pub(crate) fn save_debug_prompt(
     fs::create_dir_all(&dir)
         .map_err(|err| format!("Failed to create debug_prompts directory: {err}"))?;
     dir.push(&filename);
+
+    const MAX_FILE_SIZE: usize = 100 * 1024 * 1024;
+    if content.len() > MAX_FILE_SIZE {
+        return Err("File content exceeds 100 MB size limit".to_string());
+    }
+
     fs::write(&dir, content).map_err(|err| format!("Failed to write debug prompt: {err}"))?;
     Ok(dir.to_string_lossy().to_string())
 }
