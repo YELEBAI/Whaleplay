@@ -6,6 +6,56 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/platform", () => ({
+  getBackend: vi.fn().mockReturnValue({
+    store: {
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      entries: vi.fn().mockResolvedValue({}),
+    },
+    db: {
+      initMessages: vi.fn().mockResolvedValue(undefined),
+      listMessages: vi.fn().mockResolvedValue([]),
+      listRecentMessages: vi.fn().mockResolvedValue([]),
+      listChildMessages: vi.fn().mockResolvedValue([]),
+      createMessage: vi.fn().mockResolvedValue({}),
+      updateMessage: vi.fn().mockResolvedValue({}),
+      patchMessage: vi.fn().mockResolvedValue({}),
+      deleteMessage: vi.fn().mockResolvedValue(undefined),
+      deleteMessages: vi.fn().mockResolvedValue(undefined),
+      deleteByChatId: vi.fn().mockResolvedValue(undefined),
+      replaceByChatId: vi.fn().mockResolvedValue([]),
+      migrateParentIds: vi.fn().mockResolvedValue(0),
+      mergeFromSavepoint: vi.fn().mockResolvedValue([]),
+    },
+    agenticPlay: {
+      initFromJson: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue(undefined),
+      clearAll: vi.fn().mockResolvedValue(undefined),
+    },
+    file: {
+      pickFolder: vi.fn().mockResolvedValue(null),
+      saveTextFile: vi.fn().mockResolvedValue(null),
+      saveWorkspaceDir: vi.fn().mockResolvedValue(undefined),
+      deleteWorkspaceDir: vi.fn().mockResolvedValue(undefined),
+      saveDebugPrompt: vi.fn().mockResolvedValue("/mock/path.json"),
+      writeFileToPath: vi.fn().mockResolvedValue(undefined),
+    },
+    search: {
+      webSearch: vi.fn().mockResolvedValue([]),
+    },
+    comfy: {
+      getSystemStats: vi.fn().mockResolvedValue({}),
+      queuePrompt: vi.fn().mockResolvedValue({}),
+      getHistory: vi.fn().mockResolvedValue({}),
+      getImageDataUrl: vi.fn().mockResolvedValue(""),
+    },
+  }),
+}));
+
 vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: vi.fn().mockReturnValue({
     startDragging: vi.fn(),

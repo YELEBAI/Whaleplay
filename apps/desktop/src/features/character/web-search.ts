@@ -1,6 +1,5 @@
 import { useSettingsStore } from "@/features/settings/settings.store";
-
-const { invoke } = await import("@tauri-apps/api/core");
+import { getBackend } from "@/platform";
 
 export interface NeoBuilderWebSearchResult {
   title: string;
@@ -22,10 +21,7 @@ export async function searchWeb(query: string, limit = 5): Promise<NeoBuilderWeb
   }
 
   // default — DuckDuckGo via Tauri backend
-  return invoke<NeoBuilderWebSearchResult[]>("web_search", {
-    query: cleanQuery,
-    limit,
-  });
+  return getBackend().search.webSearch(cleanQuery, limit);
 }
 
 async function searchTavily(
@@ -36,7 +32,7 @@ async function searchTavily(
 ): Promise<NeoBuilderWebSearchResult[]> {
   if (!apiKey) {
     console.warn("[web-search] Tavily API key not configured, falling back to default");
-    return invoke<NeoBuilderWebSearchResult[]>("web_search", { query, limit });
+    return getBackend().search.webSearch(query, limit);
   }
   try {
     const res = await fetch("https://api.tavily.com/search", {
@@ -60,7 +56,7 @@ async function searchTavily(
     return (data.results ?? []).map((r) => ({ title: r.title, url: r.url, snippet: r.content }));
   } catch (err) {
     console.warn("[web-search] Tavily search failed, falling back to default:", err);
-    return invoke<NeoBuilderWebSearchResult[]>("web_search", { query, limit });
+    return getBackend().search.webSearch(query, limit);
   }
 }
 

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { settingsRepository } from "@/db/repositories";
 import {
   DEFAULT_LIGHTWEIGHT_MEMORY_ENABLED,
@@ -104,7 +105,9 @@ interface SettingsState {
   clearError: () => void;
 }
 
-export const useSettingsStore = create<SettingsState>((set, get) => ({
+export const useSettingsStore = create<SettingsState>()(
+  persist(
+    (set, get) => ({
   modelConfigs: [],
   modelConfig: null,
   activeConfigId: null,
@@ -588,4 +591,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     void settingsRepository.savePersona({ name, desc });
     set({ personaName: name, personaDesc: desc });
   },
-}));
+}),
+    {
+      name: "neotavern-settings",
+      partialize: (state) => ({
+        debugMode: state.debugMode,
+        contextTokens: state.contextTokens,
+        personaName: state.personaName,
+        personaDesc: state.personaDesc,
+        webSearchProvider: state.webSearchProvider,
+        tavilyApiKey: state.tavilyApiKey,
+        tavilySearchDepth: state.tavilySearchDepth,
+        dailyCostWarningEnabled: state.dailyCostWarningEnabled,
+        dailyCostWarningLimitCny: state.dailyCostWarningLimitCny,
+        dailyCostSpentCny: state.dailyCostSpentCny,
+      }),
+    }
+  )
+);

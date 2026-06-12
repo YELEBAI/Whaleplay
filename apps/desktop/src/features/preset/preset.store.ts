@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { presetRepository } from "@/db/repositories";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import type {
@@ -35,7 +36,9 @@ interface PresetState {
   clearError: () => void;
 }
 
-export const usePresetStore = create<PresetState>((set, get) => ({
+export const usePresetStore = create<PresetState>()(
+  persist(
+    (set, get) => ({
   presets: [],
   activePreset: null,
   activePresetId: null,
@@ -230,4 +233,10 @@ export const usePresetStore = create<PresetState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-}));
+}),
+    {
+      name: "neotavern-presets",
+      partialize: (state) => ({ presets: state.presets, activePresetId: state.activePresetId }),
+    }
+  )
+);

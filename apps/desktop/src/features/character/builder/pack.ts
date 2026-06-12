@@ -1,7 +1,7 @@
 /**
  * Character card packaging — write Skill-compatible output to a local folder.
  */
-const { invoke } = await import("@tauri-apps/api/core");
+import { getBackend } from "@/platform";
 import type { NeoPersonalityPalette, NeoMvuConfig, NeoCreationPlan, NeoStatusBarConfig } from "./types";
 
 export interface CharacterCardPack {
@@ -49,7 +49,7 @@ export interface CharacterCardPack {
  * Prompt the user to choose a folder, then write the full card pack as a set of files.
  */
 export async function exportPackToFolder(pack: CharacterCardPack): Promise<string | null> {
-  const folder = await invoke<string | null>("pick_folder");
+  const folder = await getBackend().file.pickFolder();
   if (!folder) return null;
 
   const files: Array<{ relativePath: string; content: string }> = [];
@@ -142,7 +142,7 @@ export async function exportPackToFolder(pack: CharacterCardPack): Promise<strin
   // Write all files
   for (const file of files) {
     const fullPath = `${folder.replace(/\\+$/, "")}\\${file.relativePath.replace(/\//g, "\\")}`;
-    await invoke("write_file_to_path", { path: fullPath, content: file.content });
+    await getBackend().file.writeFileToPath(fullPath, file.content);
   }
 
   return folder;

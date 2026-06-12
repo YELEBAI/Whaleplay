@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { characterRepository } from "@/db/repositories";
 import type { Character, CreateCharacterInput, UpdateCharacterInput } from "@neo-tavern/shared";
 
@@ -17,7 +18,9 @@ interface CharacterState {
   clearError: () => void;
 }
 
-export const useCharacterStore = create<CharacterState>((set, _get) => ({
+export const useCharacterStore = create<CharacterState>()(
+  persist(
+    (set, _get) => ({
   characters: [],
   currentCharacter: null,
   loading: false,
@@ -94,4 +97,10 @@ export const useCharacterStore = create<CharacterState>((set, _get) => ({
   },
 
   clearError: () => set({ error: null }),
-}));
+}),
+    {
+      name: "neotavern-characters",
+      partialize: (state) => ({ characters: state.characters }),
+    }
+  )
+);

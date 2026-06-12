@@ -1,9 +1,25 @@
-const { invoke } = await import("@tauri-apps/api/core");
+/**
+ * App storage — Tauri plugin-store → REST → localStorage fallback.
+ * All key-value persistence goes through getStorageItem / setStorageItem.
+ */
+
+import { Store } from "@tauri-apps/plugin-store";
 
 const MIGRATION_KEY = "neotavern_app_store_migrated_v1";
 const STORAGE_PREFIX = "neotavern";
 
-let appStoreAvailable: boolean | null = null;
+let storeInstance: Store | null = null;
+
+async function getStore(): Promise<Store | null> {
+  if (!storeInstance) {
+    try {
+      storeInstance = await Store.load("store.json");
+    } catch {
+      return null;
+    }
+  }
+  return storeInstance;
+}
 
 function canUseLocalStorage() {
   try {
@@ -56,13 +72,11 @@ function localEntries(prefix = STORAGE_PREFIX): Record<string, string> {
 }
 
 async function appStoreGet(key: string): Promise<string | null> {
-  if (appStoreAvailable === false) return null;
   try {
-    const value = await invoke<string | null>("app_store_get", { key });
-    appStoreAvailable = true;
-    return value;
+    const store = await getStore();
+    if (!store) return null;
+    return (await store.get<string>(key)) ?? null;
   } catch {
-    appStoreAvailable = false;
     return null;
   }
 }
@@ -130,37 +144,40 @@ async function restEntries(prefix: string): Promise<Record<string, string> | nul
 }
 
 async function appStoreSet(key: string, value: string): Promise<boolean> {
-  if (appStoreAvailable === false) return false;
   try {
-    await invoke("app_store_set", { key, value });
-    appStoreAvailable = true;
+    const store = await getStore();
+    if (!store) return false;
+    await store.set(key, value);
+    await store.save();
     return true;
   } catch {
-    appStoreAvailable = false;
     return false;
   }
 }
 
 async function appStoreRemove(key: string): Promise<boolean> {
-  if (appStoreAvailable === false) return false;
   try {
-    await invoke("app_store_remove", { key });
-    appStoreAvailable = true;
+    const store = await getStore();
+    if (!store) return false;
+    await store.delete(key);
+    await store.save();
     return true;
   } catch {
-    appStoreAvailable = false;
     return false;
   }
 }
 
 async function appStoreEntries(): Promise<Record<string, string> | null> {
-  if (appStoreAvailable === false) return null;
   try {
-    const entries = await invoke<Record<string, string>>("app_store_entries");
-    appStoreAvailable = true;
-    return entries;
+    const store = await getStore();
+    if (!store) return null;
+    const entries = await store.entries();
+    const result: Record<string, string> = {};
+    for (const [key, value] of entries) {
+      result[key] = String(value ?? "");
+    }
+    return result;
   } catch {
-    appStoreAvailable = false;
     return null;
   }
 }
@@ -169,20 +186,23 @@ export async function migrateLocalStorageToAppStore(prefix = STORAGE_PREFIX) {
   if (!canUseLocalStorage()) return;
 
   try {
-    const migrated = await invoke<string | null>("app_store_get", { key: MIGRATION_KEY });
-    appStoreAvailable = true;
+    const store = await getStore();
+    if (!store) return;
+
+    const migrated = await store.get<string>(MIGRATION_KEY);
     if (migrated === "1") return;
 
     for (const [key, value] of Object.entries(localEntries(prefix))) {
-      const existing = await invoke<string | null>("app_store_get", { key });
+      const existing = await store.get<string>(key);
       if (existing == null) {
-        await invoke("app_store_set", { key, value });
+        await store.set(key, value);
       }
     }
 
-    await invoke("app_store_set", { key: MIGRATION_KEY, value: "1" });
+    await store.set(MIGRATION_KEY, "1");
+    await store.save();
   } catch {
-    appStoreAvailable = false;
+    /* store unavailable */
   }
 }
 

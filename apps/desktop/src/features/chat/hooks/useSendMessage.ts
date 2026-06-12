@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
-const { invoke } = await import("@tauri-apps/api/core");
+import { getBackend } from "@/platform";
 import { useChatStore } from "../chat.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import {
@@ -423,11 +423,11 @@ async function saveDebugPromptFile(
     messages,
   };
 
-  const path = await invoke<string>("save_debug_prompt", {
+  const path = await getBackend().file.saveDebugPrompt(
     folder,
     filename,
-    content: JSON.stringify(debugPayload, null, 2),
-  });
+    JSON.stringify(debugPayload, null, 2),
+  );
 
   return {
     round: debugContext.round,

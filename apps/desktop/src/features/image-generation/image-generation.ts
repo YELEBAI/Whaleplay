@@ -1,8 +1,8 @@
 import { createModelProvider } from "@neo-tavern/core";
 import { generateId } from "@neo-tavern/shared";
 import type { MessageImage, ModelConfig } from "@neo-tavern/shared";
-const { invoke } = await import("@tauri-apps/api/core");
 import { shouldOmitTemperatureForModel } from "@/features/settings/model-capabilities";
+import { getBackend } from "@/platform";
 
 export type ImageGenerationMode = "manual" | "auto";
 export type ImageGenerationPreset = "fast" | "balanced" | "quality" | "custom";
@@ -457,9 +457,9 @@ function canFallbackToDirectFetch(error: unknown) {
   );
 }
 
-async function invokeComfy<T>(command: string, args: Record<string, unknown>): Promise<T | undefined> {
+async function invokeComfy<T>(promise: Promise<T>): Promise<T | undefined> {
   try {
-    return await invoke<T>(command, args);
+    return await promise;
   } catch (error) {
     if (canFallbackToDirectFetch(error)) return undefined;
     const err = new Error(getErrorMessage(error));
@@ -496,12 +496,9 @@ async function getComfyImageDataUrl(
   signal?: AbortSignal,
 ) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy<string>("comfy_get_image_data_url", {
-    baseUrl,
-    filename: image.filename,
-    subfolder: image.subfolder || null,
-    imageType: image.type || null,
-  });
+  const proxied = await invokeComfy(
+    getBackend().comfy.getImageDataUrl(baseUrl, image.filename, image.subfolder || null, image.type || null),
+  );
   throwIfAborted(signal);
   if (proxied) return proxied;
   return fetchComfyImageDataUrlDirect(baseUrl, image, signal);
@@ -514,11 +511,9 @@ async function queueComfyPrompt(
   signal?: AbortSignal,
 ) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy<Record<string, ComfyWorkflowNode>>("comfy_queue_prompt", {
-    baseUrl,
-    prompt: workflow,
-    clientId,
-  });
+  const proxied = await invokeComfy(
+    getBackend().comfy.queuePrompt(baseUrl, workflow, clientId),
+  );
   throwIfAborted(signal);
   if (proxied) return proxied;
 
@@ -540,10 +535,9 @@ async function queueComfyPrompt(
 
 async function getComfyHistory(baseUrl: string, promptId: string, signal?: AbortSignal) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy<Record<string, unknown>>("comfy_get_history", {
-    baseUrl,
-    promptId,
-  });
+  const proxied = await invokeComfy(
+    getBackend().comfy.getHistory(baseUrl, promptId),
+  );
   throwIfAborted(signal);
   if (proxied) return proxied;
 
@@ -555,7 +549,9 @@ async function getComfyHistory(baseUrl: string, promptId: string, signal?: Abort
 
 async function getComfySystemStats(baseUrl: string, signal?: AbortSignal) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy<Record<string, unknown>>("comfy_get_system_stats", { baseUrl });
+  const proxied = await invokeComfy(
+    getBackend().comfy.getSystemStats(baseUrl),
+  );
   throwIfAborted(signal);
   if (proxied) return proxied;
 

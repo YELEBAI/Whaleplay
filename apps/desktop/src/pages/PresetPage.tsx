@@ -36,7 +36,7 @@ import { usePresetStore } from "@/features/preset/preset.store";
 import { AGENTIC_PLAY_PRESET_ID, ensureAgenticPlayPreset } from "@/features/agentic-play/agentic-preset";
 import type { Preset, PresetItem } from "@neo-tavern/shared";
 import { getStorageItem } from "@/db/storage";
-import { invoke } from "@tauri-apps/api/core";
+import { getBackend } from "@/platform";
 import { toast } from "@/utils/toast";
 
 function sortPresetItems(items: PresetItem[]) {
@@ -360,10 +360,7 @@ export function PresetPage() {
       const json = await store.exportPreset(selected.id);
       const filename = presetExportFilename(selected.name);
       try {
-        const savedPath = await invoke<string | null>("save_text_file", {
-          defaultFilename: filename,
-          content: json,
-        });
+        const savedPath = await getBackend().file.saveTextFile(filename, json);
         if (!savedPath) {
           toast("info", "Export cancelled");
           return;

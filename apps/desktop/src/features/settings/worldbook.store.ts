@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { worldbookRepository } from "@/db/repositories";
 import type {
   Worldbook,
@@ -30,7 +31,9 @@ interface WorldbookState {
   clearError: () => void;
 }
 
-export const useWorldbookStore = create<WorldbookState>((set, get) => ({
+export const useWorldbookStore = create<WorldbookState>()(
+  persist(
+    (set, get) => ({
   worldbooks: [],
   activeWorldbookId: null,
   loading: false,
@@ -172,4 +175,10 @@ export const useWorldbookStore = create<WorldbookState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
-}));
+}),
+    {
+      name: "neotavern-worldbooks",
+      partialize: (state) => ({ worldbooks: state.worldbooks, activeWorldbookId: state.activeWorldbookId }),
+    }
+  )
+);

@@ -13,7 +13,6 @@ import {
 } from "./seed";
 import { ToastContainer, useToast } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
-import { useWorldbookStore } from "@/features/settings/worldbook.store";
 import { migrateLocalStorageToAppStore } from "@/db/storage";
 import { messageRepository } from "@/db/repositories";
 import { LoginGate } from "@/components/LoginGate";
@@ -48,17 +47,9 @@ function AppContent() {
       await seedSeraphina();
       await seedEldoriaWorldbook();
       await useSettingsStore.getState().loadAllConfigs();
-      await useSettingsStore.getState().loadContextTokens();
       await useSettingsStore.getState().loadMemorySettings();
       await useSettingsStore.getState().loadImageGenerationSettings();
       await useSettingsStore.getState().loadRegexRules();
-      await useSettingsStore.getState().loadPersona();
-      await useSettingsStore.getState().loadDebugMode();
-      await useSettingsStore.getState().loadAutoUpdateEnabled();
-      await useSettingsStore.getState().loadDailyCostWarningSettings();
-      await useSettingsStore.getState().loadDailyCostSpent();
-      await useSettingsStore.getState().loadWebSearchSettings();
-      await useWorldbookStore.getState().loadWorldbooks();
     })();
   }, [themeInit]);
 

@@ -1,6 +1,6 @@
 import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
-const { invoke } = await import("@tauri-apps/api/core");
+import { getBackend } from "@/platform";
 import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
 import { diffTreesByContent } from "@neo-tavern/core";
 
@@ -94,7 +94,7 @@ async function canUseSqliteMessages() {
     sqliteReady = (async () => {
       try {
         const legacyMessagesJson = await getStorageItem(STORAGE_KEY);
-        await invoke("sqlite_init_messages", { legacyMessagesJson });
+        await getBackend().db.initMessages(legacyMessagesJson);
         if (legacyMessagesJson) {
           await removeStorageItem(STORAGE_KEY);
         }
@@ -111,14 +111,14 @@ async function canUseSqliteMessages() {
 export const messageRepository = {
   async listByChatId(chatId: string): Promise<Message[]> {
     if (await canUseSqliteMessages()) {
-      return invoke<Message[]>("sqlite_list_messages_by_chat_id", { chatId });
+      return getBackend().db.listMessages(chatId);
     }
     return (await loadAll()).filter((m) => m.chatId === chatId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
 
   async getChildren(parentId: string): Promise<Message[]> {
     if (await canUseSqliteMessages()) {
-      return invoke<Message[]>("sqlite_list_child_messages", { parentId });
+      return getBackend().db.listChildMessages(parentId);
     }
     return (await loadAll()).filter((m) => m.parentId === parentId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
@@ -131,7 +131,7 @@ export const messageRepository = {
   async listRecentByChatId(chatId: string, limit: number): Promise<Message[]> {
     const cappedLimit = Math.max(1, Math.min(500, Math.floor(limit || 1)));
     if (await canUseSqliteMessages()) {
-      return invoke<Message[]>("sqlite_list_recent_messages_by_chat_id", { chatId, limit: cappedLimit });
+      return getBackend().db.listRecentMessages(chatId, cappedLimit);
     }
     return (await loadAll())
       .filter((m) => m.chatId === chatId)
@@ -142,7 +142,7 @@ export const messageRepository = {
   async create(input: CreateMessageInput): Promise<Message> {
     const msg = makeMessage(input);
     if (await canUseSqliteMessages()) {
-      return invoke<Message>("sqlite_create_message", { message: msg });
+      return getBackend().db.createMessage(msg);
     }
     const all = await loadAll();
     all.push(msg);
@@ -152,7 +152,7 @@ export const messageRepository = {
 
   async deleteByChatId(chatId: string): Promise<void> {
     if (await canUseSqliteMessages()) {
-      await invoke("sqlite_delete_messages_by_chat_id", { chatId });
+      await getBackend().db.deleteByChatId(chatId);
       return;
     }
     await saveAll((await loadAll()).filter((m) => m.chatId !== chatId));
@@ -161,7 +161,7 @@ export const messageRepository = {
   async replaceByChatId(chatId: string, messages: Message[]): Promise<Message[]> {
     const restored = makeRestoredMessages(chatId, messages);
     if (await canUseSqliteMessages()) {
-      const saved = await invoke<Message[]>("sqlite_replace_messages_by_chat_id", { chatId, messages: restored });
+      const saved = await getBackend().db.replaceByChatId(chatId, restored);
       return saved.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     }
     const all = await loadAll();
@@ -189,7 +189,7 @@ export const messageRepository = {
 
     if (await canUseSqliteMessages()) {
       for (const msg of diff.onlyInB) {
-        await invoke("sqlite_create_message", { message: msg });
+        await getBackend().db.createMessage(msg);
       }
     } else {
       const all = await loadAll();
@@ -205,7 +205,7 @@ export const messageRepository = {
 
   async update(id: string, content: string): Promise<Message> {
     if (await canUseSqliteMessages()) {
-      return invoke<Message>("sqlite_update_message", { id, content });
+      return getBackend().db.updateMessage(id, content);
     }
     const all = await loadAll();
     const idx = all.findIndex((m) => m.id === id);
@@ -225,7 +225,7 @@ export const messageRepository = {
     >,
   ): Promise<Message> {
     if (await canUseSqliteMessages()) {
-      return invoke<Message>("sqlite_patch_message", { id, patch });
+      return getBackend().db.patchMessage(id, patch);
     }
     const all = await loadAll();
     const idx = all.findIndex((m) => m.id === id);
@@ -237,7 +237,7 @@ export const messageRepository = {
 
   async deleteMessage(id: string): Promise<void> {
     if (await canUseSqliteMessages()) {
-      await invoke("sqlite_delete_message", { id });
+      await getBackend().db.deleteMessage(id);
       return;
     }
     await saveAll((await loadAll()).filter((m) => m.id !== id));
@@ -245,7 +245,7 @@ export const messageRepository = {
 
   async deleteMessages(ids: string[]): Promise<void> {
     if (await canUseSqliteMessages()) {
-      await invoke("sqlite_delete_messages", { ids });
+      await getBackend().db.deleteMessages(ids);
       return;
     }
     const idSet = new Set(ids);
@@ -254,7 +254,7 @@ export const messageRepository = {
 
   async migrateParentIds(): Promise<number> {
     if (await canUseSqliteMessages()) {
-      return invoke<number>("sqlite_migrate_parent_ids", {});
+      return getBackend().db.migrateParentIds();
     }
     // localStorage path: compute parentId from chronological order
     const all = await loadAll();

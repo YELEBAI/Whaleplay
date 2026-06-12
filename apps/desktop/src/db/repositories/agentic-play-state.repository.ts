@@ -5,8 +5,7 @@ import {
   type AgenticGameState,
 } from "@/features/agentic-play/agentic-play";
 import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
-
-const { invoke } = await import("@tauri-apps/api/core");
+import { getBackend } from "@/platform";
 
 const STORAGE_KEY = "neotavern_agentic_play_states";
 let sqliteReady: Promise<boolean> | null = null;
@@ -40,7 +39,7 @@ async function ensureSqliteReady(): Promise<boolean> {
     sqliteReady = (async () => {
       try {
         const legacyStatesJson = await getStorageItem(STORAGE_KEY);
-        await invoke("sqlite_init_agentic_play_states", { legacyStatesJson });
+        await getBackend().agenticPlay.initFromJson(legacyStatesJson);
         return true;
       } catch {
         return false;
@@ -53,7 +52,7 @@ async function ensureSqliteReady(): Promise<boolean> {
 async function sqliteGet(chatId: string): Promise<AgenticPlayStateRecord | null> {
   if (!(await ensureSqliteReady())) return null;
   try {
-    return await invoke<AgenticPlayStateRecord | null>("sqlite_get_agentic_play_state", { chatId });
+    return await getBackend().agenticPlay.get(chatId);
   } catch {
     return null;
   }
@@ -62,7 +61,7 @@ async function sqliteGet(chatId: string): Promise<AgenticPlayStateRecord | null>
 async function sqliteUpsert(record: AgenticPlayStateRecord): Promise<AgenticPlayStateRecord | null> {
   if (!(await ensureSqliteReady())) return null;
   try {
-    return await invoke<AgenticPlayStateRecord>("sqlite_upsert_agentic_play_state", { record });
+    return await getBackend().agenticPlay.upsert(record);
   } catch {
     return null;
   }
@@ -71,7 +70,7 @@ async function sqliteUpsert(record: AgenticPlayStateRecord): Promise<AgenticPlay
 async function sqliteDelete(chatId: string): Promise<boolean> {
   if (!(await ensureSqliteReady())) return false;
   try {
-    await invoke("sqlite_delete_agentic_play_state", { chatId });
+    await getBackend().agenticPlay.delete(chatId);
     return true;
   } catch {
     return false;
@@ -81,7 +80,7 @@ async function sqliteDelete(chatId: string): Promise<boolean> {
 async function sqliteClearAll(): Promise<boolean> {
   if (!(await ensureSqliteReady())) return false;
   try {
-    await invoke("sqlite_clear_agentic_play_states");
+    await getBackend().agenticPlay.clearAll();
     return true;
   } catch {
     return false;
