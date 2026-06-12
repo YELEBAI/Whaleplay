@@ -60,7 +60,9 @@ jobs:
         run: pnpm lint 2>&1 || pnpm exec eslint 'apps/desktop/src/**/*.{ts,tsx}' --max-warnings=0
 
       - name: TypeScript check
-        run: pnpm --filter @neo-tavern/desktop exec tsc --noEmit
+        run: |
+          pnpm --filter @neo-tavern/desktop exec tsc -b
+          pnpm --filter @neo-tavern/desktop exec tsc --noEmit
 
   check-rust:
     name: Rust Check
