@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
 
 /* @theme — design tokens mapped to utility classes (bg-primary, text-foreground, etc.) */
 @theme {

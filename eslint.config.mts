@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   // ── 全局忽略 ──
-  { ignores: ["**/dist/**", "**/node_modules/**", "**/src-tauri/**", "**/gen/**", "**/src/features/character/builder/skill/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "**/src-tauri/**", "**/gen/**", "**/builder/skill/**", "**/scripts/**"] },
 
   // ── 基础规则（所有 .ts/.tsx）──
   js.configs.recommended,
@@ -16,7 +16,7 @@ export default [
       globals: { ...globals.browser, ...globals.node },
     },
     rules: {
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },

@@ -180,6 +180,8 @@ export function ChatRightPanel({
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
   const [activeView, setActiveView] = useState<"stats" | "tree">("stats");
   const hasBranchTree = allMessages && allMessages.length > 0 && forkParentIds && forkParentIds.size > 0;
+  // If branches disappear (chat switched), fall back to stats
+  const effectiveView = hasBranchTree ? activeView : "stats";
 
   // ── Tree data ──
   const childrenMap = useMemo(() => {
@@ -226,7 +228,7 @@ export function ChatRightPanel({
     const children = childrenMap.get(message.id) ?? [];
     const hasChildren = children.length > 0;
     const isFork = children.length >= 2;
-    const isExpanded = expandedNodes.has(message.id) || depth < 2; // auto-expand shallow nodes
+    const isExpanded = expandedNodes.has(message.id) || depth < 1; // auto-expand only root
     const isOnActivePath = activePathIds.has(message.id);
     const preview =
       message.content.slice(0, 60).replace(/\n/g, " ") ||
@@ -258,7 +260,7 @@ export function ChatRightPanel({
           className={`flex items-center gap-1 py-0.5 text-xs hover:bg-accent/50 rounded ${
             isOnActivePath ? "bg-accent/30" : ""
           }`}
-          style={{ paddingLeft: `${8 + depth * 14}px`, paddingRight: 4 }}
+          style={{ paddingLeft: `${4 + depth * 10}px`, paddingRight: 4 }}
         >
           {/* Expand chevron */}
           {hasChildren ? (
@@ -356,7 +358,7 @@ export function ChatRightPanel({
           <button
             type="button"
             className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              activeView === "stats" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
+              effectiveView === "stats" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => setActiveView("stats")}
           >
@@ -366,7 +368,7 @@ export function ChatRightPanel({
           <button
             type="button"
             className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              activeView === "tree" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
+              effectiveView === "tree" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
             onClick={() => setActiveView("tree")}
             disabled={!hasBranchTree}
@@ -378,8 +380,8 @@ export function ChatRightPanel({
       </div>
 
       {/* Body */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-4">
-        {activeView === "tree" ? (
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
+        {effectiveView === "tree" ? (
           <div className="space-y-0.5">
             {rootMessages.length === 0 ? (
               <p className="text-xs text-muted-foreground">{t("rightPanel.tree.noBranches")}</p>
