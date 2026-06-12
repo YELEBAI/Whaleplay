@@ -15,14 +15,41 @@ import { getLocale, type Locale } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import type { Section, SectionWithLabel } from "./settings/types";
 
+const SETTINGS_TAB_KEY = "neotavern_settings_tab";
+const SETTINGS_TAB_TTL_MS = 60_000; // 1 minute
+
+function readCachedTab(): Section | null {
+  try {
+    const raw = sessionStorage.getItem(SETTINGS_TAB_KEY);
+    if (!raw) return null;
+    const { tab, ts } = JSON.parse(raw) as { tab: string; ts: number };
+    if (Date.now() - ts > SETTINGS_TAB_TTL_MS) {
+      sessionStorage.removeItem(SETTINGS_TAB_KEY);
+      return null;
+    }
+    return tab as Section;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedTab(tab: Section) {
+  sessionStorage.setItem(SETTINGS_TAB_KEY, JSON.stringify({ tab, ts: Date.now() }));
+}
+
 export function SettingsPage() {
   const { t } = useTranslation("settings");
   const { t: tt } = useTranslation("toast");
   const navigate = useNavigate();
-  const [section, setSection] = useState<Section>("api");
+  const [section, setSection] = useState<Section>(() => readCachedTab() ?? "api");
   const [locale, setLocale] = useState<Locale>(getLocale);
   const [easterEggClicks, setEasterEggClicks] = useState(0);
   const [secretUnlocked, setSecretUnlocked] = useState(false);
+
+  // Persist selected tab to sessionStorage (1-minute TTL)
+  useEffect(() => {
+    writeCachedTab(section);
+  }, [section]);
 
   const contextTokens = useSettingsStore((s) => s.contextTokens);
   const setContextTokens = useSettingsStore((s) => s.setContextTokens);

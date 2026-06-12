@@ -15,6 +15,27 @@ import {
 } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { toast } from "@/utils/toast";
+import { TFunction } from "i18next";
+
+// ── Sidebar ───────────────────────────────────────────
+
+function PersonaSidebar({ t, tc, onBack }: { t: TFunction<"persona">; tc: TFunction<"common">; onBack: () => void }) {
+  return (
+    <div className="flex w-60 flex-col gap-3 border-r p-4">
+      <button
+        onClick={onBack}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {tc("actions.back")}
+      </button>
+      <h2 className="text-muted-foreground text-sm font-semibold tracking-wider uppercase">{t("sidebar.title")}</h2>
+      <p className="text-muted-foreground text-xs">{t("sidebar.description")}</p>
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────
 
 export function PersonaPage() {
   const { t } = useTranslation("persona");
@@ -33,6 +54,7 @@ export function PersonaPage() {
   useEffect(() => {
     loadPersona();
   }, [loadPersona]);
+
   useEffect(() => {
     if (!hasSyncedStoreRef.current) {
       hasSyncedStoreRef.current = true;
@@ -53,17 +75,7 @@ export function PersonaPage() {
 
   return (
     <div className="flex h-full">
-      <div className="flex w-60 flex-col gap-3 border-r p-4">
-        <button
-          onClick={() => navigate("/")}
-          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          {tc("actions.back")}
-        </button>
-        <h2 className="text-muted-foreground text-sm font-semibold tracking-wider uppercase">{t("sidebar.title")}</h2>
-        <p className="text-muted-foreground text-xs" dangerouslySetInnerHTML={{ __html: t("sidebar.description") }} />
-      </div>
+      <PersonaSidebar t={t} tc={tc} onBack={() => navigate("/")} />
       <div className="flex-1 overflow-auto p-6">
         <Card className="max-w-2xl">
           <CardHeader>
