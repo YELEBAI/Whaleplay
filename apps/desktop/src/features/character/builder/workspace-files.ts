@@ -10,7 +10,6 @@ import { getBackend } from "@/platform";
  * Only writes entries that have an entryPath set (like "世界书/角色/苏云/基础信息.txt").
  */
 export async function persistWorkspaceEntries(sessionId: string, entries: CreateWorldbookEntryInput[]): Promise<void> {
-  const invoke = await getInvoke();
   const entriesWithPaths = entries.filter((e) => e.entryPath && e.content);
   if (entriesWithPaths.length === 0) return;
 

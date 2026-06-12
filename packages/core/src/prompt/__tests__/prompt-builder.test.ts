@@ -295,21 +295,21 @@ describe("buildChatPrompt", () => {
     expect(result.messages[0].content).toContain(customRules);
   });
 
-  it('should replace character placeholders inside preset items', () => {
+  it("should replace character placeholders inside preset items", () => {
     const result = buildChatPrompt({
       character: mockCharacter,
       recentMessages: [],
-      userInput: 'Test',
+      userInput: "Test",
       presetItems: [
-        { role: 'system', content: '当前角色：{{char}} / {{character}} / <char> / <character>', injectionOrder: 10 },
+        { role: "system", content: "当前角色：{{char}} / {{character}} / <char> / <character>", injectionOrder: 10 },
       ],
-    })
+    });
 
-    const presetMessage = result.messages.find((m) => m.content.includes('当前角色'))
-    expect(presetMessage?.content).toContain('当前角色：Alice / Alice / Alice / Alice')
-  })
+    const presetMessage = result.messages.find((m) => m.content.includes("当前角色"));
+    expect(presetMessage?.content).toContain("当前角色：Alice / Alice / Alice / Alice");
+  });
 
-  it('should merge preset items into one message by injection order', () => {
+  it("should merge preset items into one message by injection order", () => {
     const result = buildChatPrompt({
       character: mockCharacter,
       recentMessages: [],

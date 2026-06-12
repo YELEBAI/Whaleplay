@@ -422,11 +422,7 @@ async function saveDebugPromptFile(
     messages,
   };
 
-  const path = await getBackend().file.saveDebugPrompt(
-    folder,
-    filename,
-    JSON.stringify(debugPayload, null, 2),
-  );
+  const path = await getBackend().file.saveDebugPrompt(folder, filename, JSON.stringify(debugPayload, null, 2));
 
   return {
     round: debugContext.round,

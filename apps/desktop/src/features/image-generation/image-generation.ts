@@ -511,9 +511,7 @@ async function queueComfyPrompt(
   signal?: AbortSignal,
 ) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy(
-    getBackend().comfy.queuePrompt(baseUrl, workflow, clientId),
-  );
+  const proxied = await invokeComfy(getBackend().comfy.queuePrompt(baseUrl, workflow, clientId));
   throwIfAborted(signal);
   if (proxied) return proxied;
 
@@ -535,9 +533,7 @@ async function queueComfyPrompt(
 
 async function getComfyHistory(baseUrl: string, promptId: string, signal?: AbortSignal) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy(
-    getBackend().comfy.getHistory(baseUrl, promptId),
-  );
+  const proxied = await invokeComfy(getBackend().comfy.getHistory(baseUrl, promptId));
   throwIfAborted(signal);
   if (proxied) return proxied;
 
@@ -549,9 +545,7 @@ async function getComfyHistory(baseUrl: string, promptId: string, signal?: Abort
 
 async function getComfySystemStats(baseUrl: string, signal?: AbortSignal) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy(
-    getBackend().comfy.getSystemStats(baseUrl),
-  );
+  const proxied = await invokeComfy(getBackend().comfy.getSystemStats(baseUrl));
   throwIfAborted(signal);
   if (proxied) return proxied;
 

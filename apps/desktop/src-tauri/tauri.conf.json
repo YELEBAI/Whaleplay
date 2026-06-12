@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "",
+        "title": "Whale Play",
         "decorations": false,
         "width": 1200,
         "height": 800,

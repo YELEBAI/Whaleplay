@@ -7,6 +7,8 @@
     "build": "pnpm --filter @neo-tavern/desktop build",
     "build:desktop": "pnpm --filter @neo-tavern/desktop tauri build",
     "tauri": "pnpm --filter @neo-tavern/desktop tauri",
+    "test": "pnpm --filter @neo-tavern/desktop test && pnpm --filter @neo-tavern/core test",
+    "test:watch": "pnpm --filter @neo-tavern/desktop test:watch && pnpm --filter @neo-tavern/core test:watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

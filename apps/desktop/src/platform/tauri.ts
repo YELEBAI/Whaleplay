@@ -41,13 +41,10 @@ export const tauriBackend: Backend = {
 
   file: {
     pickFolder: () => invoke<string | null>("pick_folder"),
-    saveTextFile: (defaultFilename, content) =>
-      invoke<string | null>("save_text_file", { defaultFilename, content }),
-    saveWorkspaceDir: (sessionId, entriesJson) =>
-      invoke("save_workspace_dir", { sessionId, entriesJson }),
+    saveTextFile: (defaultFilename, content) => invoke<string | null>("save_text_file", { defaultFilename, content }),
+    saveWorkspaceDir: (sessionId, entriesJson) => invoke("save_workspace_dir", { sessionId, entriesJson }),
     deleteWorkspaceDir: (sessionId) => invoke("delete_workspace_dir", { sessionId }),
-    saveDebugPrompt: (folder, filename, content) =>
-      invoke<string>("save_debug_prompt", { folder, filename, content }),
+    saveDebugPrompt: (folder, filename, content) => invoke<string>("save_debug_prompt", { folder, filename, content }),
     writeFileToPath: (path, content) => invoke("write_file_to_path", { path, content }),
   },
 
@@ -57,8 +54,7 @@ export const tauriBackend: Backend = {
 
   comfy: {
     getSystemStats: (baseUrl) => invoke("comfy_get_system_stats", { baseUrl }),
-    queuePrompt: (baseUrl, workflow, clientId) =>
-      invoke("comfy_queue_prompt", { baseUrl, prompt: workflow, clientId }),
+    queuePrompt: (baseUrl, workflow, clientId) => invoke("comfy_queue_prompt", { baseUrl, prompt: workflow, clientId }),
     getHistory: (baseUrl, promptId) => invoke("comfy_get_history", { baseUrl, promptId }),
     getImageDataUrl: (baseUrl, filename, subfolder, imageType) =>
       invoke<string>("comfy_get_image_data_url", { baseUrl, filename, subfolder, imageType }),

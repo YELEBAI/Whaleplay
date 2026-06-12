@@ -389,12 +389,14 @@ function formatAgenticModule(name: string, content: string) {
 
 export function buildAgenticPlayPresetItems(characterName: string): AgenticPresetItem[] {
   return [
-    ...buildAgenticPlayCoreRuleSections(characterName).map((section, index): AgenticPresetItem => ({
-      name: section.name,
-      role: "system",
-      injectionOrder: index * 10,
-      content: formatAgenticModule(section.module, section.content),
-    })),
+    ...buildAgenticPlayCoreRuleSections(characterName).map(
+      (section, index): AgenticPresetItem => ({
+        name: section.name,
+        role: "system",
+        injectionOrder: index * 10,
+        content: formatAgenticModule(section.module, section.content),
+      }),
+    ),
     {
       name: "文风模块",
       role: "system",
@@ -520,7 +522,11 @@ function isAgenticScratchpadParagraph(paragraph: string) {
   const trimmed = paragraph.trim();
   if (!trimmed) return false;
 
-  if (/(?:present_player_options|update_game_state|roll_dice|scene_text|success_probability|difficulty|tool_calls?)/i.test(trimmed)) {
+  if (
+    /(?:present_player_options|update_game_state|roll_dice|scene_text|success_probability|difficulty|tool_calls?)/i.test(
+      trimmed,
+    )
+  ) {
     return true;
   }
   if (
