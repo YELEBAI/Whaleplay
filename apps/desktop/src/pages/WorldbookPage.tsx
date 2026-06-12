@@ -157,6 +157,7 @@ export function WorldbookPage() {
       hasAutoSelectedRef.current = true;
       handleSelect(worldbooks[0].id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [worldbooks]);
 
   const selected = worldbooks.find((worldbook) => worldbook.id === selectedId) ?? null;

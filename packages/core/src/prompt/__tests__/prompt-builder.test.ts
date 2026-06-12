@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildChatPrompt, estimateTokens } from '../prompt-builder'
+import { buildChatPrompt, estimateTokens, trimMessagesByTokens } from '../prompt-builder'
 import type { Character, Message } from '@neo-tavern/shared'
 
 const mockCharacter: Character = {
@@ -344,5 +344,66 @@ describe('estimateTokens', () => {
       { role: 'user' as const, content: '123456789' },
     ]
     expect(estimateTokens(messages)).toBe(3)
+  })
+})
+
+describe('trimMessagesByTokens', () => {
+  it('should return all messages when maxTokens is 0 or negative', () => {
+    const messages = [
+      { role: 'user', content: 'Hello world' },
+      { role: 'assistant', content: 'Hi there' },
+    ]
+    expect(trimMessagesByTokens(messages, 0)).toEqual(messages)
+    expect(trimMessagesByTokens(messages, -1)).toEqual(messages)
+  })
+
+  it('should return empty array for empty input', () => {
+    expect(trimMessagesByTokens([], 100)).toEqual([])
+  })
+
+  it('should keep all messages when under token budget', () => {
+    const messages = [
+      { role: 'user', content: 'Hi' },
+      { role: 'assistant', content: 'Hello' },
+    ]
+    const result = trimMessagesByTokens(messages, 100)
+    expect(result).toEqual(messages)
+  })
+
+  it('should trim older messages when over token budget', () => {
+    const messages = [
+      { role: 'user', content: 'A'.repeat(400) },
+      { role: 'assistant', content: 'B'.repeat(400) },
+      { role: 'user', content: 'C'.repeat(400) },
+    ]
+    // Each message is ~100 tokens (400/4). Budget of 250 keeps ~2 messages.
+    const result = trimMessagesByTokens(messages, 250)
+    expect(result.length).toBe(2)
+    expect(result[0].content).toBe('B'.repeat(400))
+    expect(result[1].content).toBe('C'.repeat(400))
+  })
+
+  it('should keep at least one message', () => {
+    const messages = [
+      { role: 'user', content: 'Hello there, how are you?' },
+    ]
+    const result = trimMessagesByTokens(messages, 1)
+    expect(result.length).toBe(1)
+  })
+
+  it('should preserve message order (most recent last)', () => {
+    const messages = [
+      { role: 'user', content: 'First' },
+      { role: 'assistant', content: 'Second' },
+      { role: 'user', content: 'Third' },
+      { role: 'assistant', content: 'Fourth' },
+    ]
+    // Each message is ~2 tokens (5-6 chars / 4). Budget of 5 keeps ~2 messages.
+    const result = trimMessagesByTokens(messages, 5)
+    expect(result.length).toBe(2)
+    expect(result[0].role).toBe('user')
+    expect(result[0].content).toBe('Third')
+    expect(result[1].role).toBe('assistant')
+    expect(result[1].content).toBe('Fourth')
   })
 })

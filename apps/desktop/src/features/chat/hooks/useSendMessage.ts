@@ -132,7 +132,7 @@ function getNextDebugRound(messages: Message[]) {
 }
 
 function notifyDebugPromptSaveFailed(error: unknown) {
-  const toast = typeof window !== "undefined" ? (window as any).__toast : null;
+  const toast = typeof window !== "undefined" ? window.__toast : null;
   const message = (error as Error).message || "Unknown error";
   if (toast) toast("error", `Debug prompt save failed: ${message}`);
 }
@@ -187,7 +187,7 @@ function finishImageGeneration(messageId: string, token: string) {
 }
 
 async function notifyAssistantOutputComplete(characterName?: string) {
-  const toast = typeof window !== "undefined" ? (window as any).__toast : null;
+  const toast = typeof window !== "undefined" ? window.__toast : null;
   const name = characterName?.trim();
   const message = name ? `${name} 的回复已生成` : "AI 回复已生成";
   const shouldUseSystemNotification =
@@ -473,6 +473,7 @@ export function useSendMessage({
     });
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const beginGeneration = (nextChatId: string, controller: AbortController) => {
     const generationId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     activeGenerationRuns.get(nextChatId)?.controller.abort();
@@ -482,6 +483,7 @@ export function useSendMessage({
     return generationId;
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const finishGeneration = (generationId: string | null, finishedChatId?: string) => {
     if (!finishedChatId) return;
     const active = activeGenerationRuns.get(finishedChatId);
@@ -500,16 +502,19 @@ export function useSendMessage({
     }
   }, [chatId, finishSending]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const isGenerationActive = (targetChatId: string, generationId: string) => {
     const active = activeGenerationRuns.get(targetChatId);
     return !!active && active.generationId === generationId && !active.controller.signal.aborted;
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const stripMessages = (msgs: Message[]): Message[] => {
     const rules = useSettingsStore.getState().getActiveRegexRules() ?? [];
     return msgs.map((m) => (m.role === "assistant" ? { ...m, content: stripPromptContent(m.content, rules) } : m));
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const removeEmptyStreamingDraft = async (draftId: string | null) => {
     if (!draftId) return;
     const draft = useChatStore.getState().messages.find((m) => m.id === draftId);
@@ -522,6 +527,7 @@ export function useSendMessage({
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const getWorldbookContextBlocks = async (userInput: string, recentMessages: Message[]) => {
     const { worldbooks, activeWorldbookId } = useWorldbookStore.getState();
     if (!character) return [];
@@ -563,6 +569,7 @@ export function useSendMessage({
     }));
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const getMemoryPromptPlan = async (
     historyMessages: Message[],
     targetChatId: string,
@@ -827,6 +834,7 @@ export function useSendMessage({
     };
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const generateAssistantWithEmptyRetry = async (
     targetChatId: string,
     assistantId: string,
@@ -1022,6 +1030,7 @@ export function useSendMessage({
     };
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const generateAgenticAssistantWithEmptyRetry = async (
     targetChatId: string,
     assistantId: string,
@@ -1090,6 +1099,7 @@ export function useSendMessage({
     return "";
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const processImageGeneration = async (targetChatId: string, assistantId: string, content: string) => {
     const settings = normalizeImageSettings(useSettingsStore.getState().imageGeneration);
     if (!settings.enabled || settings.mode !== "auto" || settings.maxImages <= 0 || !settings.comfyWorkflowJson.trim())
@@ -1313,12 +1323,22 @@ export function useSendMessage({
       character,
       chatId,
       addMessage,
-      patchMessage,
-      deleteMessage,
       ensureMessagesHydrated,
       agenticPlayEnabled,
-      onAgenticPlayStateUpdated,
       onPromptBuilt,
+      getActivePath,
+      beginGeneration,
+      setStreamingMessageId,
+      getMemoryPromptPlan,
+      getWorldbookContextBlocks,
+      stripMessages,
+      generateAgenticAssistantWithEmptyRetry,
+      generateAssistantWithEmptyRetry,
+      isGenerationActive,
+      processImageGeneration,
+      removeEmptyStreamingDraft,
+      setChatError,
+      finishGeneration,
     ],
   );
 
@@ -1478,12 +1498,22 @@ export function useSendMessage({
       character,
       chatId,
       addMessage,
-      patchMessage,
       deleteMessage,
       ensureMessagesHydrated,
       agenticPlayEnabled,
-      onAgenticPlayStateUpdated,
       onPromptBuilt,
+      beginGeneration,
+      setStreamingMessageId,
+      getMemoryPromptPlan,
+      getWorldbookContextBlocks,
+      stripMessages,
+      generateAgenticAssistantWithEmptyRetry,
+      generateAssistantWithEmptyRetry,
+      isGenerationActive,
+      processImageGeneration,
+      removeEmptyStreamingDraft,
+      setChatError,
+      finishGeneration,
     ],
   );
 

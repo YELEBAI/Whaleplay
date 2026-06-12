@@ -46,7 +46,7 @@ import {
   summarizeToolOutput,
   buildStopForUserContent,
 } from "./utils";
-import { extractJsonObject } from "./utils";
+import { extractJsonObject, type DraftPayload } from "./utils";
 import { normalizeDraft } from "./validation";
 
 // ── Autocontinue import → defined in prompt.ts, re-exported below ──
@@ -241,7 +241,7 @@ export async function runNeoCharacterBuilderTurn(
     // No tool calls — try JSON extraction as fallback
     const parsed = extractJsonObject(assistantContent);
     if (parsed) {
-      const validation = normalizeDraft(parsed as any, options.existingCharacter);
+      const validation = normalizeDraft(parsed as DraftPayload, options.existingCharacter);
       if (validation.issues.length === 0) state.savedDraft = validation.draft;
     }
 
@@ -407,7 +407,7 @@ export async function buildNeoCharacterDraft(
 
     const parsed = extractJsonObject(result.content || "");
     if (parsed) {
-      const validation = normalizeDraft(parsed as any, options.existingCharacter);
+      const validation = normalizeDraft(parsed as DraftPayload, options.existingCharacter);
       if (validation.issues.length === 0) {
         state.savedDraft = validation.draft;
         break;
@@ -449,7 +449,7 @@ function createBestEffortResult(
     mvu: state.savedDraft.mvu ?? state.mvu,
     statusBars: state.savedDraft.statusBars ?? state.statusBars,
     notes: error ? `生成过程中遇到错误：${error}` : state.savedDraft.notes,
-    usage: withDeepSeekUsageCost(totalUsage, options.modelConfig as any),
+    usage: withDeepSeekUsageCost(totalUsage, options.modelConfig),
     toolLog,
   };
 }

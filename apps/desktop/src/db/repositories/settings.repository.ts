@@ -77,7 +77,7 @@ export const settingsRepository = {
       if (!raw) return [];
       const data = JSON.parse(raw);
       if (!Array.isArray(data)) return [];
-      return data.filter((p: any) => p && Array.isArray(p.rules));
+      return data.filter((p: Record<string, unknown>) => p && Array.isArray(p.rules));
     } catch {
       return [];
     }

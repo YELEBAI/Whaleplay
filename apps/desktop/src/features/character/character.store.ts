@@ -17,7 +17,7 @@ interface CharacterState {
   clearError: () => void;
 }
 
-export const useCharacterStore = create<CharacterState>((set, get) => ({
+export const useCharacterStore = create<CharacterState>((set, _get) => ({
   characters: [],
   currentCharacter: null,
   loading: false,

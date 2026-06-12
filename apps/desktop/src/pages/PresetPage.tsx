@@ -95,6 +95,7 @@ export function PresetPage() {
 
   useEffect(() => {
     store.loadPresets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.loadPresets]);
 
   useEffect(() => {
@@ -128,6 +129,7 @@ export function PresetPage() {
       hasAutoSelectedRef.current = true;
       handleSelect(store.presets[0].id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.presets]);
 
   const selected = store.presets.find((p) => p.id === selectedId) ?? null;

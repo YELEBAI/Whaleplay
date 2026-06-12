@@ -5,7 +5,7 @@ import { formatCnyCost } from "./deepseek-billing";
 
 function notifyDailyCostWarning(totalCny: number, limitCny: number) {
   const message = `今日 DeepSeek API 消费已达到 ${formatCnyCost(totalCny)} / ${formatCnyCost(limitCny)}，已超过 ${Math.round(DAILY_COST_WARNING_RATIO * 100)}% 预警线。`;
-  const toast = typeof window !== "undefined" ? (window as any).__toast : null;
+  const toast = typeof window !== "undefined" ? window.__toast : null;
   if (toast) toast("error", message);
   if (typeof window !== "undefined" && typeof window.alert === "function") {
     window.setTimeout(() => window.alert(message), 0);

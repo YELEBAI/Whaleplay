@@ -18,7 +18,7 @@ import { useCharacterStore } from "@/features/character/character.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
 import { generateId } from "@neo-tavern/shared";
-import type { CreateCharacterInput, Character, RegexPreset, Worldbook } from "@neo-tavern/shared";
+import type { CreateCharacterInput, Character, RegexPreset, RegexRule, Worldbook } from "@neo-tavern/shared";
 import { settingsRepository, worldbookRepository } from "@/db/repositories";
 import { parseJsonCharacterCard, parsePngCharacterCard, type ParsedCharacterCard } from "@/utils/parse-character-card";
 import { CharacterAvatarTile } from "@/components";
@@ -186,7 +186,7 @@ export function CharacterPage() {
       if (avatar) importedParts.push("avatar");
 
       if (card.regexScripts.length > 0) {
-        const regexRules: any[] = [];
+        const regexRules: RegexRule[] = [];
         for (const s of card.regexScripts) {
           if (s.disabled) continue;
           if (!s.findRegex) continue;

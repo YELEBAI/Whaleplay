@@ -38,17 +38,19 @@ export class OpenAICompatibleProvider implements ModelProvider {
     return OpenAICompatibleProvider.listModels(baseUrl, apiKey)
   }
 
-  private mapUsage(data: any): GenerateResult['usage'] {
+  private mapUsage(data: Record<string, unknown>): GenerateResult['usage'] {
+    const usage = data.usage as Record<string, unknown> | undefined;
+    const details = usage?.prompt_tokens_details as Record<string, unknown> | undefined;
     return {
-      promptTokens: data?.usage?.prompt_tokens,
-      completionTokens: data?.usage?.completion_tokens,
-      totalTokens: data?.usage?.total_tokens,
-      cacheHitTokens: data?.usage?.prompt_cache_hit_tokens
-        ?? data?.usage?.prompt_tokens_details?.cached_tokens,
-      cacheMissTokens: data?.usage?.prompt_cache_miss_tokens
-        ?? (data?.usage?.prompt_tokens_details?.cached_tokens != null
-          ? (data?.usage?.prompt_tokens || 0) - data?.usage?.prompt_tokens_details?.cached_tokens
-          : undefined),
+      promptTokens: usage?.prompt_tokens as number | undefined,
+      completionTokens: usage?.completion_tokens as number | undefined,
+      totalTokens: usage?.total_tokens as number | undefined,
+      cacheHitTokens: (usage?.prompt_cache_hit_tokens
+        ?? details?.cached_tokens) as number | undefined,
+      cacheMissTokens: (usage?.prompt_cache_miss_tokens
+        ?? (details?.cached_tokens != null
+          ? ((usage?.prompt_tokens as number) || 0) - (details?.cached_tokens as number)
+          : undefined)) as number | undefined,
     }
   }
 
@@ -175,14 +177,14 @@ export class OpenAICompatibleProvider implements ModelProvider {
             const contentDelta = delta?.content ?? ''
             const reasoningContentDelta = delta?.reasoning_content ?? delta?.reasoningContent ?? ''
             const toolCallDeltas = Array.isArray(delta?.tool_calls)
-              ? delta.tool_calls.map((toolCall: any) => ({
+              ? delta.tool_calls.map((toolCall: Record<string, unknown>) => ({
                 index: typeof toolCall.index === 'number' ? toolCall.index : 0,
-                id: toolCall.id,
-                type: toolCall.type,
+                id: toolCall.id as string | undefined,
+                type: toolCall.type as string | undefined,
                 function: toolCall.function
                   ? {
-                    name: toolCall.function.name,
-                    arguments: toolCall.function.arguments,
+                    name: (toolCall.function as Record<string, unknown>).name as string | undefined,
+                    arguments: (toolCall.function as Record<string, unknown>).arguments as string | undefined,
                   }
                   : undefined,
               }))

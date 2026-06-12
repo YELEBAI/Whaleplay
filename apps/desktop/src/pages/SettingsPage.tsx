@@ -56,7 +56,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadAllConfigs, loadRegexRules, loadMemorySettings, loadImageGenerationSettings, loadDailyCostWarningSettings, loadDailyCostSpent]);
 
   const handleContextEasterEgg = () => {
     if (secretUnlocked) {

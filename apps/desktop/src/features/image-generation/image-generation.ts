@@ -8,6 +8,12 @@ export type ImageGenerationMode = "manual" | "auto";
 export type ImageGenerationPreset = "fast" | "balanced" | "quality" | "custom";
 export type ImageSeedMode = "random" | "fixed";
 
+interface ComfyWorkflowNode {
+  class_type?: unknown;
+  inputs?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export const IMAGE_SAMPLER_OPTIONS = [
   "euler",
   "euler_ancestral",
@@ -361,13 +367,13 @@ function replacePlaceholders(value: unknown, replacements: Record<string, string
 }
 
 function autoFillCommonWorkflowNodes(
-  workflow: Record<string, any>,
+  workflow: Record<string, ComfyWorkflowNode>,
   prompt: string,
   settings: ImageGenerationSettings,
   seed: number,
 ) {
   const clipNodes = Object.values(workflow).filter(
-    (node: any) =>
+    (node: ComfyWorkflowNode) =>
       String(node?.class_type || "")
         .toLowerCase()
         .includes("cliptextencode") &&
@@ -375,12 +381,12 @@ function autoFillCommonWorkflowNodes(
       typeof node.inputs.text === "string",
   );
 
-  if (clipNodes[0]) clipNodes[0].inputs.text = prompt;
-  if (clipNodes[1]) clipNodes[1].inputs.text = settings.negativePrompt;
+  if (clipNodes[0]?.inputs) clipNodes[0].inputs.text = prompt;
+  if (clipNodes[1]?.inputs) clipNodes[1].inputs.text = settings.negativePrompt;
 
   for (const node of Object.values(workflow)) {
-    const classType = String((node as any)?.class_type || "").toLowerCase();
-    const inputs = (node as any)?.inputs;
+    const classType = String(node.class_type || "").toLowerCase();
+    const inputs = node.inputs;
     if (!inputs) continue;
 
     if (classType.includes("ksampler") && "seed" in inputs) inputs.seed = seed;
@@ -415,7 +421,7 @@ function buildComfyPrompt(workflowJson: string, prompt: string, settings: ImageG
     samplerName: settings.samplerName,
     scheduler: settings.scheduler,
     denoise: settings.denoise,
-  }) as Record<string, any>;
+  }) as Record<string, ComfyWorkflowNode>;
 
   autoFillCommonWorkflowNodes(replaced, prompt, settings, seed);
   return replaced;
@@ -503,12 +509,12 @@ async function getComfyImageDataUrl(
 
 async function queueComfyPrompt(
   baseUrl: string,
-  workflow: Record<string, any>,
+  workflow: Record<string, ComfyWorkflowNode>,
   clientId: string,
   signal?: AbortSignal,
 ) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy<Record<string, any>>("comfy_queue_prompt", {
+  const proxied = await invokeComfy<Record<string, ComfyWorkflowNode>>("comfy_queue_prompt", {
     baseUrl,
     prompt: workflow,
     clientId,
@@ -534,7 +540,7 @@ async function queueComfyPrompt(
 
 async function getComfyHistory(baseUrl: string, promptId: string, signal?: AbortSignal) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy<Record<string, any>>("comfy_get_history", {
+  const proxied = await invokeComfy<Record<string, unknown>>("comfy_get_history", {
     baseUrl,
     promptId,
   });
@@ -549,7 +555,7 @@ async function getComfyHistory(baseUrl: string, promptId: string, signal?: Abort
 
 async function getComfySystemStats(baseUrl: string, signal?: AbortSignal) {
   throwIfAborted(signal);
-  const proxied = await invokeComfy<Record<string, any>>("comfy_get_system_stats", { baseUrl });
+  const proxied = await invokeComfy<Record<string, unknown>>("comfy_get_system_stats", { baseUrl });
   throwIfAborted(signal);
   if (proxied) return proxied;
 
@@ -589,10 +595,10 @@ export async function generateComfyImage(prompt: string, settings: ImageGenerati
   while (Date.now() - started < 120_000) {
     throwIfAborted(signal);
     const history = await getComfyHistory(baseUrl, promptId, signal);
-    const entry = history?.[promptId];
-    const outputs = entry?.outputs ? Object.values(entry.outputs) : [];
-    for (const output of outputs as any[]) {
-      const image = output?.images?.[0];
+    const entry = history?.[promptId] as Record<string, unknown> | undefined;
+    const outputs: unknown[] = entry?.outputs ? Object.values(entry.outputs as Record<string, unknown>) : [];
+    for (const output of outputs as Record<string, unknown>[]) {
+      const image = (output.images as Array<{ filename: string; subfolder?: string; type?: string }> | undefined)?.[0];
       if (image?.filename) {
         const dataUrl = await getComfyImageDataUrl(baseUrl, image, signal);
         throwIfAborted(signal);

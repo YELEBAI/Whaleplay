@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { RouterProvider } from "react-router";
 import { router } from "./router";
+import { registerDevFixtures } from "./dev-fixtures";
 import {
   seedTestCharacter,
   seedBuiltinRegex,
@@ -24,6 +25,7 @@ function AppContent() {
   const themeInit = useThemeStore((s) => s.init);
   useEffect(() => {
     window.__toast = addToast;
+    registerDevFixtures();
   }, [addToast]);
 
   useEffect(() => {
