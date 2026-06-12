@@ -117,9 +117,12 @@ pub fn run() {
         .setup(|app| {
             crate::lan::try_start_lan_server(app.handle().clone());
             // Graceful LAN server shutdown on app exit
-            app.handle().listen_any("tauri://destroyed", |_| {
+            // Must keep EventId alive — dropping it unregisters the listener.
+            // Box::leak ensures it lives for the entire app lifetime.
+            let guard = app.handle().listen_any("tauri://destroyed", |_| {
                 crate::lan::shutdown_lan_server();
             });
+            Box::leak(Box::new(guard));
             Ok(())
         })
         .run(tauri::generate_context!())
