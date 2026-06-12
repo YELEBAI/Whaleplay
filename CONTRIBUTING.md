@@ -26,8 +26,8 @@
 1. Fork 仓库并创建分支：`git checkout -b feature/my-feature`
 2. 确保代码通过检查：
    ```bash
-   pnpm lint     # ESLint + TypeScript
-   pnpm build    # tsc -b && vite build
+   pnpm lint
+   pnpm --filter @neo-tavern/desktop exec tsc --noEmit
    ```
 3. 提交时使用清晰的 commit message（中文或英文均可）
 4. Push 并[创建 Pull Request](https://github.com/YELEBAI/WhalePlay/compare)
@@ -39,45 +39,20 @@
 - 描述中说明动机和实现思路
 - 关联相关 Issue（`Closes #123`）
 
-## 开发环境
-
-```bash
-# 要求
-Node.js >= 22
-pnpm >= 11
-
-# 安装
-pnpm install
-
-# Web 开发模式
-pnpm dev
-
-# Tauri 桌面开发模式（需 Rust）
-pnpm --filter @neo-tavern/desktop tauri dev
-
-# 检查
-pnpm lint
-# 检查构建和效果
-pnpm build
-pnpm build:desktop
-```
-
 ## 项目架构
 
-Whale Play 的技术栈分为三个层级，从底层向上层层依赖：
+Whale Play 的技术栈分为三个层级：
 
 ```mermaid
 graph BT
     subgraph Languages["底层语言 ｜ Languages"]
-        direction LR
         HTML["HTML"]
         CSS["CSS"]
-        TS["TypeScript / JavaScript"]
+        TS["TypeScript"]
         Rust["Rust"]
     end
 
     subgraph Frameworks["框架层 ｜ Frameworks"]
-        direction LR
         React["React"]
         Vite["Vite"]
         Tailwind["Tailwind CSS"]
@@ -85,28 +60,64 @@ graph BT
     end
 
     subgraph Tooling["工具链 ｜ Tooling"]
-        direction LR
         Make["make"]
         Pnpm["pnpm"]
         Cargo["cargo"]
-        ESLint["ESLint"]
     end
 
     Languages --> Frameworks --> Tooling
 ```
 
-- **底层语言**：HTML/CSS 负责界面，TypeScript 负责逻辑，Rust 负责 Tauri 的桌面桥接和文件访问。
-- **框架层**：React 构建 UI，Vite 做打包和 HMR，Tauri 将 Web 应用包装为原生窗口，其余库（Zustand、react-i18next 等）解决具体问题。
-- **工具链**：pnpm 管理 JS 依赖和 workspace，cargo 管理 Rust 依赖和构建，make 作为统一入口脚本，ESLint 和 Vitest 做检查与测试。
+- **底层语言**：HTML/CSS 负责界面，TypeScript 负责逻辑，Rust 负责 Tauri 的桌面桥接。
+- **框架层**：React 构建 UI，Vite 做打包和 HMR，Tauri 将 Web 应用包装为原生窗口。
+- **工具链**：pnpm 管理 JS 依赖和 workspace，cargo 管理 Rust 依赖和构建，make 作为便捷入口。
 
-## 项目结构
+> 详细的架构说明见 `docs/zh/developer/architecture.md`。
+
+## 开发环境
+
+### 前置要求
+
+| 工具 | 是否必须 | 说明 |
+|------|----------|------|
+| Node.js >= 22 | ✅ 必须 | 用于运行 pnpm 和前端构建 |
+| pnpm | ✅ 必须 | 包管理，安装后通过 `corepack enable` 启用 |
+| Rust stable | ⚠️ 可选 | 仅在需要 Tauri 桌面开发/打包时需要 |
+| make | ⚠️ 可选 | 便捷命令入口，Windows 可通过 coreutils 或 MinGW 使用 |
+
+### 常用命令
+
+**pnpm（项目根目录）：**
+
+```bash
+pnpm dev              # 浏览器预览前端
+pnpm tauri dev        # Tauri 桌面开发模式（需 Rust）
+pnpm build            # 构建前端
+pnpm build:desktop    # 打包桌面安装包
+pnpm test             # 运行测试
+```
+
+**make（项目根目录，可选替代）：**
+
+```bash
+make          # 构建前端
+make deps     # 安装 JS + Rust 依赖
+make dev      # 启动开发服务器
+make install  # 打包桌面安装包
+make clean    # 清理构建产物和依赖
+```
+
+> 完整开发指南见 `docs/zh/developer/building.md`。
+
+### 项目结构
 
 ```
 apps/desktop/     # Tauri + React 桌面应用
 packages/
-  core/           # 提示词构建、模型 provider、世界书
+  core/           # 提示词构建、模型 provider、世界书引擎
   shared/         # 共享类型与工具
   ui/             # 共享 UI 组件
+docs/             # 文档（zh/en 双语）
 ```
 
 ## 代码风格
@@ -116,6 +127,10 @@ packages/
 - Zustand 状态管理
 - Tailwind CSS 样式（优先用 `@layer components` 工具类）
 - 组件文件：同目录 `types.ts` + `utils.tsx` 放类型和工具函数
+
+## 文档
+
+项目文档位于 `docs/` 目录，中英文各一份。贡献文档时请同步更新双语版本。
 
 ## 许可证
 
