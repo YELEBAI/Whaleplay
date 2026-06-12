@@ -234,7 +234,7 @@ pub(crate) fn sqlite_list_recent_messages_by_chat_id(
     let conn = get_db(&app)?
         .lock()
         .map_err(|e| format!("Failed to lock database: {e}"))?;
-    let capped_limit = limit.max(1).min(500);
+    let capped_limit = limit.clamp(1, 500);
     let mut stmt = conn
         .prepare(
             "SELECT message_json FROM (
