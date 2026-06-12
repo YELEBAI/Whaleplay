@@ -4,15 +4,15 @@ import { useTranslation } from "react-i18next";
 import {
   Plus,
   Trash2,
-  Edit,
   ArrowLeft,
   Upload,
   Download,
   CheckCircle2,
-  ArrowUp,
-  ArrowDown,
-  GripVertical,
   LibraryBig,
+  ArrowDown,
+  ArrowUp,
+  Edit,
+  GripVertical,
 } from "lucide-react";
 import {
   Button,
@@ -21,10 +21,6 @@ import {
   Textarea,
   Label,
   ScrollArea,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogHeader,
@@ -34,6 +30,7 @@ import {
 } from "@neo-tavern/ui";
 import { usePresetStore } from "@/features/preset/preset.store";
 import { AGENTIC_PLAY_PRESET_ID, ensureAgenticPlayPreset } from "@/features/agentic-play/agentic-preset";
+import { forwardRef } from "react";
 import type { Preset, PresetItem } from "@neo-tavern/shared";
 import { getStorageItem } from "@/db/storage";
 import { getBackend } from "@/platform";
@@ -59,6 +56,469 @@ function downloadPresetJson(json: string, filename: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+// ---------- local sub-components ----------
+
+const EmptyPresetState = ({ t, onNew }: { t: (key: string) => string; onNew: () => void }) => (
+  <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+    <div className="space-y-2 text-center">
+      <p>{t("selectOrCreate")}</p>
+      <Button variant="outline" size="sm" onClick={onNew}>
+        <Plus className="mr-1 h-4 w-4" />
+        {t("newPreset")}
+      </Button>
+    </div>
+  </div>
+);
+
+const PresetItemCard = forwardRef<
+  HTMLDivElement,
+  {
+    item: PresetItem;
+    index: number;
+    draggedItemId: string | null;
+    dragOverItemId: string | null;
+    dropPlacement: "before" | "after";
+    onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => void;
+    onToggle: (item: PresetItem) => void;
+    onMoveUp: (id: string) => void;
+    onMoveDown: (id: string) => void;
+    onEdit: (item: PresetItem) => void;
+    onDelete: (item: PresetItem) => void;
+    t: (key: string) => string;
+    itemCount: number;
+  }
+>((props, ref) => {
+  const {
+    item,
+    index,
+    draggedItemId,
+    dragOverItemId,
+    dropPlacement,
+    onPointerDown,
+    onToggle,
+    onMoveUp,
+    onMoveDown,
+    onEdit,
+    onDelete,
+    t,
+    itemCount,
+  } = props;
+
+  const isDragging = draggedItemId === item.id;
+
+  return (
+    <>
+      {dragOverItemId === item.id && dropPlacement === "before" && <div className="bg-primary/20 h-0.5 rounded" />}
+      <div
+        ref={ref}
+        className={cn(
+          "bg-card flex items-center gap-2 rounded-lg border p-3 transition-opacity",
+          isDragging && "opacity-50",
+        )}
+      >
+        <button
+          onPointerDown={(e) => onPointerDown(e, item.id)}
+          className="text-muted-foreground hover:text-foreground cursor-grab touch-none"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className={cn("text-sm font-medium", !item.enabled && "text-muted-foreground line-through")}>
+              {item.name}
+            </span>
+            <span
+              className={cn(
+                "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                item.role === "system" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500",
+              )}
+            >
+              {t(`itemRoles.${item.role}`)}
+            </span>
+            {item.hidden && (
+              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-500">
+                {t("hidden")}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onToggle(item)}>
+          {item.enabled ? t("disable") : t("enable")}
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 px-1" disabled={index === 0} onClick={() => onMoveUp(item.id)}>
+          <ArrowUp className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-1"
+          disabled={index === itemCount - 1}
+          onClick={() => onMoveDown(item.id)}
+        >
+          <ArrowDown className="h-3.5 w-3.5" />
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => onEdit(item)}>
+          <Edit className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="text-destructive hover:text-destructive h-7 px-2"
+          onClick={() => onDelete(item)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {dragOverItemId === item.id && dropPlacement === "after" && <div className="bg-primary/20 h-0.5 rounded" />}
+    </>
+  );
+});
+
+function ItemListSection(props: {
+  sortedItems: PresetItem[];
+  draggedItemId: string | null;
+  dragOverItemId: string | null;
+  dropPlacement: "before" | "after";
+  onPointerDown: (e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => void;
+  onToggle: (item: PresetItem) => void;
+  onMoveItem: (itemId: string, direction: -1 | 1) => Promise<void>;
+  onEdit: (item: PresetItem) => void;
+  onDelete: (item: PresetItem) => void;
+  itemRefs: React.RefObject<Map<string, HTMLDivElement>>;
+  t: (key: string) => string;
+}) {
+  const {
+    sortedItems,
+    draggedItemId,
+    dragOverItemId,
+    dropPlacement,
+    onPointerDown,
+    onToggle,
+    onMoveItem,
+    onEdit,
+    onDelete,
+    itemRefs,
+    t,
+  } = props;
+
+  if (sortedItems.length === 0) {
+    return (
+      <div className="text-muted-foreground flex h-32 items-center justify-center text-sm">
+        <p>{t("noItems")}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl space-y-2">
+      {sortedItems.map((item, index) => (
+        <PresetItemCard
+          key={item.id}
+          ref={(node: HTMLDivElement | null) => {
+            if (node) itemRefs.current.set(item.id, node);
+            else itemRefs.current.delete(item.id);
+          }}
+          item={item}
+          index={index}
+          draggedItemId={draggedItemId}
+          dragOverItemId={dragOverItemId}
+          dropPlacement={dropPlacement}
+          onPointerDown={onPointerDown}
+          onToggle={onToggle}
+          onMoveUp={(id) => onMoveItem(id, -1)}
+          onMoveDown={(id) => onMoveItem(id, 1)}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          t={t}
+          itemCount={sortedItems.length}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ExternalPresetPicker(props: {
+  sourceItemKey: string;
+  setSourceItemKey: (key: string) => void;
+  externalPresetItemOptions: Array<{ key: string; preset: Preset; item: PresetItem }>;
+  selectedSourceItem: { key: string; preset: Preset; item: PresetItem } | null;
+  onAdd: () => void;
+  presets: Preset[];
+  selectedId: string | null;
+  t: (key: string) => string;
+}) {
+  const {
+    sourceItemKey,
+    setSourceItemKey,
+    externalPresetItemOptions,
+    selectedSourceItem,
+    onAdd,
+    presets,
+    selectedId,
+    t,
+  } = props;
+
+  return (
+    <div className="bg-muted/10 rounded-md border p-3">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center">
+        <div className="min-w-0 flex-1">
+          <Label htmlFor="extra-preset-entry" className="flex items-center gap-1.5">
+            <LibraryBig className="h-3.5 w-3.5" />
+            {t("extraPresetEntry")}
+          </Label>
+          <select
+            id="extra-preset-entry"
+            value={sourceItemKey}
+            onChange={(e) => setSourceItemKey(e.target.value)}
+            className="border-input focus-visible:ring-ring mt-1 h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
+          >
+            {externalPresetItemOptions.length === 0 ? (
+              <option value="">{t("extraPresetEmpty")}</option>
+            ) : (
+              presets
+                .filter((preset) => preset.id !== selectedId)
+                .map((preset) => {
+                  const options = externalPresetItemOptions.filter((option) => option.preset.id === preset.id);
+                  if (options.length === 0) return null;
+                  return (
+                    <optgroup key={preset.id} label={preset.name}>
+                      {options.map(({ key, item }) => (
+                        <option key={key} value={key}>
+                          {item.name}
+                          {item.enabled ? "" : ` \u00b7 ${t("disabled")}`}
+                        </option>
+                      ))}
+                    </optgroup>
+                  );
+                })
+            )}
+          </select>
+          <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{selectedSourceItem?.item.name}</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={onAdd} disabled={!selectedSourceItem}>
+          <Plus className="mr-1 h-3.5 w-3.5" />
+          {t("addSelected")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function PresetDialogs(props: {
+  itemDialogOpen: boolean;
+  setItemDialogOpen: (v: boolean) => void;
+  editingItem: PresetItem | null;
+  itemName: string;
+  setItemName: (v: string) => void;
+  itemRole: "system" | "user";
+  setItemRole: (v: "system" | "user") => void;
+  itemContent: string;
+  setItemContent: (v: string) => void;
+  itemOrder: number;
+  setItemOrder: (v: number) => void;
+  deleteTarget: Preset | null;
+  setDeleteTarget: (v: Preset | null) => void;
+  deleteItemTarget: PresetItem | null;
+  setDeleteItemTarget: (v: PresetItem | null) => void;
+  importOpen: boolean;
+  setImportOpen: (v: boolean) => void;
+  importFile: File | null;
+  setImportFile: (v: File | null) => void;
+  importing: boolean;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  onSaveItem: () => void;
+  onDeletePreset: () => void;
+  onDeleteItem: () => void;
+  onImport: () => void;
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  tc: (key: string) => string;
+}) {
+  const {
+    itemDialogOpen,
+    setItemDialogOpen,
+    editingItem,
+    itemName,
+    setItemName,
+    itemRole,
+    setItemRole,
+    itemContent,
+    setItemContent,
+    itemOrder,
+    setItemOrder,
+    deleteTarget,
+    setDeleteTarget,
+    deleteItemTarget,
+    setDeleteItemTarget,
+    importOpen,
+    setImportOpen,
+    importFile,
+    setImportFile,
+    importing,
+    fileInputRef,
+    onSaveItem,
+    onDeletePreset,
+    onDeleteItem,
+    onImport,
+    onFileChange,
+    t,
+    tc,
+  } = props;
+
+  return (
+    <>
+      {/* Item editor dialog */}
+      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? t("editCard") : t("newCard")}</DialogTitle>
+            <DialogDescription>{t("cardDialog.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>{t("cardDialog.name")}</Label>
+              <Input
+                value={itemName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setItemName(e.target.value)}
+                placeholder={t("cardDialog.namePlaceholder")}
+              />
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <Label>{t("cardDialog.role")}</Label>
+                <select
+                  value={itemRole}
+                  onChange={(e) => setItemRole(e.target.value as "system" | "user")}
+                  className="border-input focus-visible:ring-ring h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
+                >
+                  <option value="system">{t("itemRoles.system")}</option>
+                  <option value="user">{t("itemRoles.user")}</option>
+                </select>
+              </div>
+              <div>
+                <Label>{t("cardDialog.order")}</Label>
+                <Input
+                  type="number"
+                  value={itemOrder}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setItemOrder(parseInt(e.target.value) || 0)}
+                  className="w-20"
+                />
+              </div>
+            </div>
+            <div>
+              <Label>{t("cardDialog.content")}</Label>
+              <Textarea
+                value={itemContent}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setItemContent(e.target.value)}
+                placeholder={t("cardDialog.contentPlaceholder")}
+                rows={10}
+                className="font-mono text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setItemDialogOpen(false)}>
+              {tc("actions.cancel")}
+            </Button>
+            <Button onClick={onSaveItem} disabled={!itemName.trim()}>
+              {editingItem ? tc("actions.save") : tc("actions.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete preset dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("deletePreset.title")}</DialogTitle>
+            <DialogDescription>{t("deletePreset.description", { name: deleteTarget?.name })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              {tc("actions.cancel")}
+            </Button>
+            <Button variant="destructive" onClick={onDeletePreset}>
+              {tc("actions.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete item dialog */}
+      <Dialog open={!!deleteItemTarget} onOpenChange={() => setDeleteItemTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("deleteCard.title")}</DialogTitle>
+            <DialogDescription>{t("deleteCard.description", { name: deleteItemTarget?.name })}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteItemTarget(null)}>
+              {tc("actions.cancel")}
+            </Button>
+            <Button variant="destructive" onClick={onDeleteItem}>
+              {tc("actions.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import dialog */}
+      <Dialog
+        open={importOpen}
+        onOpenChange={(v: boolean) => {
+          setImportOpen(v);
+          if (!v) setImportFile(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("importDialog.title")}</DialogTitle>
+            <DialogDescription>{t("importDialog.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div
+              className="hover:border-primary/50 hover:bg-accent/50 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {importFile ? (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">{importFile.name}</p>
+                  <p className="text-muted-foreground text-xs">{(importFile.size / 1024).toFixed(1)} KB</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Upload className="text-muted-foreground mx-auto h-8 w-8" />
+                  <p className="text-muted-foreground text-sm">{t("importDialog.clickToSelect")}</p>
+                </div>
+              )}
+              <input ref={fileInputRef} type="file" accept=".json" onChange={onFileChange} className="hidden" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImportOpen(false);
+                setImportFile(null);
+              }}
+            >
+              {tc("actions.cancel")}
+            </Button>
+            <Button onClick={onImport} disabled={!importFile || importing}>
+              {importing ? t("importDialog.importing") : t("importDialog.import")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ---------- main page component ----------
 
 export function PresetPage() {
   const { t } = useTranslation("preset");
@@ -446,6 +906,7 @@ export function PresetPage() {
 
   return (
     <div className="flex h-full">
+      {/* ---- left sidebar ---- */}
       <div className="flex w-60 flex-col gap-3 border-r p-4">
         <button
           onClick={() => navigate("/")}
@@ -474,7 +935,7 @@ export function PresetPage() {
                 <span className="truncate">{p.name}</span>
                 <span className="flex shrink-0 items-center gap-1">
                   {p.id === AGENTIC_PLAY_PRESET_ID && (
-                    <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    <span className="bg-primary/10 text-primary rounded px-1.5 py-0.5 text-[10px] font-medium">
                       Agentic
                     </span>
                   )}
@@ -490,19 +951,13 @@ export function PresetPage() {
         </ScrollArea>
       </div>
 
+      {/* ---- main content ---- */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {!selected ? (
-          <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-            <div className="space-y-2 text-center">
-              <p>{t("selectOrCreate")}</p>
-              <Button variant="outline" size="sm" onClick={handleCreate}>
-                <Plus className="mr-1 h-4 w-4" />
-                {t("newPreset")}
-              </Button>
-            </div>
-          </div>
+          <EmptyPresetState t={t} onNew={handleCreate} />
         ) : (
           <>
+            {/* metadata header */}
             <div className="shrink-0 border-b px-6 py-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0 flex-1 space-y-2">
@@ -552,54 +1007,22 @@ export function PresetPage() {
               </div>
 
               {isAgenticPresetSelected && (
-                <div className="mt-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                <div className="border-primary/20 bg-primary/5 text-muted-foreground mt-3 rounded-md border px-3 py-2 text-xs">
                   {t("agenticPreset.hint")}
                 </div>
               )}
 
               <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="bg-muted/10 rounded-md border p-3">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                    <div className="min-w-0 flex-1">
-                      <Label htmlFor="extra-preset-entry" className="flex items-center gap-1.5">
-                        <LibraryBig className="h-3.5 w-3.5" />
-                        {t("extraPresetEntry")}
-                      </Label>
-                      <select
-                        id="extra-preset-entry"
-                        value={templateId}
-                        onChange={(e) => setTemplateId(e.target.value)}
-                        className="border-input focus-visible:ring-ring mt-1 h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
-                      >
-                        {externalPresetItemOptions.length === 0 ? (
-                          <option value="">{t("extraPresetEmpty")}</option>
-                        ) : (
-                          store.presets
-                            .filter((preset) => preset.id !== selected.id)
-                            .map((preset) => {
-                              const options = externalPresetItemOptions.filter((option) => option.preset.id === preset.id);
-                              if (options.length === 0) return null;
-                              return (
-                                <optgroup key={preset.id} label={preset.name}>
-                                  {options.map(({ key, item }) => (
-                                    <option key={key} value={key}>
-                                      {item.name}
-                                      {item.enabled ? "" : ` · ${t("disabled")}`}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              );
-                            })
-                        )}
-                      </select>
-                      <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{selectedTemplate?.description}</p>
-                    </div>
-                    <Button size="sm" variant="outline" onClick={handleAddTemplateItem} disabled={!selectedTemplate}>
-                      <Plus className="mr-1 h-3.5 w-3.5" />
-                      {t("addSelected")}
-                    </Button>
-                  </div>
-                </div>
+                <ExternalPresetPicker
+                  sourceItemKey={sourceItemKey}
+                  setSourceItemKey={setSourceItemKey}
+                  externalPresetItemOptions={externalPresetItemOptions}
+                  selectedSourceItem={selectedSourceItem}
+                  onAdd={handleAddExternalPresetItem}
+                  presets={store.presets}
+                  selectedId={selectedId}
+                  t={t}
+                />
 
                 <div className="bg-muted/10 rounded-md border p-3">
                   <div className="flex h-full items-center justify-between gap-3">
@@ -618,265 +1041,57 @@ export function PresetPage() {
               </div>
             </div>
 
+            {/* item list */}
             <div className="flex-1 overflow-y-auto p-6">
-              {sortedItems.length === 0 ? (
-                <div className="text-muted-foreground flex h-32 items-center justify-center text-sm">
-                  <p>{t("noItems")}</p>
-                </div>
-              ) : (
-                <div className="max-w-5xl space-y-2">
-                  {sortedItems.map((item, index) => (
-                    <Card
-                      key={item.id}
-                      ref={(node) => {
-                        if (node) itemRefs.current.set(item.id, node);
-                        else itemRefs.current.delete(item.id);
-                      }}
-                      className={cn(
-                        "relative transition-all",
-                        !item.enabled && "opacity-50",
-                        draggedItemId === item.id && "opacity-40",
-                        dragOverItemId === item.id &&
-                          draggedItemId !== item.id &&
-                          "ring-primary/40 bg-accent/20 ring-1",
-                      )}
-                    >
-                      {dragOverItemId === item.id && draggedItemId !== item.id && (
-                        <div
-                          className={cn(
-                            "bg-primary pointer-events-none absolute right-3 left-3 z-10 h-0.5 rounded-full",
-                            dropPlacement === "before" ? "top-0" : "bottom-0",
-                          )}
-                        />
-                      )}
-                      <CardHeader className="p-3 pb-0">
-                        <div className="flex items-start gap-2">
-                          <button
-                            type="button"
-                            onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) =>
-                              handleItemPointerDown(e, item.id)
-                            }
-                            className="text-muted-foreground hover:bg-accent hover:text-foreground mt-0.5 flex h-7 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded select-none active:cursor-grabbing"
-                            title="Drag to reorder"
-                          >
-                            <GripVertical className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={item.enabled}
-                            onClick={() => handleToggleItem(item)}
-                            className={cn(
-                              "focus-visible:ring-ring relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:ring-1 focus-visible:outline-none",
-                              item.enabled ? "bg-primary" : "bg-muted-foreground/30",
-                            )}
-                            title={item.enabled ? "Disable" : "Enable"}
-                          >
-                            <span
-                              className={cn(
-                                "bg-background inline-block h-3.5 w-3.5 transform rounded-full shadow-sm transition-transform",
-                                item.enabled ? "translate-x-[18px]" : "translate-x-[4px]",
-                              )}
-                            />
-                          </button>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <CardTitle className="truncate text-sm">{item.name}</CardTitle>
-                              <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                                {item.role}
-                              </span>
-                              <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
-                                Prompt #{index + 1}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex shrink-0 gap-0.5">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => handleMoveItem(item.id, -1)}
-                              disabled={index === 0}
-                              title="Move up"
-                            >
-                              <ArrowUp className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => handleMoveItem(item.id, 1)}
-                              disabled={index === sortedItems.length - 1}
-                              title="Move down"
-                            >
-                              <ArrowDown className="h-3 w-3" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditItem(item)}>
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive h-7 w-7"
-                              onClick={() => setDeleteItemTarget(item)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-3 pt-1">
-                        <p className="text-muted-foreground line-clamp-2 text-xs whitespace-pre-wrap">{item.content}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+              <ItemListSection
+                sortedItems={sortedItems}
+                draggedItemId={draggedItemId}
+                dragOverItemId={dragOverItemId}
+                dropPlacement={dropPlacement}
+                onPointerDown={handleItemPointerDown}
+                onToggle={handleToggleItem}
+                onMoveItem={handleMoveItem}
+                onEdit={openEditItem}
+                onDelete={setDeleteItemTarget}
+                itemRefs={itemRefs}
+                t={t}
+              />
             </div>
           </>
         )}
       </div>
 
-      <Dialog open={itemDialogOpen} onOpenChange={setItemDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editingItem ? t("editCard") : t("newCard")}</DialogTitle>
-            <DialogDescription>{t("cardDialog.description")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>{t("cardDialog.name")}</Label>
-              <Input
-                value={itemName}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setItemName(e.target.value)}
-                placeholder={t("cardDialog.namePlaceholder")}
-              />
-            </div>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <Label>{t("cardDialog.role")}</Label>
-                <select
-                  value={itemRole}
-                  onChange={(e) => setItemRole(e.target.value as "system" | "user")}
-                  className="border-input focus-visible:ring-ring h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
-                >
-                  <option value="system">{t("itemRoles.system")}</option>
-                  <option value="user">{t("itemRoles.user")}</option>
-                </select>
-              </div>
-              <div>
-                <Label>{t("cardDialog.order")}</Label>
-                <Input
-                  type="number"
-                  value={itemOrder}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setItemOrder(parseInt(e.target.value) || 0)}
-                  className="w-20"
-                />
-              </div>
-            </div>
-            <div>
-              <Label>{t("cardDialog.content")}</Label>
-              <Textarea
-                value={itemContent}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setItemContent(e.target.value)}
-                placeholder={t("cardDialog.contentPlaceholder")}
-                rows={10}
-                className="font-mono text-xs"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setItemDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveItem} disabled={!itemName.trim()}>
-              {editingItem ? tc("actions.save") : tc("actions.create")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deletePreset.title")}</DialogTitle>
-            <DialogDescription>{t("deletePreset.description", { name: deleteTarget?.name })}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!deleteItemTarget} onOpenChange={() => setDeleteItemTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("deleteCard.title")}</DialogTitle>
-            <DialogDescription>{t("deleteCard.description", { name: deleteItemTarget?.name })}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteItemTarget(null)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteItem}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={importOpen}
-        onOpenChange={(v: boolean) => {
-          setImportOpen(v);
-          if (!v) setImportFile(null);
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("importDialog.title")}</DialogTitle>
-            <DialogDescription>{t("importDialog.description")}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div
-              className="hover:border-primary/50 hover:bg-accent/50 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {importFile ? (
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">{importFile.name}</p>
-                  <p className="text-muted-foreground text-xs">{(importFile.size / 1024).toFixed(1)} KB</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Upload className="text-muted-foreground mx-auto h-8 w-8" />
-                  <p className="text-muted-foreground text-sm">{t("importDialog.clickToSelect")}</p>
-                </div>
-              )}
-              <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="hidden" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setImportOpen(false);
-                setImportFile(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleImport} disabled={!importFile || importing}>
-              {importing ? t("importDialog.importing") : t("importDialog.import")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ---- dialogs ---- */}
+      <PresetDialogs
+        itemDialogOpen={itemDialogOpen}
+        setItemDialogOpen={setItemDialogOpen}
+        editingItem={editingItem}
+        itemName={itemName}
+        setItemName={setItemName}
+        itemRole={itemRole}
+        setItemRole={setItemRole}
+        itemContent={itemContent}
+        setItemContent={setItemContent}
+        itemOrder={itemOrder}
+        setItemOrder={setItemOrder}
+        deleteTarget={deleteTarget}
+        setDeleteTarget={setDeleteTarget}
+        deleteItemTarget={deleteItemTarget}
+        setDeleteItemTarget={setDeleteItemTarget}
+        importOpen={importOpen}
+        setImportOpen={setImportOpen}
+        importFile={importFile}
+        setImportFile={setImportFile}
+        importing={importing}
+        fileInputRef={fileInputRef}
+        onSaveItem={handleSaveItem}
+        onDeletePreset={handleDelete}
+        onDeleteItem={handleDeleteItem}
+        onImport={handleImport}
+        onFileChange={handleFileChange}
+        t={t}
+        tc={tc}
+      />
     </div>
   );
 }

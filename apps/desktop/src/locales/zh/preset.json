@@ -60,6 +60,7 @@
   "itemBadge": "提示词 #{{index}}",
   "moveUp": "上移",
   "moveDown": "下移",
+  "dragToReorder": "拖动以重新排序",
   "enable": "启用",
   "disable": "禁用",
   "dragReorder": "拖动排序"

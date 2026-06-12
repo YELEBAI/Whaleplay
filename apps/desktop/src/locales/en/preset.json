@@ -60,6 +60,7 @@
   "itemBadge": "Prompt #{{index}}",
   "moveUp": "Move up",
   "moveDown": "Move down",
+  "dragToReorder": "Drag to reorder",
   "enable": "Enable",
   "disable": "Disable",
   "dragReorder": "Drag to reorder"
