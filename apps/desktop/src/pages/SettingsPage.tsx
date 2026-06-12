@@ -56,7 +56,14 @@ export function SettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadAllConfigs, loadRegexRules, loadMemorySettings, loadImageGenerationSettings, loadDailyCostWarningSettings, loadDailyCostSpent]);
+  }, [
+    loadAllConfigs,
+    loadRegexRules,
+    loadMemorySettings,
+    loadImageGenerationSettings,
+    loadDailyCostWarningSettings,
+    loadDailyCostSpent,
+  ]);
 
   const handleContextEasterEgg = () => {
     if (secretUnlocked) {
@@ -85,7 +92,7 @@ export function SettingsPage() {
         t={t}
       />
 
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 overflow-auto p-6">
         {section === "general" && <GeneralSection locale={locale} setLocale={setLocale} t={t} />}
         {section === "api" && <ApiSection t={t} />}
         {section === "appearance" && <AppearanceSection t={t} />}

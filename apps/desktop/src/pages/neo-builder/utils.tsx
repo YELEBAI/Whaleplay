@@ -283,7 +283,10 @@ export function readString(value: unknown): string {
 
 // ── Plan helpers ─────────────────────────────────────
 
-export function normalizePlanStatus(value: unknown, fallback: NeoCreationPlanEntry["status"]): NeoCreationPlanEntry["status"] {
+export function normalizePlanStatus(
+  value: unknown,
+  fallback: NeoCreationPlanEntry["status"],
+): NeoCreationPlanEntry["status"] {
   return value === "done" || value === "in_progress" || value === "skipped" || value === "planned" ? value : fallback;
 }
 
@@ -310,16 +313,11 @@ export function applyEntryProgressEvent(
   const result = readRecord(event.result);
   const summary = readRecord(result.summary);
   const entryKey =
-    readString(args.entryId) ||
-    readString(args.id) ||
-    readString(args.name) ||
-    readString(summary.entry);
+    readString(args.entryId) || readString(args.id) || readString(args.name) || readString(summary.entry);
   if (!entryKey) return plan;
 
   const nextStatus =
-    event.status === "running"
-      ? "in_progress"
-      : normalizePlanStatus(args.status || summary.status, "done");
+    event.status === "running" ? "in_progress" : normalizePlanStatus(args.status || summary.status, "done");
   let changed = false;
   const entries = plan.entries.map((entry) => {
     if (entry.id !== entryKey && entry.name !== entryKey) return entry;
@@ -350,7 +348,8 @@ export function shouldRunBuilderTurnInBackground(
 }
 
 export function getBackgroundResultContent(result: NeoBuilderTurnResult) {
-  if (result.draft?.character?.name) return `后台创作已完成：${result.draft.character.name}。右侧可以查看角色卡与世界书。`;
+  if (result.draft?.character?.name)
+    return `后台创作已完成：${result.draft.character.name}。右侧可以查看角色卡与世界书。`;
   if (result.draft) return "后台创作已完成。右侧可以查看产出物。";
   return "后台创作已暂停。请查看右侧进度与产出物。";
 }
@@ -364,7 +363,7 @@ export function ToolTimeline({ events }: { events: NeoBuilderToolEvent[] | undef
   return (
     <div className="relative pb-3 pl-5">
       <span
-        className={`absolute left-[-6px] top-1 flex h-3 w-3 items-center justify-center rounded-full bg-background ${
+        className={`bg-background absolute top-1 left-[-6px] flex h-3 w-3 items-center justify-center rounded-full ${
           hasError ? "text-destructive" : hasRunning ? "text-primary" : "text-emerald-500"
         }`}
       >
@@ -377,7 +376,10 @@ export function ToolTimeline({ events }: { events: NeoBuilderToolEvent[] | undef
         )}
       </span>
       <div
-        className={cn("flex min-w-0 items-center gap-1 text-xs", hasError ? "text-destructive" : "text-muted-foreground")}
+        className={cn(
+          "flex min-w-0 items-center gap-1 text-xs",
+          hasError ? "text-destructive" : "text-muted-foreground",
+        )}
       >
         <Wrench className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 truncate" title={events.map((event) => event.label).join("、")}>

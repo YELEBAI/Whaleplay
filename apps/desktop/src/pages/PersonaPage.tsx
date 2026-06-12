@@ -53,18 +53,18 @@ export function PersonaPage() {
 
   return (
     <div className="flex h-full">
-      <div className="w-60 border-r p-4 flex flex-col gap-3">
+      <div className="flex w-60 flex-col gap-3 border-r p-4">
         <button
           onClick={() => navigate("/")}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           {tc("actions.back")}
         </button>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t("sidebar.title")}</h2>
-        <p className="text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: t("sidebar.description") }} />
+        <h2 className="text-muted-foreground text-sm font-semibold tracking-wider uppercase">{t("sidebar.title")}</h2>
+        <p className="text-muted-foreground text-xs" dangerouslySetInnerHTML={{ __html: t("sidebar.description") }} />
       </div>
-      <div className="flex-1 p-6 overflow-auto">
+      <div className="flex-1 overflow-auto p-6">
         <Card className="max-w-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export function PersonaPage() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                 placeholder={t("form.displayNamePlaceholder")}
               />
-              <p className="text-xs text-muted-foreground mt-1">{t("form.displayNameHint")}</p>
+              <p className="text-muted-foreground mt-1 text-xs">{t("form.displayNameHint")}</p>
             </div>
             <div>
               <Label>{t("form.description")}</Label>
@@ -93,7 +93,7 @@ export function PersonaPage() {
               />
             </div>
             <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-2" />
+              <Save className="mr-2 h-4 w-4" />
               {t("actions.save", { ns: "common" })}
             </Button>
           </CardContent>

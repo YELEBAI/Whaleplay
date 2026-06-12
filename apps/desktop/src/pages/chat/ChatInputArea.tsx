@@ -3,9 +3,9 @@ import { Button, Textarea, cn } from "@neo-tavern/ui";
 import { useTranslation } from "react-i18next";
 import type { PendingSendItem } from "./types";
 // ── Static JSX fragments ────────────────────────────
-const SmallA = <span className="text-[10px] text-muted-foreground leading-none">A</span>;
-const LargeA = <span className="text-[13px] font-bold text-muted-foreground leading-none">A</span>;
-const SepBar = <span className="mx-1 h-6 w-px bg-border" />;
+const SmallA = <span className="text-muted-foreground text-[10px] leading-none">A</span>;
+const LargeA = <span className="text-muted-foreground text-[13px] leading-none font-bold">A</span>;
+const SepBar = <span className="bg-border mx-1 h-6 w-px" />;
 
 // ── Repeated className constants ─────────────────────
 const btnIconCls = "h-10 w-10 shrink-0";
@@ -74,9 +74,9 @@ export function ChatInputArea({
   return (
     <>
       {displayError && (
-        <div className="px-4 py-2 mx-4 mb-2 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between">
+        <div className="bg-destructive/10 text-destructive mx-4 mb-2 flex items-center justify-between rounded-lg px-4 py-2 text-sm">
           <span className="truncate">{displayError}</span>
-          <div className="flex gap-1 shrink-0">
+          <div className="flex shrink-0 gap-1">
             <Button variant="ghost" size="sm" onClick={onDismissError}>
               {t("dismiss")}
             </Button>
@@ -84,12 +84,12 @@ export function ChatInputArea({
         </div>
       )}
 
-      <div className="shrink-0 border-t bg-card p-4">
+      <div className="bg-card shrink-0 border-t p-4">
         <div className={cn("mx-auto w-full min-w-0 space-y-2", contentWidthClass)}>
           {pendingSendCount > 0 && hasChat && (
             <div className="bg-primary/5 p-2">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-muted-foreground">
+                <span className="text-muted-foreground text-xs font-medium">
                   {t("pendingSend", { count: pendingSendCount })}
                 </span>
               </div>
@@ -100,15 +100,15 @@ export function ChatInputArea({
                   .map((item) => (
                     <div
                       key={`${item.chatId}-${item.index}`}
-                      className="flex items-start gap-2 rounded-md border bg-background/85 px-2 py-1.5"
+                      className="bg-background/85 flex items-start gap-2 rounded-md border px-2 py-1.5"
                     >
-                      <p className="min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-sm leading-relaxed text-foreground">
+                      <p className="text-foreground min-w-0 flex-1 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap">
                         {item.label ?? item.content}
                       </p>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground hover:text-destructive h-6 w-6 shrink-0"
                         title={t("cancelPending")}
                         onClick={() => onCancelPending(item.index)}
                       >
@@ -122,7 +122,7 @@ export function ChatInputArea({
 
           <div className="bg-background/75 p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-md border bg-background/70 px-2">
+              <div className="bg-background/70 flex h-10 shrink-0 items-center gap-1.5 rounded-md border px-2">
                 {SmallA}
                 <input
                   type="range"
@@ -131,7 +131,7 @@ export function ChatInputArea({
                   value={fontSize}
                   onInput={(e) => onFontSizeChange(Number(e.currentTarget.value))}
                   onChange={(e) => onFontSizeChange(Number(e.target.value))}
-                  className="h-1 w-12 accent-primary cursor-pointer"
+                  className="accent-primary h-1 w-12 cursor-pointer"
                   title={t("fontSize", { size: fontSize })}
                 />
                 {LargeA}
@@ -177,7 +177,7 @@ export function ChatInputArea({
               </Button>
               {SepBar}
             </div>
-            <div className="flex min-w-0 items-end gap-2 rounded-lg border bg-background p-2">
+            <div className="bg-background flex min-w-0 items-end gap-2 rounded-lg border p-2">
               <Textarea
                 value={input}
                 onChange={onInputChange}
@@ -213,9 +213,9 @@ export function ChatInputArea({
       </div>
 
       {previewOpen && (
-        <div className="border-t p-4 bg-background">
+        <div className="bg-background border-t p-4">
           <div className={cn(previewWidthClass, "mx-auto")}>
-            <pre className="text-xs whitespace-pre-wrap font-mono max-h-64 overflow-auto leading-relaxed bg-muted/20 rounded-md p-3">
+            <pre className="bg-muted/20 max-h-64 overflow-auto rounded-md p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
               {previewText ? (
                 previewText.split("\n").map((line, i) => {
                   if (line.startsWith("system:"))

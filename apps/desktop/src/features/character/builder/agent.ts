@@ -9,11 +9,7 @@
  * - Exponential-backoff retry for provider calls
  */
 import { createModelProvider } from "@neo-tavern/core";
-import type {
-  CreateCharacterInput,
-  GenerateMessage,
-  MessageUsage,
-} from "@neo-tavern/shared";
+import type { CreateCharacterInput, GenerateMessage, MessageUsage } from "@neo-tavern/shared";
 import { withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
 import { getChatScopedDeepSeekUserId, shouldOmitTemperatureForModel } from "@/features/settings/model-capabilities";
 import { persistWorkspaceEntries } from "./workspace-files";
@@ -50,10 +46,7 @@ import { extractJsonObject, type DraftPayload } from "./utils";
 import { normalizeDraft } from "./validation";
 
 // ── Autocontinue import → defined in prompt.ts, re-exported below ──
-import {
-  shouldAutoContinueBuilderText,
-  buildAutoContinueInstruction,
-} from "./prompt";
+import { shouldAutoContinueBuilderText, buildAutoContinueInstruction } from "./prompt";
 
 const BUILDER_MAX_TOOL_ROUNDS = 24;
 
@@ -113,7 +106,12 @@ export async function runNeoCharacterBuilderTurn(
             },
             options,
           ),
-        { signal: options.signal, onRetry: (info) => { toolLog.push(`retry:${info.reason}`); } },
+        {
+          signal: options.signal,
+          onRetry: (info) => {
+            toolLog.push(`retry:${info.reason}`);
+          },
+        },
       );
     } catch (err) {
       if (options.signal?.aborted) throw err;
@@ -154,7 +152,11 @@ export async function runNeoCharacterBuilderTurn(
         const toolName = call.function.name;
         const id = createBuilderEventId();
         const runningEvent: NeoBuilderToolEvent = {
-          id, name: toolName, label: getToolLabel(toolName), status: "running", args,
+          id,
+          name: toolName,
+          label: getToolLabel(toolName),
+          status: "running",
+          args,
         };
         emitToolEvent(events, options.onToolEvent, runningEvent);
 
@@ -165,7 +167,9 @@ export async function runNeoCharacterBuilderTurn(
             personalityPalette: state.personalityPalette,
           });
           const doneEvent: NeoBuilderToolEvent = {
-            ...runningEvent, status: "done", result: summarizeToolOutput(executed.output),
+            ...runningEvent,
+            status: "done",
+            result: summarizeToolOutput(executed.output),
           };
           emitToolEvent(events, options.onToolEvent, doneEvent);
           toolLog.push(toolName);
@@ -217,7 +221,9 @@ export async function runNeoCharacterBuilderTurn(
         } catch (err) {
           const errorMessage = (err as Error).message || "Tool failed";
           emitToolEvent(events, options.onToolEvent, {
-            ...runningEvent, status: "error", error: errorMessage,
+            ...runningEvent,
+            status: "error",
+            error: errorMessage,
           });
           toolLog.push(toolName);
           messages.push({
@@ -274,12 +280,17 @@ export async function runNeoCharacterBuilderTurn(
     }
 
     // About to break naturally but no draft yet — nudge LLM to save (only once)
-    if (!state.savedDraft && textContinuations === 0 && (state.creationPlan || options.currentDraft || options.currentWorldbookEntries?.length)) {
+    if (
+      !state.savedDraft &&
+      textContinuations === 0 &&
+      (state.creationPlan || options.currentDraft || options.currentWorldbookEntries?.length)
+    ) {
       textContinuations = 5; // prevent re-nudge
       messages.push({ role: "assistant", content: result.content || assistantContent });
       messages.push({
         role: "user",
-        content: "请不要只输出文本说明。你已经有了足够的产出物，请调用 save_character_draft 保存草稿（以 pack 形式传递完整产出），这样才能在右侧面板显示角色卡和世界书。",
+        content:
+          "请不要只输出文本说明。你已经有了足够的产出物，请调用 save_character_draft 保存草稿（以 pack 形式传递完整产出），这样才能在右侧面板显示角色卡和世界书。",
       });
       continue;
     }
@@ -289,7 +300,8 @@ export async function runNeoCharacterBuilderTurn(
 
   return {
     content:
-      assistantContent || (state.savedDraft ? `产出物已准备好：${state.savedDraft.character.name}。` : "我已经处理完这一轮。"),
+      assistantContent ||
+      (state.savedDraft ? `产出物已准备好：${state.savedDraft.character.name}。` : "我已经处理完这一轮。"),
     choices: pendingChoices,
     questions: pendingQuestions,
     draft: state.savedDraft,
@@ -431,7 +443,11 @@ function createBestEffortResult(
   state: AgentState,
   toolLog: string[],
   totalUsage: MessageUsage | undefined,
-  options: { modelConfig: import("@neo-tavern/shared").ModelConfig; scopeId?: string | null; existingCharacter?: CreateCharacterInput | null },
+  options: {
+    modelConfig: import("@neo-tavern/shared").ModelConfig;
+    scopeId?: string | null;
+    existingCharacter?: CreateCharacterInput | null;
+  },
   error?: string,
 ): NeoCharacterBuilderResult {
   if (!state.savedDraft) {

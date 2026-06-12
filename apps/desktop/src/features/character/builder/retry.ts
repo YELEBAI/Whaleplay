@@ -49,7 +49,11 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 function messageOf(err: unknown): string {
   if (err instanceof Error) return err.message;
-  try { return String(err); } catch { return "unknown error"; }
+  try {
+    return String(err);
+  } catch {
+    return "unknown error";
+  }
 }
 
 function isAbortError(err: unknown): boolean {
@@ -61,10 +65,7 @@ function isAbortError(err: unknown): boolean {
  * Retry a provider call. Retries on network errors and rate-limit / server errors.
  * Does NOT retry on aborts — re-billing for desynced output is worse than failing.
  */
-export async function withRetry<T>(
-  fn: () => Promise<T>,
-  opts: RetryOptions = {},
-): Promise<T> {
+export async function withRetry<T>(fn: () => Promise<T>, opts: RetryOptions = {}): Promise<T> {
   const maxAttempts = opts.maxAttempts ?? 3;
   const initial = opts.initialBackoffMs ?? 500;
   const cap = opts.maxBackoffMs ?? 10_000;
@@ -83,8 +84,7 @@ export async function withRetry<T>(
 
       // Check for rate-limit headers or known retryable patterns in the error message
       const reason = messageOf(err);
-      const retryable =
-        /429|rate.?limit|too many requests|server.*error|503|502|timeout|ETIMEDOUT/i.test(reason);
+      const retryable = /429|rate.?limit|too many requests|server.*error|503|502|timeout|ETIMEDOUT/i.test(reason);
 
       if (!retryable) throw err;
       if (attempt === maxAttempts - 1) throw err;

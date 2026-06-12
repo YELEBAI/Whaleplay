@@ -195,9 +195,7 @@ export function ChoiceInputPanel({
     const answers = panelQuestions
       .map((question) => {
         const draft =
-          question.id === currentQuestion.id
-            ? { selectedId: choice.id, customText }
-            : draftAnswers[question.id];
+          question.id === currentQuestion.id ? { selectedId: choice.id, customText } : draftAnswers[question.id];
         return buildAnswer(question, draft);
       })
       .filter((answer): answer is ChoiceInputPanelAnswer => !!answer);
@@ -214,25 +212,25 @@ export function ChoiceInputPanel({
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
+    <div className="bg-card text-card-foreground overflow-hidden rounded-lg border shadow-sm">
       <div className="flex min-w-0 items-center justify-between gap-3 border-b px-3 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-violet-500 text-white">
             <MessageSquare className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0">
-            <h3 className="min-w-0 wrap-break-word text-sm font-semibold leading-relaxed">
+            <h3 className="min-w-0 text-sm leading-relaxed font-semibold wrap-break-word">
               {currentQuestion?.title ?? title}
             </h3>
             {currentQuestion?.description ? (
-              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{currentQuestion.description}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">{currentQuestion.description}</p>
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
           <button
             type="button"
-            className="flex h-7 w-7 items-center justify-center rounded hover:bg-muted disabled:opacity-40"
+            className="hover:bg-muted flex h-7 w-7 items-center justify-center rounded disabled:opacity-40"
             disabled={disabled || questionIndex <= 0}
             onClick={goPrevious}
             aria-label="上一个问题"
@@ -244,7 +242,7 @@ export function ChoiceInputPanel({
           </span>
           <button
             type="button"
-            className="flex h-7 w-7 items-center justify-center rounded hover:bg-muted disabled:opacity-40"
+            className="hover:bg-muted flex h-7 w-7 items-center justify-center rounded disabled:opacity-40"
             disabled={disabled || isLastQuestion || !canSubmit}
             onClick={goNext}
             aria-label="下一个问题"
@@ -253,7 +251,7 @@ export function ChoiceInputPanel({
           </button>
           <button
             type="button"
-            className="ml-1 flex h-7 w-7 items-center justify-center rounded hover:bg-muted hover:text-foreground"
+            className="hover:bg-muted hover:text-foreground ml-1 flex h-7 w-7 items-center justify-center rounded"
             onClick={onCancel}
             aria-label="关闭选项"
           >
@@ -278,11 +276,11 @@ export function ChoiceInputPanel({
               }}
               disabled={disabled}
             >
-              <span className="min-w-0 wrap-break-word text-sm leading-relaxed">
+              <span className="min-w-0 text-sm leading-relaxed wrap-break-word">
                 <span className="font-semibold">{choice.label}</span>
-                {choice.description ? <span className="ml-2 text-muted-foreground">{choice.description}</span> : null}
+                {choice.description ? <span className="text-muted-foreground ml-2">{choice.description}</span> : null}
               </span>
-              {selected ? <CornerDownLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : null}
+              {selected ? <CornerDownLeft className="text-muted-foreground h-3.5 w-3.5 shrink-0" /> : null}
             </button>
           );
         })}
@@ -314,9 +312,9 @@ export function ChoiceInputPanel({
             }}
             placeholder="请输入"
             disabled={disabled}
-            className="min-w-0 flex-1 border-0 border-b bg-transparent px-0 py-1 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground disabled:opacity-60"
+            className="placeholder:text-muted-foreground focus:border-foreground min-w-0 flex-1 border-0 border-b bg-transparent px-0 py-1 text-sm outline-none disabled:opacity-60"
           />
-          <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{customText.length}/500</span>
+          <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{customText.length}/500</span>
         </label>
       </div>
 

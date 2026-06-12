@@ -22,10 +22,7 @@ import {
   listNeoBuilderSkillReferences,
   readNeoBuilderSkillReference,
 } from "../neo-builder-skill-references";
-import {
-  trimString,
-  optionalString,
-} from "./utils";
+import { trimString, optionalString } from "./utils";
 import {
   normalizeDraft,
   normalizePersonalityPalette,
@@ -173,9 +170,7 @@ export class WhaleBuilderToolRegistry {
     }
     const query = trimString(args.query);
     const limit =
-      typeof args.limit === "number" && Number.isFinite(args.limit)
-        ? Math.max(1, Math.min(8, args.limit))
-        : 5;
+      typeof args.limit === "number" && Number.isFinite(args.limit) ? Math.max(1, Math.min(8, args.limit)) : 5;
     const results = await options.searchWeb(query, limit);
     return { output: { ok: true, query, results } };
   }
@@ -269,12 +264,13 @@ export class WhaleBuilderToolRegistry {
     const worldbookEntries =
       pack?.worldbook && typeof pack.worldbook === "object"
         ? (pack.worldbook as Record<string, unknown>).entries
-        : args.worldbookEntries ?? options.currentWorldbookEntries ?? [];
+        : (args.worldbookEntries ?? options.currentWorldbookEntries ?? []);
     const validation = normalizeDraft(
       {
         character: characterArg,
         worldbookEntries,
-        personalityPalette: pack?.personalityPalette ?? args.personalityPalette ?? options.personalityPalette ?? undefined,
+        personalityPalette:
+          pack?.personalityPalette ?? args.personalityPalette ?? options.personalityPalette ?? undefined,
         creationPlan: pack?.creationPlan ?? args.creationPlan ?? options.creationPlan ?? undefined,
         mvu: pack?.mvu ?? args.mvu ?? undefined,
         statusBars: pack?.statusBars ?? args.statusBars ?? undefined,
@@ -308,16 +304,20 @@ export class WhaleBuilderToolRegistry {
     const validation = normalizeDraft(
       {
         character: (pack?.character ?? args.character) as Record<string, unknown> | undefined,
-        worldbookEntries: pack?.worldbook && typeof pack.worldbook === "object"
-          ? (pack.worldbook as Record<string, unknown>).entries
-          : args.worldbookEntries,
-        worldbookName: pack?.worldbook && typeof pack.worldbook === "object"
-          ? (pack.worldbook as Record<string, unknown>).name
-          : args.worldbookName,
-        worldbookDescription: pack?.worldbook && typeof pack.worldbook === "object"
-          ? (pack.worldbook as Record<string, unknown>).description
-          : args.worldbookDescription,
-        personalityPalette: pack?.personalityPalette ?? args.personalityPalette ?? options.personalityPalette ?? undefined,
+        worldbookEntries:
+          pack?.worldbook && typeof pack.worldbook === "object"
+            ? (pack.worldbook as Record<string, unknown>).entries
+            : args.worldbookEntries,
+        worldbookName:
+          pack?.worldbook && typeof pack.worldbook === "object"
+            ? (pack.worldbook as Record<string, unknown>).name
+            : args.worldbookName,
+        worldbookDescription:
+          pack?.worldbook && typeof pack.worldbook === "object"
+            ? (pack.worldbook as Record<string, unknown>).description
+            : args.worldbookDescription,
+        personalityPalette:
+          pack?.personalityPalette ?? args.personalityPalette ?? options.personalityPalette ?? undefined,
         creationPlan: pack?.creationPlan ?? args.creationPlan ?? options.creationPlan ?? undefined,
         mvu: pack?.mvu ?? args.mvu ?? undefined,
         statusBars: pack?.statusBars ?? args.statusBars ?? undefined,
@@ -410,7 +410,8 @@ const COMMON_TOOLS: GenerateToolDefinition[] = [
               accents: { type: "array", items: { type: "string" }, description: "点缀" },
               derivatives: {
                 type: "array",
-                description: "衍生数组。每个条目包含 color（性格名）和 items（≥2 条场景行为描述）。也接受 {\"性格名\": [\"描述1\", \"描述2\"]} 格式。",
+                description:
+                  '衍生数组。每个条目包含 color（性格名）和 items（≥2 条场景行为描述）。也接受 {"性格名": ["描述1", "描述2"]} 格式。',
                 items: {
                   type: "object",
                   properties: {
@@ -444,7 +445,10 @@ const COMMON_TOOLS: GenerateToolDefinition[] = [
                   type: "object",
                   properties: {
                     id: { type: "string", description: "稳定 id，如 health、mana、affection。" },
-                    assetId: { type: "string", description: "本地素材 id：health/mana/stamina/affection/experience/sanity/danger。" },
+                    assetId: {
+                      type: "string",
+                      description: "本地素材 id：health/mana/stamina/affection/experience/sanity/danger。",
+                    },
                     label: { type: "string" },
                     value: { type: ["number", "null"] },
                     max: { type: "number" },
@@ -505,12 +509,17 @@ const COMMON_TOOLS: GenerateToolDefinition[] = [
                   accents: { type: "array", items: { type: "string" }, description: "点缀：特定条件下才显现的性格" },
                   derivatives: {
                     type: "array",
-                    description: "衍生：每个性格在具体场景中的行为。每条包含 color（性格名，须匹配 main/accents）和 items（≥2 条具体场景描述）。也接受 key-value map 格式 {\"性格名\": [\"衍生一\", \"衍生二\"]}。",
+                    description:
+                      '衍生：每个性格在具体场景中的行为。每条包含 color（性格名，须匹配 main/accents）和 items（≥2 条具体场景描述）。也接受 key-value map 格式 {"性格名": ["衍生一", "衍生二"]}。',
                     items: {
                       type: "object",
                       properties: {
                         color: { type: "string", description: "性格名称，必须与 main 或 accents 中某个条目一致" },
-                        items: { type: "array", items: { type: "string" }, description: "该性格在具体场景中的行为描述，每个性格至少 2 条" },
+                        items: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "该性格在具体场景中的行为描述，每个性格至少 2 条",
+                        },
                       },
                     },
                   },
@@ -623,7 +632,8 @@ const COMMON_TOOLS: GenerateToolDefinition[] = [
               accents: { type: "array", items: { type: "string" }, description: "点缀" },
               derivatives: {
                 type: "array",
-                description: "衍生数组。每个条目包含 color（性格名）和 items（≥2 条场景行为描述）。也接受 {\"性格名\": [\"描述1\", \"描述2\"]} 格式。",
+                description:
+                  '衍生数组。每个条目包含 color（性格名）和 items（≥2 条场景行为描述）。也接受 {"性格名": ["描述1", "描述2"]} 格式。',
                 items: {
                   type: "object",
                   properties: {
@@ -662,7 +672,8 @@ const COMMON_TOOLS: GenerateToolDefinition[] = [
     type: "function",
     function: {
       name: "evaluate_character_draft",
-      description: "评估当前 Whale Play 角色卡、性格调色盘、世界书和创作规划，输出可执行修改建议。接受 pack 对象或独立字段。",
+      description:
+        "评估当前 Whale Play 角色卡、性格调色盘、世界书和创作规划，输出可执行修改建议。接受 pack 对象或独立字段。",
       parameters: {
         type: "object",
         properties: {
@@ -712,7 +723,8 @@ const CHAT_ONLY_TOOLS: GenerateToolDefinition[] = [
           reason: { type: "string", description: "为什么这个信息会影响角色卡。" },
           questions: {
             type: "array",
-            description: "同一创作阶段需要一次性确认的 2-5 个问题。每个问题都有自己的选项；不要把同一阶段拆成多轮追问。",
+            description:
+              "同一创作阶段需要一次性确认的 2-5 个问题。每个问题都有自己的选项；不要把同一阶段拆成多轮追问。",
             minItems: 2,
             maxItems: 5,
             items: {

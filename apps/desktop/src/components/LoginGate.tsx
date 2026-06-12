@@ -47,12 +47,12 @@ export function LoginGate({ children }: { children: ReactNode }) {
 
   if (!authed) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="w-full max-w-sm space-y-6 p-8">
-          <div className="text-center space-y-2">
-            <KeyRound className="h-10 w-10 mx-auto text-muted-foreground" />
+          <div className="space-y-2 text-center">
+            <KeyRound className="text-muted-foreground mx-auto h-10 w-10" />
             <h1 className="text-xl font-bold">NeoTavern</h1>
-            <p className="text-sm text-muted-foreground">LAN access requires authentication</p>
+            <p className="text-muted-foreground text-sm">LAN access requires authentication</p>
           </div>
           <div className="space-y-4">
             <div>
@@ -66,12 +66,12 @@ export function LoginGate({ children }: { children: ReactNode }) {
                 autoFocus
               />
             </div>
-            {error && <p className="text-xs text-destructive">{error}</p>}
+            {error && <p className="text-destructive text-xs">{error}</p>}
             <Button onClick={handleLogin} className="w-full">
               Unlock
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground text-center">
+          <p className="text-muted-foreground text-center text-[10px]">
             Find the password in Settings → Appearance → LAN Server on the desktop app.
           </p>
         </div>

@@ -53,7 +53,7 @@ const referenceDefinitions: NeoBuilderSkillReference[] = [
     id: "SKILL.md",
     title: "Whale Builder Skill Index",
     summary: "Whale Play 原生角色卡与世界书工作流总入口，负责场景路由和参考文档索引。",
-    aliases: ["neo-workflow","workflow"],
+    aliases: ["neo-workflow", "workflow"],
     content: skillMdRaw,
   },
   {

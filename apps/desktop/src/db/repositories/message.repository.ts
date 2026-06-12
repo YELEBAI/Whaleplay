@@ -120,7 +120,9 @@ export const messageRepository = {
     if (await canUseSqliteMessages()) {
       return getBackend().db.listChildMessages(parentId);
     }
-    return (await loadAll()).filter((m) => m.parentId === parentId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return (await loadAll())
+      .filter((m) => m.parentId === parentId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
 
   async getDescendantIds(chatId: string, rootId: string): Promise<Set<string>> {
@@ -174,7 +176,10 @@ export const messageRepository = {
    * Unlike replaceByChatId, this does NOT delete existing messages.
    * Uses content fingerprinting to skip already-present messages.
    */
-  async mergeFromSavepoint(chatId: string, savepointMessages: Message[]): Promise<{
+  async mergeFromSavepoint(
+    chatId: string,
+    savepointMessages: Message[],
+  ): Promise<{
     imported: number;
     skipped: number;
     divergencePoints: string[];

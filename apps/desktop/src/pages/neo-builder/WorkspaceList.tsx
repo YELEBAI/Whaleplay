@@ -21,7 +21,7 @@ export function BuilderWorkspaceList({
 }) {
   const { t } = useTranslation("neo-builder");
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
+    <aside className="bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border">
       <div className="shrink-0 border-b p-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <FileText className="h-4 w-4" />
@@ -32,7 +32,7 @@ export function BuilderWorkspaceList({
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         <button
           type="button"
-          className="mb-2 flex w-full min-w-0 items-center gap-2 rounded-md border bg-background px-3 py-2 text-left text-sm hover:bg-muted/60"
+          className="bg-background hover:bg-muted/60 mb-2 flex w-full min-w-0 items-center gap-2 rounded-md border px-3 py-2 text-left text-sm"
           onClick={onNew}
           disabled={disabled}
         >
@@ -55,21 +55,30 @@ export function BuilderWorkspaceList({
                 disabled={disabled}
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <FileText className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
                   <span className="min-w-0 truncate text-sm font-medium">{record.title}</span>
                 </div>
                 <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs">
-                  <span className={cn("shrink-0", record.savedCharacterId ? "text-emerald-500" : record.draft?.name?.trim() ? "text-amber-500" : "text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      "shrink-0",
+                      record.savedCharacterId
+                        ? "text-emerald-500"
+                        : record.draft?.name?.trim()
+                          ? "text-amber-500"
+                          : "text-muted-foreground",
+                    )}
+                  >
                     {getWorkspaceRecordStatus(record)}
                   </span>
-                  <span className="min-w-0 truncate text-muted-foreground">
+                  <span className="text-muted-foreground min-w-0 truncate">
                     {formatCharacterUpdatedAt(record.updatedAt)}
                   </span>
                 </div>
               </button>
               <button
                 type="button"
-                className="flex w-9 shrink-0 items-center justify-center border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive flex w-9 shrink-0 items-center justify-center border-l disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => onDelete(record)}
                 disabled={disabled}
                 title={t("workspace.delete")}
@@ -82,7 +91,7 @@ export function BuilderWorkspaceList({
         </div>
 
         {!records.length ? (
-          <div className="px-3 py-8 text-center text-xs text-muted-foreground">{t("workspace.empty")}</div>
+          <div className="text-muted-foreground px-3 py-8 text-center text-xs">{t("workspace.empty")}</div>
         ) : null}
       </div>
     </aside>

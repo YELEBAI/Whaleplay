@@ -370,11 +370,11 @@ export function CharacterPage() {
           <div className="flex items-center gap-2">
             <input ref={fileInputRef} type="file" accept=".json,.png" onChange={handleImportFile} className="hidden" />
             <Button variant="outline" size="sm" onClick={() => openBuilderPage()}>
-              <Sparkles className="h-3.5 w-3.5 mr-1" />
+              <Sparkles className="mr-1 h-3.5 w-3.5" />
               Whale Builder
             </Button>
             <Button variant="outline" size="sm" onClick={() => handleStartEdit()}>
-              <Plus className="h-3.5 w-3.5 mr-1" />
+              <Plus className="mr-1 h-3.5 w-3.5" />
               {t("newCharacter")}
             </Button>
             <Button
@@ -396,7 +396,7 @@ export function CharacterPage() {
 
       <div className="flex-1 overflow-auto p-6">
         {error && (
-          <div className="mb-4 flex items-center justify-between rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          <div className="bg-destructive/10 text-destructive mb-4 flex items-center justify-between rounded-lg p-3 text-sm">
             <span>{error}</span>
             <Button variant="ghost" size="sm" onClick={clearError}>
               {t("dismiss")}
@@ -405,12 +405,12 @@ export function CharacterPage() {
         )}
 
         <div className="flex flex-wrap gap-x-6 gap-y-8">
-          {loading && <p className="text-sm text-muted-foreground p-2">{t("loading")}</p>}
+          {loading && <p className="text-muted-foreground p-2 text-sm">{t("loading")}</p>}
           {!loading && characters.length === 0 && (
             <div className="text-muted-foreground text-sm">
               <p className="mb-3">{t("noCharacters")}</p>
               <Button variant="outline" size="sm" onClick={() => handleStartEdit()}>
-                <Plus className="h-4 w-4 mr-1" />
+                <Plus className="mr-1 h-4 w-4" />
                 {t("newCharacter")}
               </Button>
             </div>
@@ -426,7 +426,7 @@ export function CharacterPage() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-6 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground h-6 w-8 rounded-md"
                   onClick={(event: React.MouseEvent<HTMLButtonElement>) => openCharacterMenuFromButton(event, char)}
                   title={t("characterMenu")}
                 >
@@ -440,7 +440,7 @@ export function CharacterPage() {
 
       {characterMenu && (
         <div
-          className="fixed z-50 min-w-36 overflow-hidden rounded-md border bg-popover p-1 text-sm text-popover-foreground shadow-lg"
+          className="bg-popover text-popover-foreground fixed z-50 min-w-36 overflow-hidden rounded-md border p-1 text-sm shadow-lg"
           style={{
             left: Math.min(characterMenu.x, window.innerWidth - 160),
             top: Math.min(characterMenu.y, window.innerHeight - 80),
@@ -449,7 +449,7 @@ export function CharacterPage() {
         >
           <button
             type="button"
-            className="w-full rounded px-3 py-2 text-left hover:bg-accent"
+            className="hover:bg-accent w-full rounded px-3 py-2 text-left"
             onClick={() => openDetails(characterMenu.character)}
           >
             {t("contextMenu.details")}
@@ -556,18 +556,18 @@ export function CharacterPage() {
                 </DialogHeader>
                 <div className="flex shrink-0 items-center gap-2">
                   <Button size="sm" variant="outline" onClick={() => openBuilderPage(selected.id)}>
-                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    <Sparkles className="mr-1 h-3.5 w-3.5" />
                     {t("whaleBuilder")}
                   </Button>
                   <Button size="sm" variant="destructive" onClick={() => setDeleteTarget(selected)}>
-                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    <Trash2 className="mr-1 h-3.5 w-3.5" />
                     {tc("actions.delete")}
                   </Button>
                   <Button size="sm" variant="outline" onClick={closeDetail}>
                     {tc("actions.back")}
                   </Button>
                   <Button size="sm" onClick={() => handleStartEdit(selected)}>
-                    <Edit className="h-3.5 w-3.5 mr-1" />
+                    <Edit className="mr-1 h-3.5 w-3.5" />
                     {tc("actions.edit")}
                   </Button>
                 </div>
@@ -579,11 +579,11 @@ export function CharacterPage() {
                     <img
                       src={selected.avatar}
                       alt={selected.name}
-                      className="w-16 h-16 rounded-xl object-cover border border-border/50 shadow-sm"
+                      className="border-border/50 h-16 w-16 rounded-xl border object-cover shadow-sm"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-accent/60 border border-border/50 shadow-sm flex items-center justify-center">
-                      <span className="text-2xl font-bold text-muted-foreground select-none">
+                    <div className="bg-accent/60 border-border/50 flex h-16 w-16 items-center justify-center rounded-xl border shadow-sm">
+                      <span className="text-muted-foreground text-2xl font-bold select-none">
                         {selected.name.charAt(0)}
                       </span>
                     </div>
@@ -593,7 +593,7 @@ export function CharacterPage() {
 
                 {hasContent(selected.description) && (
                   <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
                       {t("sections.description")}
                     </h3>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected.description}</p>
@@ -602,7 +602,7 @@ export function CharacterPage() {
 
                 {hasContent(selected.personality) && (
                   <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
                       {t("sections.personality")}
                     </h3>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected.personality}</p>
@@ -611,7 +611,7 @@ export function CharacterPage() {
 
                 {hasContent(selected.scenario) && (
                   <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
                       {t("sections.scenario")}
                     </h3>
                     <p className="text-sm leading-relaxed whitespace-pre-wrap">{selected.scenario}</p>
@@ -620,10 +620,10 @@ export function CharacterPage() {
 
                 {hasContent(selected.firstMessage) && (
                   <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
                       {t("sections.firstMessage")}
                     </h3>
-                    <div className="bg-accent/50 border border-border/50 rounded-lg p-4">
+                    <div className="bg-accent/50 border-border/50 rounded-lg border p-4">
                       <p className="text-sm leading-relaxed whitespace-pre-wrap italic">{selected.firstMessage}</p>
                     </div>
                   </div>
@@ -631,11 +631,11 @@ export function CharacterPage() {
 
                 {hasContent(selected.exampleDialogues) && (
                   <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
                       {t("sections.exampleDialogues")}
                     </h3>
-                    <div className="bg-muted/40 border border-border/30 rounded-lg p-4">
-                      <p className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground font-mono">
+                    <div className="bg-muted/40 border-border/30 rounded-lg border p-4">
+                      <p className="text-muted-foreground font-mono text-xs leading-relaxed whitespace-pre-wrap">
                         {selected.exampleDialogues}
                       </p>
                     </div>
@@ -647,14 +647,14 @@ export function CharacterPage() {
                   !hasContent(selected.scenario) &&
                   !hasContent(selected.firstMessage) &&
                   !hasContent(selected.exampleDialogues) && (
-                    <div className="text-center text-muted-foreground text-sm py-8">
+                    <div className="text-muted-foreground py-8 text-center text-sm">
                       <p>{t("dialog.noDetails")}</p>
                     </div>
                   )}
               </div>
             </>
           ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">{t("dialog.noCharacterSelected")}</div>
+            <div className="text-muted-foreground py-8 text-center text-sm">{t("dialog.noCharacterSelected")}</div>
           )}
         </DialogContent>
       </Dialog>

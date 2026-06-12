@@ -38,9 +38,9 @@ function entryModeLabel(entry: WorldbookEntry) {
 
 function CountPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md border bg-card/50 px-3 py-2">
-      <div className="text-base font-semibold leading-none">{value}</div>
-      <div className="mt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+    <div className="bg-card/50 rounded-md border px-3 py-2">
+      <div className="text-base leading-none font-semibold">{value}</div>
+      <div className="text-muted-foreground mt-1 text-[10px] font-medium tracking-wide uppercase">{label}</div>
     </div>
   );
 }
@@ -61,7 +61,7 @@ function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: 
       }`}
     >
       <span
-        className={`inline-block h-4 w-4 rounded-full bg-background shadow-sm transition-transform ${
+        className={`bg-background inline-block h-4 w-4 rounded-full shadow-sm transition-transform ${
           checked ? "translate-x-4" : "translate-x-0.5"
         }`}
       />
@@ -318,29 +318,29 @@ export function WorldbookPage() {
   };
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden bg-background">
-      <aside className="flex w-60 shrink-0 flex-col overflow-hidden border-r bg-card/30">
-        <div className="shrink-0 border-b p-4 flex flex-col gap-3">
+    <div className="bg-background flex h-full min-h-0 overflow-hidden">
+      <aside className="bg-card/30 flex w-60 shrink-0 flex-col overflow-hidden border-r">
+        <div className="flex shrink-0 flex-col gap-3 border-b p-4">
           <button
             onClick={() => navigate("/")}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             {t("back")}
           </button>
           <div>
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t("title")}</h2>
-            <p className="mt-1 text-xs text-muted-foreground">{t("booksAvailable", { count: worldbooks.length })}</p>
+            <h2 className="text-muted-foreground text-sm font-semibold tracking-wider uppercase">{t("title")}</h2>
+            <p className="text-muted-foreground mt-1 text-xs">{t("booksAvailable", { count: worldbooks.length })}</p>
           </div>
         </div>
 
         <ScrollArea type="always" className="min-h-0 flex-1">
           <div className="space-y-2 p-3 pr-8">
             {loading && (
-              <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">{t("loading")}</p>
+              <p className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">{t("loading")}</p>
             )}
             {!loading && worldbooks.length === 0 && (
-              <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">{t("noBooks")}</p>
+              <p className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">{t("noBooks")}</p>
             )}
             {worldbooks.map((worldbook) => {
               const isSelected = selectedId === worldbook.id;
@@ -358,15 +358,15 @@ export function WorldbookPage() {
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="min-w-0 wrap-break-word text-sm font-semibold leading-5">{worldbook.name}</span>
+                    <span className="min-w-0 text-sm leading-5 font-semibold wrap-break-word">{worldbook.name}</span>
                     {activeWorldbookId === worldbook.id && (
                       <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
                     )}
                   </div>
-                  <p className="mt-1 line-clamp-2 wrap-break-word text-xs leading-5 text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 line-clamp-2 text-xs leading-5 wrap-break-word">
                     {worldbook.description || t("noDescription")}
                   </p>
-                  <div className="mt-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="text-muted-foreground mt-2 flex items-center gap-2 text-[10px] font-medium tracking-wide uppercase">
                     <span>{t("entries", { count: worldbook.entries.length })}</span>
                     <span>
                       {enabledCount} {t("enabledOn")}
@@ -376,7 +376,7 @@ export function WorldbookPage() {
               );
             })}
             <Button variant="outline" size="sm" onClick={handleCreate} className="w-full justify-center text-xs">
-              <Plus className="h-3.5 w-3.5 mr-1" />
+              <Plus className="mr-1 h-3.5 w-3.5" />
               {t("newBook")}
             </Button>
           </div>
@@ -385,7 +385,7 @@ export function WorldbookPage() {
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {!selected ? (
-          <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          <div className="text-muted-foreground flex flex-1 items-center justify-center">
             <div className="space-y-3 text-center">
               <BookOpen className="mx-auto h-10 w-10 opacity-30" />
               <p className="text-sm">{t("selectOrCreate")}</p>
@@ -400,7 +400,7 @@ export function WorldbookPage() {
             <header className="shrink-0 border-b px-5 py-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <div className="text-muted-foreground mb-2 flex items-center gap-2 text-xs font-medium">
                     <BookOpen className="h-3.5 w-3.5" />
                     World book
                   </div>
@@ -413,7 +413,7 @@ export function WorldbookPage() {
                   <Input
                     value={wbDesc}
                     onChange={(event: ChangeEvent<HTMLInputElement>) => setWbDesc(event.target.value)}
-                    className="mt-2 h-auto border-0 border-b bg-transparent px-0 pb-1 text-sm text-muted-foreground shadow-none focus-visible:ring-0"
+                    className="text-muted-foreground mt-2 h-auto border-0 border-b bg-transparent px-0 pb-1 text-sm shadow-none focus-visible:ring-0"
                     placeholder={t("descPlaceholder")}
                   />
                 </div>
@@ -433,7 +433,7 @@ export function WorldbookPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-destructive"
+                    className="text-destructive h-8 w-8"
                     onClick={() => setDeleteTarget(selected)}
                     title={t("deleteBook")}
                   >
@@ -454,7 +454,7 @@ export function WorldbookPage() {
                 <div className="flex shrink-0 items-center justify-between border-b px-5 py-3">
                   <div>
                     <h3 className="text-sm font-semibold">{t("entriesSection.title")}</h3>
-                    <p className="text-xs text-muted-foreground">{t("entriesSection.description")}</p>
+                    <p className="text-muted-foreground text-xs">{t("entriesSection.description")}</p>
                   </div>
                   <Button size="sm" variant="outline" onClick={resetEntryForm}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -465,7 +465,7 @@ export function WorldbookPage() {
                 <ScrollArea type="always" className="min-h-0 flex-1">
                   <div className="space-y-3 p-5 pr-7">
                     {entries.length === 0 && (
-                      <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      <div className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
                         <FileText className="mx-auto mb-2 h-7 w-7 opacity-35" />
                         No entries yet
                       </div>
@@ -483,9 +483,9 @@ export function WorldbookPage() {
                           tabIndex={0}
                           onClick={() => startEditEntry(entry)}
                           onKeyDown={(event) => handleEntryCardKeyDown(event, entry)}
-                          className={`rounded-lg border bg-card/40 p-4 transition-colors ${
+                          className={`bg-card/40 rounded-lg border p-4 transition-colors ${
                             isEditing ? "border-primary/50 bg-accent/35" : "border-border/80 hover:bg-accent/25"
-                          } ${entry.enabled ? "" : "opacity-55"} cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring`}
+                          } ${entry.enabled ? "" : "opacity-55"} focus-visible:ring-ring cursor-pointer focus-visible:ring-1 focus-visible:outline-none`}
                         >
                           <div className="flex items-start gap-3">
                             <SwitchButton
@@ -509,14 +509,14 @@ export function WorldbookPage() {
                                 >
                                   {entryModeLabel(entry)}
                                 </span>
-                                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium">
                                   P{entry.priority}
                                 </span>
                               </div>
 
                               <div className="flex flex-wrap gap-1.5">
                                 {keywords.length === 0 ? (
-                                  <span className="inline-flex items-center rounded-full border border-dashed px-2 py-0.5 text-[10px] text-muted-foreground">
+                                  <span className="text-muted-foreground inline-flex items-center rounded-full border border-dashed px-2 py-0.5 text-[10px]">
                                     <KeyRound className="mr-1 h-3 w-3" />
                                     No keywords
                                   </span>
@@ -525,13 +525,13 @@ export function WorldbookPage() {
                                     {keywords.slice(0, 8).map((keyword, keywordIndex) => (
                                       <span
                                         key={`${keyword}-${keywordIndex}`}
-                                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
+                                        className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px]"
                                       >
                                         {keyword}
                                       </span>
                                     ))}
                                     {keywords.length > 8 && (
-                                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px]">
                                         +{keywords.length - 8}
                                       </span>
                                     )}
@@ -539,7 +539,7 @@ export function WorldbookPage() {
                                 )}
                               </div>
 
-                              <div className="flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
+                              <div className="text-muted-foreground flex flex-wrap gap-1.5 text-[10px]">
                                 <span className="rounded-full border px-2 py-0.5">scan {entry.scanDepth ?? 8}</span>
                                 <span className="rounded-full border px-2 py-0.5">
                                   {entry.position ?? "beforeHistory"}
@@ -560,13 +560,15 @@ export function WorldbookPage() {
                               </div>
 
                               <div
-                                className={`relative rounded-md border bg-background/60 px-3 py-2 text-xs leading-6 text-muted-foreground ${
+                                className={`bg-background/60 text-muted-foreground relative rounded-md border px-3 py-2 text-xs leading-6 ${
                                   isLong ? (isExpanded ? "max-h-80 overflow-y-auto" : "max-h-36 overflow-hidden") : ""
                                 }`}
                               >
-                                <div className="whitespace-pre-wrap wrap-break-word">{entry.content || "No content"}</div>
+                                <div className="wrap-break-word whitespace-pre-wrap">
+                                  {entry.content || "No content"}
+                                </div>
                                 {isLong && !isExpanded && (
-                                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
+                                  <div className="from-background pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t to-transparent" />
                                 )}
                               </div>
 
@@ -577,7 +579,7 @@ export function WorldbookPage() {
                                     event.stopPropagation();
                                     toggleEntryExpanded(entry.id);
                                   }}
-                                  className="text-xs font-medium text-primary hover:underline"
+                                  className="text-primary text-xs font-medium hover:underline"
                                 >
                                   {isExpanded ? "Collapse content" : "Expand content"}
                                 </button>
@@ -587,7 +589,7 @@ export function WorldbookPage() {
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="h-8 w-8 text-destructive"
+                                className="text-destructive h-8 w-8"
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   handleDeleteEntry(entry.id);
@@ -605,13 +607,13 @@ export function WorldbookPage() {
                 </ScrollArea>
               </section>
 
-              <aside className="flex min-h-0 flex-col overflow-hidden border-l bg-card/25">
+              <aside className="bg-card/25 flex min-h-0 flex-col overflow-hidden border-l">
                 <div className="flex shrink-0 items-start justify-between gap-3 border-b p-4">
                   <div>
                     <h3 className="text-sm font-semibold">
                       {editingEntryId ? t("entryForm.editEntry") : t("entryForm.newEntry")}
                     </h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mt-1 text-xs">
                       {selectedEntry
                         ? t("entryForm.editHint", { title: selectedEntry.title })
                         : t("entryForm.createHint")}
@@ -633,7 +635,7 @@ export function WorldbookPage() {
                 <ScrollArea type="always" className="min-h-0 flex-1">
                   <div className="space-y-4 p-4 pr-6">
                     <label className="block space-y-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">{t("entryForm.title")}</span>
+                      <span className="text-muted-foreground text-xs font-medium">{t("entryForm.title")}</span>
                       <Input
                         value={entryTitle}
                         onChange={(event: ChangeEvent<HTMLInputElement>) => setEntryTitle(event.target.value)}
@@ -642,8 +644,8 @@ export function WorldbookPage() {
                     </label>
 
                     <div className="space-y-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">{t("entryForm.injectionType")}</span>
-                      <div className="grid grid-cols-2 rounded-md border bg-background p-1">
+                      <span className="text-muted-foreground text-xs font-medium">{t("entryForm.injectionType")}</span>
+                      <div className="bg-background grid grid-cols-2 rounded-md border p-1">
                         <button
                           type="button"
                           onClick={() => setEntryType("always")}
@@ -671,8 +673,8 @@ export function WorldbookPage() {
 
                     {entryType === "trigger" && (
                       <div className="space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">{t("entryForm.triggerMode")}</span>
-                        <div className="grid grid-cols-2 rounded-md border bg-background p-1">
+                        <span className="text-muted-foreground text-xs font-medium">{t("entryForm.triggerMode")}</span>
+                        <div className="bg-background grid grid-cols-2 rounded-md border p-1">
                           <button
                             type="button"
                             onClick={() => setEntryTriggerMode("and")}
@@ -700,7 +702,7 @@ export function WorldbookPage() {
                     )}
 
                     <label className="block space-y-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">{t("entryForm.keywords")}</span>
+                      <span className="text-muted-foreground text-xs font-medium">{t("entryForm.keywords")}</span>
                       <Input
                         value={entryKeys}
                         onChange={(event: ChangeEvent<HTMLInputElement>) => setEntryKeys(event.target.value)}
@@ -709,7 +711,7 @@ export function WorldbookPage() {
                     </label>
 
                     <label className="block space-y-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">{t("entryForm.secondaryKeys")}</span>
+                      <span className="text-muted-foreground text-xs font-medium">{t("entryForm.secondaryKeys")}</span>
                       <Input
                         value={entrySecondaryKeys}
                         onChange={(event: ChangeEvent<HTMLInputElement>) => setEntrySecondaryKeys(event.target.value)}
@@ -719,7 +721,7 @@ export function WorldbookPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <label className="block space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">Scan depth</span>
+                        <span className="text-muted-foreground text-xs font-medium">Scan depth</span>
                         <Input
                           value={entryScanDepth}
                           onChange={(event: ChangeEvent<HTMLInputElement>) => setEntryScanDepth(event.target.value)}
@@ -729,7 +731,7 @@ export function WorldbookPage() {
                         />
                       </label>
                       <label className="block space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">Probability</span>
+                        <span className="text-muted-foreground text-xs font-medium">Probability</span>
                         <Input
                           value={entryProbability}
                           onChange={(event: ChangeEvent<HTMLInputElement>) => setEntryProbability(event.target.value)}
@@ -742,9 +744,9 @@ export function WorldbookPage() {
                       </label>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 rounded-md border bg-background/50 p-3">
+                    <div className="bg-background/50 grid grid-cols-2 gap-3 rounded-md border p-3">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-muted-foreground">Case sensitive</span>
+                        <span className="text-muted-foreground text-xs">Case sensitive</span>
                         <SwitchButton
                           checked={entryCaseSensitive}
                           onClick={() => setEntryCaseSensitive(!entryCaseSensitive)}
@@ -752,7 +754,7 @@ export function WorldbookPage() {
                         />
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-muted-foreground">Whole words</span>
+                        <span className="text-muted-foreground text-xs">Whole words</span>
                         <SwitchButton
                           checked={entryMatchWholeWords}
                           onClick={() => setEntryMatchWholeWords(!entryMatchWholeWords)}
@@ -760,7 +762,7 @@ export function WorldbookPage() {
                         />
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-muted-foreground">Use probability</span>
+                        <span className="text-muted-foreground text-xs">Use probability</span>
                         <SwitchButton
                           checked={entryUseProbability}
                           onClick={() => setEntryUseProbability(!entryUseProbability)}
@@ -768,14 +770,19 @@ export function WorldbookPage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <span className="text-xs text-muted-foreground">Secondary logic</span>
-                        <div className="grid grid-cols-2 rounded-md border bg-background p-1">
+                        <span className="text-muted-foreground text-xs">Secondary logic</span>
+                        <div className="bg-background grid grid-cols-2 rounded-md border p-1">
                           {(["or", "and"] as const).map((mode) => (
                             <button
                               key={mode}
                               type="button"
                               onClick={() => setEntrySelectiveLogic(mode)}
-                              className={cn("rounded px-2 py-1 text-xs font-medium", entrySelectiveLogic === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent")}
+                              className={cn(
+                                "rounded px-2 py-1 text-xs font-medium",
+                                entrySelectiveLogic === mode
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-muted-foreground hover:bg-accent",
+                              )}
                             >
                               {mode.toUpperCase()}
                             </button>
@@ -786,13 +793,13 @@ export function WorldbookPage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       <label className="block space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">Position</span>
+                        <span className="text-muted-foreground text-xs font-medium">Position</span>
                         <select
                           value={entryPosition}
                           onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                             setEntryPosition(event.target.value as typeof entryPosition)
                           }
-                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
+                          className="border-input bg-background h-9 w-full rounded-md border px-2 text-xs"
                         >
                           <option value="beforeHistory">Before history</option>
                           <option value="afterHistory">After history</option>
@@ -800,7 +807,7 @@ export function WorldbookPage() {
                         </select>
                       </label>
                       <label className="block space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">Depth</span>
+                        <span className="text-muted-foreground text-xs font-medium">Depth</span>
                         <Input
                           value={entryDepth}
                           onChange={(event: ChangeEvent<HTMLInputElement>) => setEntryDepth(event.target.value)}
@@ -811,13 +818,13 @@ export function WorldbookPage() {
                         />
                       </label>
                       <label className="block space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">Role</span>
+                        <span className="text-muted-foreground text-xs font-medium">Role</span>
                         <select
                           value={entryRole}
                           onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                             setEntryRole(event.target.value as typeof entryRole)
                           }
-                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
+                          className="border-input bg-background h-9 w-full rounded-md border px-2 text-xs"
                         >
                           <option value="system">System</option>
                           <option value="user">User</option>
@@ -827,7 +834,7 @@ export function WorldbookPage() {
                     </div>
 
                     <label className="block space-y-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">{t("entryForm.content")}</span>
+                      <span className="text-muted-foreground text-xs font-medium">{t("entryForm.content")}</span>
                       <Textarea
                         value={entryContent}
                         onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setEntryContent(event.target.value)}
@@ -838,7 +845,7 @@ export function WorldbookPage() {
 
                     <div className="grid grid-cols-[1fr_auto] gap-3">
                       <label className="block space-y-1.5">
-                        <span className="text-xs font-medium text-muted-foreground">{t("entryForm.priority")}</span>
+                        <span className="text-muted-foreground text-xs font-medium">{t("entryForm.priority")}</span>
                         <Input
                           value={entryPriority}
                           onChange={(event: ChangeEvent<HTMLInputElement>) => setEntryPriority(event.target.value)}
@@ -847,7 +854,7 @@ export function WorldbookPage() {
                         />
                       </label>
                       <div className="space-y-1.5">
-                        <span className="block text-xs font-medium text-muted-foreground">
+                        <span className="text-muted-foreground block text-xs font-medium">
                           {t("entryForm.enabled")}
                         </span>
                         <div className="flex h-9 items-center">

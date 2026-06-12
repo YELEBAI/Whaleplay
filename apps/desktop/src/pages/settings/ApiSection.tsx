@@ -22,10 +22,16 @@ function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: 
       aria-checked={checked}
       aria-label={label}
       onClick={onClick}
-      className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors", checked ? "bg-primary" : "bg-muted-foreground/30")}
+      className={cn(
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+        checked ? "bg-primary" : "bg-muted-foreground/30",
+      )}
     >
       <span
-        className={cn("inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform", checked ? "translate-x-5" : "translate-x-0.5")}
+        className={cn(
+          "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
+          checked ? "translate-x-5" : "translate-x-0.5",
+        )}
       />
     </button>
   );
@@ -251,8 +257,8 @@ export function ApiSection({ t }: ApiSectionProps) {
     <div className="max-w-5xl space-y-4">
       <div className="border-b pb-5">
         <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-            <span className="h-2 w-2 rounded-full bg-primary" />
+          <div className="border-primary/30 bg-primary/10 text-primary inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium">
+            <span className="bg-primary h-2 w-2 rounded-full" />
             {t("api.deepseekDedicated")}
           </div>
           <div>
@@ -260,12 +266,12 @@ export function ApiSection({ t }: ApiSectionProps) {
               <Plug className="h-6 w-6" />
               {t("api.deepseekConnection")}
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t("api.description")}</p>
+            <p className="text-muted-foreground mt-1 text-sm">{t("api.description")}</p>
           </div>
         </div>
       </div>
 
-      {!loaded && <p className="text-sm text-muted-foreground animate-pulse">{t("api.loading")}</p>}
+      {!loaded && <p className="text-muted-foreground animate-pulse text-sm">{t("api.loading")}</p>}
 
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card>
@@ -296,7 +302,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                     id="config-select"
                     value={selectedId}
                     onChange={(e) => applyConfigSelection(e.target.value)}
-                    className="min-w-0 flex-1 h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="border-input focus-visible:ring-ring h-9 min-w-0 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
                   >
                     <option value="__new__">{t("api.newProfile")}</option>
                     {modelConfigs.map((c) => (
@@ -333,18 +339,26 @@ export function ApiSection({ t }: ApiSectionProps) {
                       setModel(option.id);
                       if (!name.trim() || name.startsWith("DeepSeek")) setName(option.label);
                     }}
-                    className={cn("rounded-md border p-3 text-left transition-colors", model === option.id ? "border-primary bg-primary/10 text-foreground" : "border-border hover:bg-accent/50")}
+                    className={cn(
+                      "rounded-md border p-3 text-left transition-colors",
+                      model === option.id
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border hover:bg-accent/50",
+                    )}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium">{t("api.models." + option.id + ".label")}</span>
                       <span
-                        className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", model === option.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          model === option.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                        )}
                       >
                         {t("api.models." + option.id + ".badge")}
                       </span>
                     </div>
-                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">{option.id}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mt-1 font-mono text-[11px]">{option.id}</p>
+                    <p className="text-muted-foreground mt-2 text-xs">
                       {t("api.models." + option.id + ".description")}
                     </p>
                   </button>
@@ -385,7 +399,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                 <div>
                   <Label htmlFor="base-url">{t("api.baseUrl")}</Label>
                   <div className="relative">
-                    <Server className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Server className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
                     <Input
                       id="base-url"
                       value={baseUrl}
@@ -430,7 +444,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                       id="reasoning-effort"
                       value={reasoningEffort}
                       onChange={(e) => setReasoningEffort(e.target.value)}
-                      className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      className="border-input focus-visible:ring-ring h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
                     >
                       <option value="">{t("api.reasoningOff")}</option>
                       <option value="high">{t("api.reasoningHigh")}</option>
@@ -442,7 +456,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                 <div className="setting-row">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{t("api.streaming")}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{t("api.streamingHint")}</p>
+                    <p className="text-muted-foreground mt-1 text-xs">{t("api.streamingHint")}</p>
                   </div>
                   <SwitchButton
                     checked={streamingEnabled}
@@ -453,13 +467,13 @@ export function ApiSection({ t }: ApiSectionProps) {
               </div>
             </details>
 
-            <div className="flex flex-col gap-2 rounded-md border bg-accent/30 p-3 sm:flex-row">
+            <div className="bg-accent/30 flex flex-col gap-2 rounded-md border p-3 sm:flex-row">
               <Button onClick={handleSave} disabled={saving} className="flex-1">
-                <Save className="h-4 w-4 mr-2" />
+                <Save className="mr-2 h-4 w-4" />
                 {saving ? t("api.saving") : t("api.saveProfile")}
               </Button>
               <Button variant="outline" onClick={handleTestConnection} disabled={testing} className="sm:min-w-[120px]">
-                <Plug className="h-4 w-4 mr-2" />
+                <Plug className="mr-2 h-4 w-4" />
                 {testing ? t("api.testing") : t("api.testConnection")}
               </Button>
               <Button
@@ -468,7 +482,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                 disabled={checkingBalance}
                 className="sm:min-w-[120px]"
               >
-                <Wallet className="h-4 w-4 mr-2" />
+                <Wallet className="mr-2 h-4 w-4" />
                 {checkingBalance ? t("api.balanceChecking") : t("api.balance")}
               </Button>
             </div>
@@ -484,21 +498,21 @@ export function ApiSection({ t }: ApiSectionProps) {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="rounded-md border px-3 py-2">
-              <p className="text-xs text-muted-foreground">{t("api.profiles")}</p>
+              <p className="text-muted-foreground text-xs">{t("api.profiles")}</p>
               <p className="mt-1 truncate font-medium">
                 {selectedId === "__new__" ? "New profile" : selectedProfileName}
               </p>
             </div>
             <div className="rounded-md border px-3 py-2">
-              <p className="text-xs text-muted-foreground">{t("api.model")}</p>
+              <p className="text-muted-foreground text-xs">{t("api.model")}</p>
               <p className="mt-1 truncate font-mono text-xs">{model || DEFAULT_DEEPSEEK_MODEL}</p>
             </div>
             <div className="rounded-md border px-3 py-2">
-              <p className="text-xs text-muted-foreground">{t("api.endpoint")}</p>
+              <p className="text-muted-foreground text-xs">{t("api.endpoint")}</p>
               <p className="mt-1 truncate font-mono text-xs">{displayBaseUrl}</p>
             </div>
             <div className="rounded-md border px-3 py-2">
-              <p className="text-xs text-muted-foreground">{t("api.balance")}</p>
+              <p className="text-muted-foreground text-xs">{t("api.balance")}</p>
               {deepSeekBalance ? (
                 <div className="mt-1 space-y-1">
                   {deepSeekBalance.balances.map((balance) => (
@@ -511,7 +525,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                   ))}
                 </div>
               ) : (
-                <p className="mt-1 text-muted-foreground">Not checked</p>
+                <p className="text-muted-foreground mt-1">Not checked</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -525,7 +539,7 @@ export function ApiSection({ t }: ApiSectionProps) {
               </div>
             </div>
             {deepSeekBalance && !deepSeekBalance.isAvailable && (
-              <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+              <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-xs">
                 Balance is unavailable for API calls.
               </p>
             )}

@@ -5,4 +5,4 @@ export type {
   RegexPreset,
   CreateRegexPresetInput,
   UpdateRegexPresetInput,
-} from './regex-preset'
+} from "./regex-preset";

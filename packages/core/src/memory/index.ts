@@ -1,2 +1,2 @@
-export * from './memory.types'
-export * from './memory-contributor'
+export * from "./memory.types";
+export * from "./memory-contributor";

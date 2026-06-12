@@ -123,7 +123,7 @@ export function PromptDialog({
           <DialogTitle>{t("promptDialog.title")}</DialogTitle>
         </DialogHeader>
         <div className={dialogScrollContent}>
-          <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground">
+          <pre className="text-muted-foreground font-mono text-xs whitespace-pre-wrap">
             {previewText || t("promptDialog.noData")}
           </pre>
         </div>
@@ -235,16 +235,16 @@ export function LoadDialog({
           <DialogDescription>{t("loadDialog.description")}</DialogDescription>
         </DialogHeader>
         <div className="max-h-[48vh] space-y-2 overflow-y-auto pr-1">
-          {isLoading && <p className="py-6 text-center text-sm text-muted-foreground">{t("loadDialog.loading")}</p>}
+          {isLoading && <p className="text-muted-foreground py-6 text-center text-sm">{t("loadDialog.loading")}</p>}
           {!isLoading && savepoints.length === 0 && (
-            <p className="py-6 text-center text-sm text-muted-foreground">{t("loadDialog.noSavepoints")}</p>
+            <p className="text-muted-foreground py-6 text-center text-sm">{t("loadDialog.noSavepoints")}</p>
           )}
           {!isLoading &&
             savepoints.map((savepoint) => (
-              <div key={savepoint.id} className="flex items-center gap-3 rounded-lg border bg-card/60 p-3">
+              <div key={savepoint.id} className="bg-card/60 flex items-center gap-3 rounded-lg border p-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{savepoint.name}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     {formatSavepointDate(savepoint.createdAt)} ·{" "}
                     {t("loadDialog.messages", { count: savepoint.messageCount })}
                   </p>
@@ -274,7 +274,7 @@ export function LoadDialog({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                     onClick={() => onDelete(savepoint.id)}
                     disabled={!!restoringSavepointId || !!importingSavepointId}
                     title={t("loadDialog.delete")}
@@ -334,7 +334,7 @@ export function TokenDialog({
             {t("tokenDialog.title")}
           </DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-2 rounded-md border bg-background p-1">
+        <div className="bg-background grid grid-cols-2 rounded-md border p-1">
           <button
             type="button"
             onClick={() => onTokenUsageViewChange("main")}
@@ -360,98 +360,98 @@ export function TokenDialog({
         </div>
         <div className={dialogScrollContent}>
           {rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
+            <p className="text-muted-foreground py-8 text-center text-sm">
               {tokenUsageView === "main" ? t("tokenDialog.noDataMain") : t("tokenDialog.noDataSecondary")}
             </p>
           ) : (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-4">
-                <div className="min-w-0 bg-accent/50 rounded-lg p-3 text-center" title={totals.prompt.toLocaleString()}>
-                  <p className="text-lg font-bold tabular-nums leading-tight truncate">
+              <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+                <div className="bg-accent/50 min-w-0 rounded-lg p-3 text-center" title={totals.prompt.toLocaleString()}>
+                  <p className="truncate text-lg leading-tight font-bold tabular-nums">
                     {formatCompactToken(totals.prompt)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.prompt")}</p>
+                  <p className="text-muted-foreground text-[10px]">{t("tokenDialog.columns.prompt")}</p>
                 </div>
                 <div
-                  className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
+                  className="bg-accent/50 min-w-0 rounded-lg p-3 text-center"
                   title={totals.completion.toLocaleString()}
                 >
-                  <p className="text-lg font-bold tabular-nums leading-tight truncate">
+                  <p className="truncate text-lg leading-tight font-bold tabular-nums">
                     {formatCompactToken(totals.completion)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.completion")}</p>
+                  <p className="text-muted-foreground text-[10px]">{t("tokenDialog.columns.completion")}</p>
                 </div>
                 <div
-                  className="min-w-0 bg-accent/50 rounded-lg p-3 text-center"
+                  className="bg-accent/50 min-w-0 rounded-lg p-3 text-center"
                   title={(totals.prompt + totals.completion).toLocaleString()}
                 >
-                  <p className="text-lg font-bold tabular-nums leading-tight truncate">
+                  <p className="truncate text-lg leading-tight font-bold tabular-nums">
                     {formatCompactToken(totals.prompt + totals.completion)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.total")}</p>
+                  <p className="text-muted-foreground text-[10px]">{t("tokenDialog.columns.total")}</p>
                 </div>
                 <div
-                  className="min-w-0 bg-emerald-500/10 rounded-lg p-3 text-center"
+                  className="min-w-0 rounded-lg bg-emerald-500/10 p-3 text-center"
                   title={totals.cacheHit.toLocaleString()}
                 >
-                  <p className="text-lg font-bold tabular-nums leading-tight truncate text-emerald-600">
+                  <p className="truncate text-lg leading-tight font-bold text-emerald-600 tabular-nums">
                     {formatCompactToken(totals.cacheHit)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.cacheHit")}</p>
+                  <p className="text-muted-foreground text-[10px]">{t("tokenDialog.columns.cacheHit")}</p>
                 </div>
-                <div className="min-w-0 bg-blue-500/10 rounded-lg p-3 text-center" title={`${totals.cacheRate}%`}>
-                  <p className="text-lg font-bold tabular-nums leading-tight truncate text-blue-600">
+                <div className="min-w-0 rounded-lg bg-blue-500/10 p-3 text-center" title={`${totals.cacheRate}%`}>
+                  <p className="truncate text-lg leading-tight font-bold text-blue-600 tabular-nums">
                     {totals.cacheRate}%
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.hitRate")}</p>
+                  <p className="text-muted-foreground text-[10px]">{t("tokenDialog.columns.hitRate")}</p>
                 </div>
                 <div
-                  className="min-w-0 bg-purple-500/10 rounded-lg p-3 text-center"
+                  className="min-w-0 rounded-lg bg-purple-500/10 p-3 text-center"
                   title={
                     tokenUsageView === "main" ? contextUsageTitle : `${secondaryUsageRecordsCount} secondary API calls`
                   }
                 >
                   <p
-                    className={`text-lg font-bold tabular-nums leading-tight truncate ${
+                    className={`truncate text-lg leading-tight font-bold tabular-nums ${
                       tokenUsageView === "main" ? contextUsageTone : "text-purple-600"
                     }`}
                   >
                     {tokenUsageView === "main" ? contextUsageDisplay : secondaryUsageRecordsCount.toLocaleString()}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-muted-foreground text-[10px]">
                     {tokenUsageView === "main" ? t("tokenDialog.columns.context") : t("tokenDialog.columns.calls")}
                   </p>
                 </div>
                 <div
-                  className="min-w-0 bg-amber-500/10 rounded-lg p-3 text-center"
+                  className="min-w-0 rounded-lg bg-amber-500/10 p-3 text-center"
                   title={formatCnyExact(totals.costCny)}
                 >
-                  <p className="text-lg font-bold tabular-nums leading-tight truncate text-amber-600">
+                  <p className="truncate text-lg leading-tight font-bold text-amber-600 tabular-nums">
                     {formatCnyCost(totals.costCny)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">{t("tokenDialog.columns.cost")}</p>
+                  <p className="text-muted-foreground text-[10px]">{t("tokenDialog.columns.cost")}</p>
                 </div>
               </div>
               {totals.cacheRate === "-" && (
-                <p className="text-xs text-muted-foreground mb-2 px-1">{t("tokenDialog.cacheHint")}</p>
+                <p className="text-muted-foreground mb-2 px-1 text-xs">{t("tokenDialog.cacheHint")}</p>
               )}
-              <div className="border rounded-lg overflow-hidden">
+              <div className="overflow-hidden rounded-lg border">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted">
-                      <th className="text-left p-2">
+                      <th className="p-2 text-left">
                         {tokenUsageView === "main" ? t("tokenDialog.table.round") : t("tokenDialog.table.call")}
                       </th>
                       {tokenUsageView === "secondary" && (
-                        <th className="text-left p-2">{t("tokenDialog.table.model")}</th>
+                        <th className="p-2 text-left">{t("tokenDialog.table.model")}</th>
                       )}
-                      <th className="text-right p-2">{t("tokenDialog.table.prompt")}</th>
-                      <th className="text-right p-2">{t("tokenDialog.table.completion")}</th>
-                      <th className="text-right p-2">{t("tokenDialog.table.total")}</th>
-                      <th className="text-right p-2">{t("tokenDialog.table.hit")}</th>
-                      <th className="text-right p-2">{t("tokenDialog.table.miss")}</th>
-                      <th className="text-right p-2">{t("tokenDialog.table.rate")}</th>
-                      <th className="text-right p-2">{t("tokenDialog.table.cost")}</th>
+                      <th className="p-2 text-right">{t("tokenDialog.table.prompt")}</th>
+                      <th className="p-2 text-right">{t("tokenDialog.table.completion")}</th>
+                      <th className="p-2 text-right">{t("tokenDialog.table.total")}</th>
+                      <th className="p-2 text-right">{t("tokenDialog.table.hit")}</th>
+                      <th className="p-2 text-right">{t("tokenDialog.table.miss")}</th>
+                      <th className="p-2 text-right">{t("tokenDialog.table.rate")}</th>
+                      <th className="p-2 text-right">{t("tokenDialog.table.cost")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -466,7 +466,7 @@ export function TokenDialog({
                       return (
                         <tr key={row.id} className="border-t">
                           <td
-                            className="p-2 text-muted-foreground"
+                            className="text-muted-foreground p-2"
                             title={row.debugPromptPath || row.debugPromptFilename || undefined}
                           >
                             <div>{row.label}</div>
@@ -480,7 +480,7 @@ export function TokenDialog({
                             )}
                           </td>
                           {tokenUsageView === "secondary" && (
-                            <td className="p-2 text-muted-foreground">{row.model || "-"}</td>
+                            <td className="text-muted-foreground p-2">{row.model || "-"}</td>
                           )}
                           <td className="p-2 text-right">{p.toLocaleString()}</td>
                           <td className="p-2 text-right">{c.toLocaleString()}</td>
@@ -539,7 +539,7 @@ export function DeleteMessageDialog({
         <DialogHeader>
           <DialogTitle>{t("deleteMessage.title")}</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-muted-foreground">{t("deleteMessage.description")}</p>
+        <p className="text-muted-foreground text-sm">{t("deleteMessage.description")}</p>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("cancel")}
@@ -576,7 +576,7 @@ export function ThinkingDialog({
           </DialogTitle>
         </DialogHeader>
         <div className={dialogScrollContent}>
-          <pre className="text-xs whitespace-pre-wrap font-mono text-muted-foreground bg-muted/40 p-4 rounded-lg">
+          <pre className="text-muted-foreground bg-muted/40 rounded-lg p-4 font-mono text-xs whitespace-pre-wrap">
             {reasoningContent || t("thinkingDialog.noData")}
           </pre>
         </div>
@@ -639,10 +639,10 @@ export function RegenerateDialog({
             />
             <div className="min-w-0">
               <span className="flex items-center gap-1.5 text-sm font-medium">
-                <GitBranch className="h-4 w-4 text-primary" />
+                <GitBranch className="text-primary h-4 w-4" />
                 {t("regenerateDialog.fork.label")}
               </span>
-              <p className="mt-0.5 text-xs text-muted-foreground">{t("regenerateDialog.fork.description")}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{t("regenerateDialog.fork.description")}</p>
             </div>
           </label>
 
@@ -663,7 +663,7 @@ export function RegenerateDialog({
                 <RotateCcw className="h-4 w-4" />
                 {t("regenerateDialog.replace.label")}
               </span>
-              <p className="mt-0.5 text-xs text-muted-foreground">{t("regenerateDialog.replace.description")}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{t("regenerateDialog.replace.description")}</p>
             </div>
           </label>
         </div>

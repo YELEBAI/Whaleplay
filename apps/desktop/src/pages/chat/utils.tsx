@@ -95,11 +95,11 @@ export function Avatar({ name, src, isUser }: { name: string; src?: string; isUs
   const initial = name.charAt(0).toUpperCase();
   const bg = isUser ? "bg-blue-500" : "bg-emerald-500";
   if (src) {
-    return <img src={src} alt={name} className="w-8 h-8 rounded-full object-cover border border-border/30 shrink-0" />;
+    return <img src={src} alt={name} className="border-border/30 h-8 w-8 shrink-0 rounded-full border object-cover" />;
   }
   return (
-    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0", bg)}>
-      <span className="text-white text-xs font-bold">{initial}</span>
+    <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full", bg)}>
+      <span className="text-xs font-bold text-white">{initial}</span>
     </div>
   );
 }
@@ -134,12 +134,12 @@ export function SideBlockView({
 }) {
   if (side.actions) {
     return (
-      <div className="flex flex-wrap gap-2 mt-1">
+      <div className="mt-1 flex flex-wrap gap-2">
         {side.actions.map((action, ai) => (
           <button
             key={ai}
             onClick={() => onAction(action)}
-            className="px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 text-sm hover:bg-primary/10 hover:border-primary/50 transition-colors cursor-pointer"
+            className="border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 cursor-pointer rounded-full border px-3 py-1.5 text-sm transition-colors"
             style={{ fontSize: `${fontSize}px` }}
           >
             {action}
@@ -157,7 +157,7 @@ export function SideBlockView({
       </details>
     );
   }
-  return <p className="whitespace-pre-wrap text-muted-foreground mt-1">{side.content}</p>;
+  return <p className="text-muted-foreground mt-1 whitespace-pre-wrap">{side.content}</p>;
 }
 
 export function TemplateDisplayBlockView({ block, fontSize }: { block: DisplayBlock; fontSize: number }) {

@@ -150,7 +150,7 @@ export function HomePage() {
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl font-bold">{t("title")}</h1>
           <Button variant="outline" onClick={() => navigate("/settings")}>
-            <Settings className="h-4 w-4 mr-2" />
+            <Settings className="mr-2 h-4 w-4" />
             {t("settings")}
           </Button>
         </div>
@@ -163,9 +163,9 @@ export function HomePage() {
         </div>
 
         <div className="mt-3 flex min-h-[128px] gap-4 overflow-x-auto pb-2">
-          {charsLoading && <p className="text-sm text-muted-foreground shrink-0 p-2">{t("loading")}</p>}
+          {charsLoading && <p className="text-muted-foreground shrink-0 p-2 text-sm">{t("loading")}</p>}
           {!charsLoading && characters.length === 0 && (
-            <p className="text-sm text-muted-foreground shrink-0">{t("noCharacters")}</p>
+            <p className="text-muted-foreground shrink-0 text-sm">{t("noCharacters")}</p>
           )}
           {characters.map((char) => (
             <CharacterAvatarTile
@@ -179,9 +179,9 @@ export function HomePage() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-5">
-        <h2 className="text-lg font-semibold mb-3">{t("recentChats")}</h2>
-        {chatsLoading && <p className="text-sm text-muted-foreground">{t("loading")}</p>}
-        {!chatsLoading && chats.length === 0 && <p className="text-sm text-muted-foreground">{t("noChats")}</p>}
+        <h2 className="mb-3 text-lg font-semibold">{t("recentChats")}</h2>
+        {chatsLoading && <p className="text-muted-foreground text-sm">{t("loading")}</p>}
+        {!chatsLoading && chats.length === 0 && <p className="text-muted-foreground text-sm">{t("noChats")}</p>}
         <div className="grid gap-3">
           {chats.map((chat) => {
             const character = charactersById.get(chat.characterId);
@@ -191,7 +191,7 @@ export function HomePage() {
             return (
               <Card
                 key={chat.id}
-                className="group cursor-pointer transition-colors hover:bg-accent/50"
+                className="group hover:bg-accent/50 cursor-pointer transition-colors"
                 onClick={() => handleOpenChat(chat.id)}
                 onContextMenu={(event: React.MouseEvent) => openChatContextMenu(event, chat, character)}
               >
@@ -202,11 +202,11 @@ export function HomePage() {
                         <img
                           src={avatar}
                           alt={displayName}
-                          className="h-10 w-10 shrink-0 rounded-lg border border-border/30 object-cover"
+                          className="border-border/30 h-10 w-10 shrink-0 rounded-lg border object-cover"
                         />
                       ) : (
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/30 bg-accent/60">
-                          <span className="text-sm font-bold text-muted-foreground">{displayName.charAt(0)}</span>
+                        <div className="border-border/30 bg-accent/60 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border">
+                          <span className="text-muted-foreground text-sm font-bold">{displayName.charAt(0)}</span>
                         </div>
                       )}
                       <span className="min-w-0 truncate">{chat.title}</span>
@@ -214,7 +214,7 @@ export function HomePage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-all hover:text-destructive group-hover:opacity-100"
+                      className="text-muted-foreground hover:text-destructive h-7 w-7 shrink-0 opacity-0 transition-all group-hover:opacity-100"
                       onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         setDeleteTarget(chat);
@@ -232,7 +232,7 @@ export function HomePage() {
 
       {contextMenu && (
         <div
-          className="fixed z-50 min-w-44 overflow-hidden rounded-md border bg-popover p-1 text-sm text-popover-foreground shadow-lg"
+          className="bg-popover text-popover-foreground fixed z-50 min-w-44 overflow-hidden rounded-md border p-1 text-sm shadow-lg"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 190),
             top: Math.min(contextMenu.y, window.innerHeight - 160),
@@ -243,7 +243,7 @@ export function HomePage() {
             <>
               <button
                 type="button"
-                className="w-full rounded px-3 py-2 text-left hover:bg-accent"
+                className="hover:bg-accent w-full rounded px-3 py-2 text-left"
                 onClick={() => {
                   closeContextMenu();
                   handleCharacterClick(contextMenu.character.id);
@@ -253,7 +253,7 @@ export function HomePage() {
               </button>
               <button
                 type="button"
-                className="w-full rounded px-3 py-2 text-left hover:bg-accent"
+                className="hover:bg-accent w-full rounded px-3 py-2 text-left"
                 onClick={() => {
                   closeContextMenu();
                   navigate("/character");
@@ -266,7 +266,7 @@ export function HomePage() {
             <>
               <button
                 type="button"
-                className="w-full rounded px-3 py-2 text-left hover:bg-accent"
+                className="hover:bg-accent w-full rounded px-3 py-2 text-left"
                 onClick={() => {
                   closeContextMenu();
                   handleOpenChat(contextMenu.chat.id);
@@ -277,7 +277,7 @@ export function HomePage() {
               {contextMenu.character && (
                 <button
                   type="button"
-                  className="w-full rounded px-3 py-2 text-left hover:bg-accent"
+                  className="hover:bg-accent w-full rounded px-3 py-2 text-left"
                   onClick={() => {
                     const characterId = contextMenu.character?.id;
                     closeContextMenu();
@@ -289,7 +289,7 @@ export function HomePage() {
               )}
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded px-3 py-2 text-left hover:bg-accent"
+                className="hover:bg-accent flex w-full items-center gap-2 rounded px-3 py-2 text-left"
                 onClick={() => {
                   closeContextMenu();
                   setSaveTarget(contextMenu.chat);
@@ -300,7 +300,7 @@ export function HomePage() {
               </button>
               <button
                 type="button"
-                className="w-full rounded px-3 py-2 text-left text-destructive hover:bg-destructive/10"
+                className="text-destructive hover:bg-destructive/10 w-full rounded px-3 py-2 text-left"
                 onClick={() => {
                   closeContextMenu();
                   setDeleteTarget(contextMenu.chat);
@@ -346,25 +346,25 @@ export function HomePage() {
               type="button"
               disabled={!!creatingMode}
               onClick={() => void handleCreateChatWithMode("normal")}
-              className="rounded-md border bg-card p-4 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-card hover:bg-accent rounded-md border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               <div className="flex items-center gap-2 font-medium">
                 <MessageCircle className="h-4 w-4" />
                 普通模式
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t("modeDialog.normal.desc")}</p>
+              <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{t("modeDialog.normal.desc")}</p>
             </button>
             <button
               type="button"
               disabled={!!creatingMode}
               onClick={() => void handleCreateChatWithMode("agentic")}
-              className="rounded-md border bg-card p-4 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+              className="bg-card hover:bg-accent rounded-md border p-4 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
             >
               <div className="flex items-center gap-2 font-medium">
                 <Dice5 className="h-4 w-4" />
                 实验模式
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t("modeDialog.agentic.desc")}</p>
+              <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{t("modeDialog.agentic.desc")}</p>
             </button>
           </div>
           <DialogFooter>

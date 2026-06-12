@@ -15,10 +15,16 @@ function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: 
       aria-checked={checked}
       aria-label={label}
       onClick={onClick}
-      className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors", checked ? "bg-primary" : "bg-muted-foreground/30")}
+      className={cn(
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+        checked ? "bg-primary" : "bg-muted-foreground/30",
+      )}
     >
       <span
-        className={cn("inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform", checked ? "translate-x-5" : "translate-x-0.5")}
+        className={cn(
+          "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
+          checked ? "translate-x-5" : "translate-x-0.5",
+        )}
       />
     </button>
   );
@@ -93,7 +99,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
           <div className="setting-row">
             <div className="min-w-0">
               <p className="text-sm font-medium">{t("general.debugMode")}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t("general.debugHint")}</p>
+              <p className="text-muted-foreground mt-1 text-xs">{t("general.debugHint")}</p>
             </div>
             <SwitchButton
               checked={debugMode}
@@ -102,7 +108,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
             />
           </div>
           {debugMode && (
-            <p className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+            <p className="border-primary/20 bg-primary/5 text-muted-foreground rounded-md border px-3 py-2 text-xs">
               {t("general.debugDetail")}
             </p>
           )}
@@ -113,7 +119,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                   <Bell className="h-4 w-4" />
                   {t("general.dailyCostWarning")}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">{t("general.dailyCostHint")}</p>
+                <p className="text-muted-foreground mt-1 text-xs">{t("general.dailyCostHint")}</p>
               </div>
               <SwitchButton
                 checked={dailyCostWarningEnabled}
@@ -134,22 +140,25 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                   }
                 />
               </div>
-              <div className="rounded-md border bg-accent/30 px-3 py-2">
-                <p className="text-xs text-muted-foreground">Today spent</p>
+              <div className="bg-accent/30 rounded-md border px-3 py-2">
+                <p className="text-muted-foreground text-xs">Today spent</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums" title={formatCnyExact(dailyCostSpentCny)}>
                   {formatCnyCost(dailyCostSpentCny)}
                 </p>
               </div>
-              <div className="rounded-md border bg-accent/30 px-3 py-2">
-                <p className="text-xs text-muted-foreground">Warning at</p>
+              <div className="bg-accent/30 rounded-md border px-3 py-2">
+                <p className="text-muted-foreground text-xs">Warning at</p>
                 <p className="mt-1 text-sm font-semibold tabular-nums" title={formatCnyExact(dailyWarningAtCny)}>
                   {formatCnyCost(dailyWarningAtCny)}
                 </p>
               </div>
             </div>
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="bg-muted h-2 overflow-hidden rounded-full">
               <div
-                className={cn("h-full rounded-full transition-all", dailyCostRate >= 80 ? "bg-destructive" : "bg-primary")}
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  dailyCostRate >= 80 ? "bg-destructive" : "bg-primary",
+                )}
                 style={{ width: `${Math.min(100, dailyCostRate)}%` }}
               />
             </div>
@@ -164,7 +173,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">{t("appearance.language")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{t("appearance.languageHint")}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">{t("appearance.languageHint")}</p>
               </div>
               <select
                 value={locale}
@@ -173,7 +182,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                   setLocale(next);
                   changeLocale(next);
                 }}
-                className="h-8 rounded-md border border-input bg-transparent px-2 py-0.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="border-input focus-visible:ring-ring h-8 rounded-md border bg-transparent px-2 py-0.5 text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none"
               >
                 <option value="zh">中文</option>
                 <option value="en">English</option>
@@ -181,11 +190,11 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
             </div>
           </div>
 
-          <div className="rounded-md border px-3 py-3 space-y-3">
+          <div className="space-y-3 rounded-md border px-3 py-3">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">{t("appearance.lanServer")}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{t("appearance.lanEnable")}</p>
+                <p className="text-muted-foreground mt-0.5 text-xs">{t("appearance.lanEnable")}</p>
               </div>
               <button
                 type="button"
@@ -196,10 +205,16 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                   setLanEnabled(next);
                   await setStorageItem("neotavern_lan_enabled", String(next));
                 }}
-                className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors", lanEnabled ? "bg-primary" : "bg-muted-foreground/30")}
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+                  lanEnabled ? "bg-primary" : "bg-muted-foreground/30",
+                )}
               >
                 <span
-                  className={cn("inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform", lanEnabled ? "translate-x-5" : "translate-x-0.5")}
+                  className={cn(
+                    "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
+                    lanEnabled ? "translate-x-5" : "translate-x-0.5",
+                  )}
                 />
               </button>
             </div>
@@ -214,7 +229,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                         setLanAddr(e.target.value);
                         await setStorageItem("neotavern_lan_addr", e.target.value);
                       }}
-                      className="h-7 text-xs mt-1"
+                      className="mt-1 h-7 text-xs"
                     />
                   </div>
                   <div>
@@ -225,21 +240,21 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                         setLanPort(e.target.value);
                         await setStorageItem("neotavern_lan_port", e.target.value);
                       }}
-                      className="h-7 text-xs mt-1"
+                      className="mt-1 h-7 text-xs"
                     />
                   </div>
                 </div>
-                <p className="text-[10px] text-muted-foreground">{t("appearance.lanRestartHint")}</p>
-                <div className="pt-2 border-t">
+                <p className="text-muted-foreground text-[10px]">{t("appearance.lanRestartHint")}</p>
+                <div className="border-t pt-2">
                   <Label className="text-xs">{t("appearance.lanPassword")}</Label>
-                  <p className="text-[10px] text-muted-foreground mb-1">{t("appearance.lanPasswordHint")}</p>
-                  <p className="text-[10px] text-muted-foreground/70 mb-2">{t("appearance.lanPasswordNote")}</p>
+                  <p className="text-muted-foreground mb-1 text-[10px]">{t("appearance.lanPasswordHint")}</p>
+                  <p className="text-muted-foreground/70 mb-2 text-[10px]">{t("appearance.lanPasswordNote")}</p>
                   <div className="flex gap-2">
-                    <Input value={lanPassword} readOnly className="h-7 text-xs font-mono flex-1" />
+                    <Input value={lanPassword} readOnly className="h-7 flex-1 font-mono text-xs" />
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-7 text-[10px] shrink-0"
+                      className="h-7 shrink-0 text-[10px]"
                       onClick={handleRegenPassword}
                     >
                       {t("appearance.lanPasswordGenerate")}
@@ -268,8 +283,10 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
               <div className="mb-1.5 flex items-center gap-1.5">
                 <span className="text-xs font-medium">{t("websearch.provider")}</span>
                 <span className="group relative inline-flex">
-                  <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground">?</span>
-                  <span className="pointer-events-none absolute -top-7 left-0 whitespace-nowrap rounded bg-foreground px-2 py-1 text-[11px] text-background opacity-0 transition-opacity group-hover:opacity-100">
+                  <span className="bg-muted text-muted-foreground inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-[9px] font-bold">
+                    ?
+                  </span>
+                  <span className="bg-foreground text-background pointer-events-none absolute -top-7 left-0 rounded px-2 py-1 text-[11px] whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100">
                     {t("websearch.help")}
                   </span>
                 </span>
@@ -277,7 +294,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
               <select
                 value={webSearchProvider}
                 onChange={(e) => setWebSearchProvider(e.target.value as typeof webSearchProvider)}
-                className="w-52 rounded-md border bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="bg-background focus-visible:ring-ring w-52 rounded-md border px-3 py-2 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
               >
                 <option value="default">{t("websearch.default")}</option>
                 <option value="tavily">Tavily</option>
@@ -288,24 +305,28 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
             {webSearchProvider === "tavily" && (
               <>
                 <div className="border-t pt-4">
-                  <Label htmlFor="tavily-key" className="text-xs">{t("websearch.tavilyKey")}</Label>
+                  <Label htmlFor="tavily-key" className="text-xs">
+                    {t("websearch.tavilyKey")}
+                  </Label>
                   <Input
                     id="tavily-key"
                     type="password"
                     value={tavilyApiKey}
                     onChange={(e) => setTavilyApiKey(e.target.value)}
                     placeholder="tvly-..."
-                    className="mt-1 h-8 text-xs w-1/2"
+                    className="mt-1 h-8 w-1/2 text-xs"
                   />
-                  <p className="mt-1 text-[10px] text-muted-foreground">{t("websearch.tavilyKeyHint")}</p>
+                  <p className="text-muted-foreground mt-1 text-[10px]">{t("websearch.tavilyKeyHint")}</p>
                 </div>
                 <div>
-                  <Label htmlFor="tavily-depth" className="text-xs">{t("websearch.depth")}</Label>
+                  <Label htmlFor="tavily-depth" className="text-xs">
+                    {t("websearch.depth")}
+                  </Label>
                   <select
                     id="tavily-depth"
                     value={tavilySearchDepth}
                     onChange={(e) => setTavilySearchDepth(e.target.value as typeof tavilySearchDepth)}
-                    className="mt-1 w-52 rounded-md border bg-background px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="bg-background focus-visible:ring-ring mt-1 w-52 rounded-md border px-2 py-1 text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none"
                   >
                     <option value="fast">{t("websearch.depthFast")}</option>
                     <option value="basic">{t("websearch.depthBasic")}</option>
@@ -331,9 +352,13 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
           <div className="flex items-center justify-between rounded-md border px-3 py-3">
             <div>
               <p className="text-sm font-medium">{t("general.autoUpdateToggle")}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{t("general.autoUpdateToggleHint")}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{t("general.autoUpdateToggleHint")}</p>
             </div>
-            <SwitchButton checked={autoUpdateEnabled} onClick={() => setAutoUpdateEnabled(!autoUpdateEnabled)} label={t("general.autoUpdateToggle")} />
+            <SwitchButton
+              checked={autoUpdateEnabled}
+              onClick={() => setAutoUpdateEnabled(!autoUpdateEnabled)}
+              label={t("general.autoUpdateToggle")}
+            />
           </div>
         </CardContent>
       </Card>

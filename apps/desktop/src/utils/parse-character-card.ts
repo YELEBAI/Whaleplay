@@ -119,7 +119,7 @@ function extractCardData(json: Record<string, unknown>): ParsedCharacterCard {
     exampleDialogues: (data.mes_example || json.mes_example || data.exampleDialogues || "") as string,
     creatorNotes: (data.creator_notes || json.creator_notes || "") as string,
     tags: (data.tags || json.tags || []) as string[],
-    regexScripts: (extensions.regex_scripts || data.regex_scripts || []) as ParsedCharacterCard['regexScripts'],
+    regexScripts: (extensions.regex_scripts || data.regex_scripts || []) as ParsedCharacterCard["regexScripts"],
     worldbookName: ((typeof extensions.world === "string" ? extensions.world : "") || book.name || "") as string,
     worldbookEntries: wbEntries,
   };

@@ -33,9 +33,9 @@ export function ContextSection({ contextTokens, setContextTokens, t }: ContextSe
             step="512"
             value={contextTokens}
             onChange={(e) => setContextTokens(parseInt(e.target.value))}
-            className="flex-1 h-2 rounded-full appearance-none bg-muted-foreground/20 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer"
+            className="bg-muted-foreground/20 [&::-webkit-slider-thumb]:bg-primary h-2 flex-1 cursor-pointer appearance-none rounded-full [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full"
           />
-          <span className="text-2xl font-bold tabular-nums min-w-[70px] text-center">
+          <span className="min-w-[70px] text-center text-2xl font-bold tabular-nums">
             {contextTokens === 0
               ? "∞"
               : contextTokens >= 1000
@@ -43,25 +43,28 @@ export function ContextSection({ contextTokens, setContextTokens, t }: ContextSe
                 : contextTokens}
           </span>
         </div>
-        <div className="flex justify-between text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex justify-between text-xs">
           <span>∞</span>
           <span>32k</span>
           <span>64k</span>
           <span>128k</span>
         </div>
-        <div className="grid grid-cols-4 gap-2 mt-2">
+        <div className="mt-2 grid grid-cols-4 gap-2">
           {presets.map((preset) => (
             <button
               key={preset.value}
               onClick={() => setContextTokens(preset.value)}
-              className={cn("rounded-lg border p-2 text-center transition-colors", contextTokens === preset.value ? "border-primary bg-primary/10" : "border-border hover:bg-accent")}
+              className={cn(
+                "rounded-lg border p-2 text-center transition-colors",
+                contextTokens === preset.value ? "border-primary bg-primary/10" : "border-border hover:bg-accent",
+              )}
             >
               <p className="text-xs font-medium">{preset.label}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{preset.desc}</p>
+              <p className="text-muted-foreground mt-0.5 text-[10px]">{preset.desc}</p>
             </button>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground mt-4">{t("context.tokenEstimate")}</p>
+        <p className="text-muted-foreground mt-4 text-xs">{t("context.tokenEstimate")}</p>
       </CardContent>
     </Card>
   );

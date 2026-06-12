@@ -36,11 +36,11 @@ function WindowTitleBar() {
         void withCurrentWindow((appWindow) => appWindow.startDragging());
       }}
       onDoubleClick={() => void withCurrentWindow((appWindow) => appWindow.toggleMaximize())}
-      className="absolute left-16 right-0 top-0 z-50 flex h-7 items-stretch justify-end bg-transparent"
+      className="absolute top-0 right-0 left-16 z-50 flex h-7 items-stretch justify-end bg-transparent"
     >
       <button
         type="button"
-        className="flex w-12 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground flex w-12 items-center justify-center transition-colors"
         title="Minimize"
         aria-label="Minimize"
         onMouseDown={(event) => event.stopPropagation()}
@@ -51,7 +51,7 @@ function WindowTitleBar() {
       </button>
       <button
         type="button"
-        className="flex w-12 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground flex w-12 items-center justify-center transition-colors"
         title="Maximize"
         aria-label="Maximize"
         onMouseDown={(event) => event.stopPropagation()}
@@ -62,7 +62,7 @@ function WindowTitleBar() {
       </button>
       <button
         type="button"
-        className="flex w-12 items-center justify-center text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
+        className="text-muted-foreground hover:bg-destructive hover:text-destructive-foreground flex w-12 items-center justify-center transition-colors"
         title="Close"
         aria-label="Close"
         onMouseDown={(event) => event.stopPropagation()}
@@ -88,7 +88,9 @@ export function Layout() {
       try {
         const update = await check();
         if (update) setUpdateDot(true);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     })();
   }, []);
 
@@ -103,16 +105,16 @@ export function Layout() {
   ];
 
   return (
-    <div className="relative flex h-screen bg-background">
+    <div className="bg-background relative flex h-screen">
       <WindowTitleBar />
-      <aside className="app-rail w-16 flex flex-col items-center border-r py-4 gap-2">
+      <aside className="app-rail flex w-16 flex-col items-center gap-2 border-r py-4">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }: NavLinkRenderProps) =>
               cn(
-                "flex flex-col items-center justify-center w-12 h-12 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
+                "text-muted-foreground hover:text-foreground hover:bg-accent flex h-12 w-12 flex-col items-center justify-center rounded-lg transition-colors",
                 isActive && "bg-accent text-foreground",
               )
             }
@@ -129,24 +131,24 @@ export function Layout() {
         {lastChatId && (
           <button
             onClick={() => navigate(`/chat/${lastChatId}`)}
-            className="flex flex-col items-center justify-center w-12 h-12 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="text-muted-foreground hover:text-foreground hover:bg-accent flex h-12 w-12 flex-col items-center justify-center rounded-lg transition-colors"
             title={t("nav.recentChat", "最近对话")}
           >
             <History className="h-5 w-5" />
           </button>
         )}
 
-        <div className="h-12 flex items-center justify-center relative">
+        <div className="relative flex h-12 items-center justify-center">
           {updateDot && <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-red-500" />}
           <button
             onClick={() => navigate("/about")}
-            className="text-xs text-muted-foreground font-medium -rotate-90 whitespace-nowrap leading-none hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground -rotate-90 text-xs leading-none font-medium whitespace-nowrap transition-colors"
           >
             WHALE
           </button>
         </div>
       </aside>
-      <main className="flex-1 flex min-w-0 flex-col overflow-hidden pt-7">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden pt-7">
         <Outlet />
       </main>
     </div>

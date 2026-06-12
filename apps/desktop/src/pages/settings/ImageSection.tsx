@@ -33,10 +33,16 @@ function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: 
       aria-checked={checked}
       aria-label={label}
       onClick={onClick}
-      className={cn("relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors", checked ? "bg-primary" : "bg-muted-foreground/30")}
+      className={cn(
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
+        checked ? "bg-primary" : "bg-muted-foreground/30",
+      )}
     >
       <span
-        className={cn("inline-block h-5 w-5 rounded-full bg-background shadow-sm transition-transform", checked ? "translate-x-5" : "translate-x-0.5")}
+        className={cn(
+          "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
+          checked ? "translate-x-5" : "translate-x-0.5",
+        )}
       />
     </button>
   );
@@ -148,7 +154,7 @@ export function ImageSection({ t }: ImageSectionProps) {
               <div className="setting-row">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{t("image.enable")}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{t("image.description")}</p>
+                  <p className="text-muted-foreground mt-1 text-xs">{t("image.description")}</p>
                 </div>
                 <SwitchButton
                   checked={imageGeneration.enabled}
@@ -164,20 +170,26 @@ export function ImageSection({ t }: ImageSectionProps) {
                     <button
                       type="button"
                       onClick={() => updateImageGenerationSettings({ mode: "manual" })}
-                      className={cn("rounded-md border p-3 text-left transition-colors", imageGeneration.mode === "manual" ? "border-primary bg-primary/10" : "hover:bg-accent/50")}
+                      className={cn(
+                        "rounded-md border p-3 text-left transition-colors",
+                        imageGeneration.mode === "manual" ? "border-primary bg-primary/10" : "hover:bg-accent/50",
+                      )}
                     >
                       <p className="text-sm font-medium">{t("image.modeManual")}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="text-muted-foreground mt-1 text-xs">
                         Show an image button on each AI reply. Click only when you want pictures.
                       </p>
                     </button>
                     <button
                       type="button"
                       onClick={() => updateImageGenerationSettings({ mode: "auto" })}
-                      className={cn("rounded-md border p-3 text-left transition-colors", imageGeneration.mode === "auto" ? "border-primary bg-primary/10" : "hover:bg-accent/50")}
+                      className={cn(
+                        "rounded-md border p-3 text-left transition-colors",
+                        imageGeneration.mode === "auto" ? "border-primary bg-primary/10" : "hover:bg-accent/50",
+                      )}
                     >
                       <p className="text-sm font-medium">{t("image.modeAuto")}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="text-muted-foreground mt-1 text-xs">
                         After every AI reply, ask the secondary API to plan images and send them to ComfyUI.
                       </p>
                     </button>
@@ -190,7 +202,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                     id="planner-config"
                     value={imageGeneration.plannerConfigId ?? ""}
                     onChange={(e) => updateImageGenerationSettings({ plannerConfigId: e.target.value || null })}
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    className="bg-background h-10 w-full rounded-md border px-3 text-sm"
                   >
                     <option value="">Select a profile before generating images</option>
                     {modelConfigs.map((cfg) => (
@@ -199,14 +211,14 @@ export function ImageSection({ t }: ImageSectionProps) {
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-xs">
                     This profile writes image prompts. ComfyUI handles the final image generation.
                   </p>
                 </div>
                 <div className="setting-row">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{t("image.worldbookRef")}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="text-muted-foreground mt-1 text-xs">
                       When reply text matches world book keywords, send those entries to the secondary API for visual
                       details.
                     </p>
@@ -242,10 +254,15 @@ export function ImageSection({ t }: ImageSectionProps) {
                       key={preset.id}
                       type="button"
                       onClick={() => applyImageParameterPreset(preset.id)}
-                      className={cn("rounded-md border p-3 text-left transition-colors", imageGeneration.generationPreset === preset.id ? "border-primary bg-primary/10" : "hover:bg-accent/50")}
+                      className={cn(
+                        "rounded-md border p-3 text-left transition-colors",
+                        imageGeneration.generationPreset === preset.id
+                          ? "border-primary bg-primary/10"
+                          : "hover:bg-accent/50",
+                      )}
                     >
                       <p className="text-sm font-medium">{preset.label}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{preset.description}</p>
+                      <p className="text-muted-foreground mt-1 text-xs">{preset.description}</p>
                     </button>
                   ))}
                 </div>
@@ -258,7 +275,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                     id="image-resolution"
                     value={resolutionSelectValue}
                     onChange={(e) => handleImageResolutionChange(e.target.value)}
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    className="bg-background h-10 w-full rounded-md border px-3 text-sm"
                   >
                     {resolutionSelectValue === "custom" && (
                       <option value="custom">
@@ -313,7 +330,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                     onChange={(e) =>
                       updateImageGenerationSettings({ samplerName: e.target.value, generationPreset: "custom" })
                     }
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    className="bg-background h-10 w-full rounded-md border px-3 text-sm"
                   >
                     {IMAGE_SAMPLER_OPTIONS.map((option) => (
                       <option key={option} value={option}>
@@ -330,7 +347,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                     onChange={(e) =>
                       updateImageGenerationSettings({ scheduler: e.target.value, generationPreset: "custom" })
                     }
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    className="bg-background h-10 w-full rounded-md border px-3 text-sm"
                   >
                     {IMAGE_SCHEDULER_OPTIONS.map((option) => (
                       <option key={option} value={option}>
@@ -380,7 +397,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                     onChange={(e) =>
                       updateImageGenerationSettings({ seedMode: e.target.value === "fixed" ? "fixed" : "random" })
                     }
-                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    className="bg-background h-10 w-full rounded-md border px-3 text-sm"
                   >
                     <option value="random">Random</option>
                     <option value="fixed">Fixed</option>
@@ -421,7 +438,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                   rows={6}
                   className="font-mono text-xs"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-xs">
                   This is sent only to the secondary image planner in manual and auto modes.
                 </p>
               </div>
@@ -460,7 +477,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                   placeholder="http://127.0.0.1:8188"
                   className="font-mono text-xs"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="text-muted-foreground mt-1 text-xs">
                   Uses /prompt, /history/&lt;prompt_id&gt;, and /view.
                 </p>
               </div>
@@ -482,7 +499,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                 </Button>
               </div>
               {comfyTestMessage && (
-                <div className="rounded-md border bg-background/70 px-3 py-2 text-xs text-muted-foreground">
+                <div className="bg-background/70 text-muted-foreground rounded-md border px-3 py-2 text-xs">
                   {comfyTestMessage}
                 </div>
               )}
@@ -490,7 +507,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                 <img
                   src={comfyTestImage}
                   alt="ComfyUI test output"
-                  className="max-h-72 w-full rounded-md border object-contain bg-background"
+                  className="bg-background max-h-72 w-full rounded-md border object-contain"
                 />
               )}
             </CardContent>
@@ -531,7 +548,7 @@ export function ImageSection({ t }: ImageSectionProps) {
                 placeholder='{"1":{"class_type":"CLIPTextEncode","inputs":{"text":"{{prompt}}"}}}'
                 className="font-mono text-xs"
               />
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-2 text-xs">
                 Placeholders: {"{{prompt}}"}, {"{{negativePrompt}}"}, {"{{seed}}"}, {"{{width}}"}, {"{{height}}"},{" "}
                 {"{{steps}}"}, {"{{cfg}}"}, {"{{samplerName}}"}, {"{{scheduler}}"}, {"{{denoise}}"}.
               </p>

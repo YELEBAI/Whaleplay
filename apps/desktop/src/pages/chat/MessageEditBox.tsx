@@ -44,22 +44,22 @@ export function MessageEditBox({
   };
 
   return (
-    <div className="w-full rounded-lg border bg-card p-3 shadow-sm">
+    <div className="bg-card w-full rounded-lg border p-3 shadow-sm">
       <Textarea
         value={draft}
         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDraft(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="min-h-[260px] max-h-[60vh] resize-y overflow-y-auto leading-relaxed"
+        className="max-h-[60vh] min-h-[260px] resize-y overflow-y-auto leading-relaxed"
         style={{ fontSize: `${fontSize}px` }}
         autoFocus
       />
-      <div className="mt-2 flex gap-2 justify-end">
+      <div className="mt-2 flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onCancel}>
-          <X className="h-3.5 w-3.5 mr-1" />
+          <X className="mr-1 h-3.5 w-3.5" />
           Cancel
         </Button>
         <Button size="sm" onClick={() => void save()} disabled={saving || !draft.trim()}>
-          <Check className="h-3.5 w-3.5 mr-1" />
+          <Check className="mr-1 h-3.5 w-3.5" />
           {saving ? "Saving..." : "Save (Ctrl+Enter)"}
         </Button>
       </div>

@@ -3,14 +3,7 @@ import type { Character, CharacterStatusBarConfig } from "@neo-tavern/shared";
 
 type JsonRecord = Record<string, unknown>;
 
-export type AgenticStatusAssetId =
-  | "health"
-  | "mana"
-  | "stamina"
-  | "affection"
-  | "experience"
-  | "sanity"
-  | "danger";
+export type AgenticStatusAssetId = "health" | "mana" | "stamina" | "affection" | "experience" | "sanity" | "danger";
 
 export interface AgenticStatusAssetDefinition {
   id: AgenticStatusAssetId;
@@ -72,7 +65,17 @@ export const AGENTIC_STATUS_ASSETS: AgenticStatusAssetDefinition[] = [
     icon: "sparkles",
     aliases: ["mana", "mp", "magic", "spell_slots", "spellSlots", "魔力", "魔法", "灵力", "法力", "法术位", "咒力"],
     valueKeys: ["mp", "mana", "magic", "spell_slots", "spellSlots", "魔力", "魔法", "灵力", "法力", "法术位", "咒力"],
-    maxKeys: ["max_mp", "maxMana", "mana_max", "max_spell_slots", "spellSlotsMax", "最大魔力", "魔力上限", "法力上限", "法术位上限"],
+    maxKeys: [
+      "max_mp",
+      "maxMana",
+      "mana_max",
+      "max_spell_slots",
+      "spellSlotsMax",
+      "最大魔力",
+      "魔力上限",
+      "法力上限",
+      "法术位上限",
+    ],
     description: "施法、异能、灵力消耗、法术位和恢复时使用。",
     mvuPath: "主角.状态条.魔法",
     updateHint: "释放技能、吸收能量、透支或冥想恢复后更新。",
@@ -219,7 +222,10 @@ function collectStatusSources(gameState: JsonRecord) {
     nestedRecord(player, ["status", "状态"]),
     nestedRecord(player, ["stats", "属性"]),
   ];
-  const sceneContainers = [nestedRecord(scene, ["status_bars", "statusBars", "状态条"]), nestedRecord(scene, ["status", "状态"])];
+  const sceneContainers = [
+    nestedRecord(scene, ["status_bars", "statusBars", "状态条"]),
+    nestedRecord(scene, ["status", "状态"]),
+  ];
   for (const item of [...playerContainers, ...sceneContainers, player, scene]) {
     if (item) sources.push(item);
   }

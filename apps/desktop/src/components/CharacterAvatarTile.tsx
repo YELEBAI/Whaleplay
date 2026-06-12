@@ -25,7 +25,7 @@ export function CharacterAvatarTile({
         type="button"
         onClick={onClick}
         onContextMenu={onContextMenu}
-        className="block w-full text-center focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="focus-visible:ring-ring block w-full text-center focus-visible:ring-1 focus-visible:outline-none"
         title={character.name}
       >
         <div
@@ -39,23 +39,23 @@ export function CharacterAvatarTile({
           {character.avatar ? (
             <img src={character.avatar} alt={character.name} className="h-full w-full rounded-md object-cover" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center rounded-md border border-border/30 bg-accent/25">
-              <span className="text-2xl font-bold text-muted-foreground">{character.name.charAt(0)}</span>
+            <div className="border-border/30 bg-accent/25 flex h-full w-full items-center justify-center rounded-md border">
+              <span className="text-muted-foreground text-2xl font-bold">{character.name.charAt(0)}</span>
             </div>
           )}
         </div>
         <span
           className={cn(
-            "mt-2 block truncate text-xs font-medium leading-5",
+            "mt-2 block truncate text-xs leading-5 font-medium",
             selected ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
           )}
         >
           {character.name}
         </span>
       </button>
-      {footerAction && <div className="absolute right-3 top-2">{footerAction}</div>}
+      {footerAction && <div className="absolute top-2 right-3">{footerAction}</div>}
       {actions && (
-        <div className="absolute right-3 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="absolute top-2 right-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           {actions}
         </div>
       )}

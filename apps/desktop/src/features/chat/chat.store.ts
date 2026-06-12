@@ -88,7 +88,11 @@ function loadBranchNames(): Record<string, string> {
 function saveBranchName(leafId: string, name: string) {
   const names = loadBranchNames();
   names[leafId] = name;
-  try { localStorage.setItem(BRANCH_NAMES_KEY, JSON.stringify(names)); } catch { /* noop */ }
+  try {
+    localStorage.setItem(BRANCH_NAMES_KEY, JSON.stringify(names));
+  } catch {
+    /* noop */
+  }
 }
 
 function getAutoBranchName(leafId: string, siblings: string[]): string {
@@ -478,13 +482,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (messages.length === 0) return [];
 
     // Use active leaf if set, otherwise fall back to the latest message
-    const leafId = activeLeafId ?? (() => {
-      const sorted = [...messages].sort((a, b) => {
-        const byTime = b.createdAt.localeCompare(a.createdAt);
-        return byTime === 0 ? b.id.localeCompare(a.id) : byTime;
-      });
-      return sorted[0].id;
-    })();
+    const leafId =
+      activeLeafId ??
+      (() => {
+        const sorted = [...messages].sort((a, b) => {
+          const byTime = b.createdAt.localeCompare(a.createdAt);
+          return byTime === 0 ? b.id.localeCompare(a.id) : byTime;
+        });
+        return sorted[0].id;
+      })();
 
     return buildMessagePath(messages, leafId);
   },
@@ -520,8 +526,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const msg = get().messages.find((m) => m.id === leafId);
     if (!msg?.parentId) return "主分支";
 
-    const siblings = get().messages
-      .filter((m) => m.parentId === msg.parentId)
+    const siblings = get()
+      .messages.filter((m) => m.parentId === msg.parentId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
       .map((m) => m.id);
 

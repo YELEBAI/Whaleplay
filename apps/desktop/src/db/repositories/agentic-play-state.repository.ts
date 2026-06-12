@@ -168,7 +168,11 @@ export const agenticPlayStateRepository = {
     return record;
   },
 
-  async updateState(chatId: string, character: Character, gameState: AgenticGameState): Promise<AgenticPlayStateRecord> {
+  async updateState(
+    chatId: string,
+    character: Character,
+    gameState: AgenticGameState,
+  ): Promise<AgenticPlayStateRecord> {
     const sqliteExisting = await sqliteGet(chatId);
     const all = await loadAll();
     const existing = all.find((record) => record.chatId === chatId);

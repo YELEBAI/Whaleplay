@@ -32,10 +32,7 @@ export function normalizeStringArray(value: unknown): string[] {
   return value.map((item) => trimString(item)).filter(Boolean);
 }
 
-export function addUsage(
-  total: MessageUsage | undefined,
-  next: MessageUsage | undefined,
-): MessageUsage | undefined {
+export function addUsage(total: MessageUsage | undefined, next: MessageUsage | undefined): MessageUsage | undefined {
   if (!next) return total;
   const merged: MessageUsage = { ...(total ?? {}) };
   const fields: Array<

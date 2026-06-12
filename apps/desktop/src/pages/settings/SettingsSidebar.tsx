@@ -12,10 +12,10 @@ interface SettingsSidebarProps {
 
 export function SettingsSidebar({ section, sections, onSelect, onBack, onContextClick, t }: SettingsSidebarProps) {
   return (
-    <div className="w-48 border-r p-4 flex flex-col gap-1">
+    <div className="flex w-48 flex-col gap-1 border-r p-4">
       <button
         onClick={onBack}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 px-2"
+        className="text-muted-foreground hover:text-foreground mb-4 flex items-center gap-2 px-2 text-sm transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         {t("back")}
@@ -24,8 +24,7 @@ export function SettingsSidebar({ section, sections, onSelect, onBack, onContext
         <button
           key={s.key}
           onClick={() => (s.key === "context" ? onContextClick() : onSelect(s.key))}
-          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors
-            ${section === s.key ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"}`}
+          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${section === s.key ? "bg-accent text-foreground font-medium" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"}`}
         >
           <s.icon className="h-4 w-4" />
           {s.label}

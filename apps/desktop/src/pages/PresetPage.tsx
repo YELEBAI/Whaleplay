@@ -265,94 +265,97 @@ export function PresetPage() {
     );
   };
 
-  const handleItemPointerDown = useCallback((e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => {
-    if (!selected || e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
+  const handleItemPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => {
+      if (!selected || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
 
-    const presetId = selected.id;
-    const orderedItems = sortPresetItems(selected.items);
-    const visibleItems = orderedItems.filter((i) => !i.hidden || secretUnlocked);
+      const presetId = selected.id;
+      const orderedItems = sortPresetItems(selected.items);
+      const visibleItems = orderedItems.filter((i) => !i.hidden || secretUnlocked);
 
-    const getDropTarget = (clientY: number) => {
-      if (visibleItems.length === 0) return null;
+      const getDropTarget = (clientY: number) => {
+        if (visibleItems.length === 0) return null;
 
-      for (const item of visibleItems) {
-        const el = itemRefs.current.get(item.id);
-        if (!el) continue;
-        const rect = el.getBoundingClientRect();
-        if (clientY >= rect.top && clientY <= rect.bottom) {
-          return {
-            itemId: item.id,
-            placement: clientY > rect.top + rect.height / 2 ? ("after" as const) : ("before" as const),
-          };
+        for (const item of visibleItems) {
+          const el = itemRefs.current.get(item.id);
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          if (clientY >= rect.top && clientY <= rect.bottom) {
+            return {
+              itemId: item.id,
+              placement: clientY > rect.top + rect.height / 2 ? ("after" as const) : ("before" as const),
+            };
+          }
         }
-      }
 
-      const first = itemRefs.current.get(visibleItems[0].id);
-      const last = itemRefs.current.get(visibleItems[visibleItems.length - 1].id);
-      if (first && clientY < first.getBoundingClientRect().top) {
-        return { itemId: visibleItems[0].id, placement: "before" as const };
-      }
-      if (last && clientY > last.getBoundingClientRect().bottom) {
-        return { itemId: visibleItems[visibleItems.length - 1].id, placement: "after" as const };
-      }
+        const first = itemRefs.current.get(visibleItems[0].id);
+        const last = itemRefs.current.get(visibleItems[visibleItems.length - 1].id);
+        if (first && clientY < first.getBoundingClientRect().top) {
+          return { itemId: visibleItems[0].id, placement: "before" as const };
+        }
+        if (last && clientY > last.getBoundingClientRect().bottom) {
+          return { itemId: visibleItems[visibleItems.length - 1].id, placement: "after" as const };
+        }
 
-      return null;
-    };
+        return null;
+      };
 
-    const previousUserSelect = document.body.style.userSelect;
+      const previousUserSelect = document.body.style.userSelect;
 
-    document.body.style.userSelect = "none";
-    setDraggedItemId(itemId);
-    setDragOverItemId(itemId);
-    setDropPlacement("before");
+      document.body.style.userSelect = "none";
+      setDraggedItemId(itemId);
+      setDragOverItemId(itemId);
+      setDropPlacement("before");
 
-    const handlePointerMove = (event: PointerEvent) => {
-      const target = getDropTarget(event.clientY);
-      if (!target) return;
-      setDragOverItemId(target.itemId);
-      setDropPlacement(target.placement);
-    };
+      const handlePointerMove = (event: PointerEvent) => {
+        const target = getDropTarget(event.clientY);
+        if (!target) return;
+        setDragOverItemId(target.itemId);
+        setDropPlacement(target.placement);
+      };
 
-    const finishDrag = async (event: PointerEvent) => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", finishDrag);
-      window.removeEventListener("pointercancel", cancelDrag);
-      document.body.style.userSelect = previousUserSelect;
+      const finishDrag = async (event: PointerEvent) => {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", finishDrag);
+        window.removeEventListener("pointercancel", cancelDrag);
+        document.body.style.userSelect = previousUserSelect;
 
-      const target = getDropTarget(event.clientY);
-      setDraggedItemId(null);
-      setDragOverItemId(null);
-      if (!target || target.itemId === itemId) return;
+        const target = getDropTarget(event.clientY);
+        setDraggedItemId(null);
+        setDragOverItemId(null);
+        if (!target || target.itemId === itemId) return;
 
-      const sourceItem = orderedItems.find((item) => item.id === itemId);
-      if (!sourceItem) return;
+        const sourceItem = orderedItems.find((item) => item.id === itemId);
+        if (!sourceItem) return;
 
-      const nextItems = orderedItems.filter((item) => item.id !== itemId);
-      const targetIndex = nextItems.findIndex((item) => item.id === target.itemId);
-      if (targetIndex < 0) return;
+        const nextItems = orderedItems.filter((item) => item.id !== itemId);
+        const targetIndex = nextItems.findIndex((item) => item.id === target.itemId);
+        if (targetIndex < 0) return;
 
-      nextItems.splice(target.placement === "after" ? targetIndex + 1 : targetIndex, 0, sourceItem);
-      await store.reorderItems(
-        presetId,
-        nextItems.map((item) => item.id),
-      );
-    };
+        nextItems.splice(target.placement === "after" ? targetIndex + 1 : targetIndex, 0, sourceItem);
+        await store.reorderItems(
+          presetId,
+          nextItems.map((item) => item.id),
+        );
+      };
 
-    const cancelDrag = () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", finishDrag);
-      window.removeEventListener("pointercancel", cancelDrag);
-      document.body.style.userSelect = previousUserSelect;
-      setDraggedItemId(null);
-      setDragOverItemId(null);
-    };
+      const cancelDrag = () => {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", finishDrag);
+        window.removeEventListener("pointercancel", cancelDrag);
+        document.body.style.userSelect = previousUserSelect;
+        setDraggedItemId(null);
+        setDragOverItemId(null);
+      };
 
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", finishDrag);
-    window.addEventListener("pointercancel", cancelDrag);
-  }, [selected, secretUnlocked, store]);
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", finishDrag);
+      window.addEventListener("pointercancel", cancelDrag);
+    },
+    [selected, secretUnlocked, store],
+  );
 
   const handleExport = async () => {
     if (!selected) return;
@@ -443,25 +446,30 @@ export function PresetPage() {
 
   return (
     <div className="flex h-full">
-      <div className="w-60 border-r p-4 flex flex-col gap-3">
+      <div className="flex w-60 flex-col gap-3 border-r p-4">
         <button
           onClick={() => navigate("/")}
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           {t("back")}
         </button>
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{t("title")}</h2>
-        <ScrollArea className="flex-1 -mx-2 px-2">
+        <h2 className="text-muted-foreground text-sm font-semibold tracking-wider uppercase">{t("title")}</h2>
+        <ScrollArea className="-mx-2 flex-1 px-2">
           <div className="flex flex-col gap-0.5">
             {store.presets.length === 0 && !store.loading && (
-              <p className="text-xs text-muted-foreground p-2">{t("noPresets")}</p>
+              <p className="text-muted-foreground p-2 text-xs">{t("noPresets")}</p>
             )}
             {store.presets.map((p) => (
               <button
                 key={p.id}
                 onClick={() => handleSelect(p.id)}
-                className={cn("text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center justify-between gap-1", selectedId === p.id ? "bg-accent text-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground")}
+                className={cn(
+                  "flex items-center justify-between gap-1 rounded px-2 py-1.5 text-left text-sm transition-colors",
+                  selectedId === p.id
+                    ? "bg-accent text-foreground font-medium"
+                    : "hover:bg-accent/50 text-muted-foreground hover:text-foreground",
+                )}
               >
                 <span className="truncate">{p.name}</span>
                 <span className="flex shrink-0 items-center gap-1">
@@ -474,21 +482,21 @@ export function PresetPage() {
                 </span>
               </button>
             ))}
-            <Button variant="outline" size="sm" onClick={handleCreate} className="w-full justify-center text-xs mt-1">
-              <Plus className="h-3.5 w-3.5 mr-1" />
+            <Button variant="outline" size="sm" onClick={handleCreate} className="mt-1 w-full justify-center text-xs">
+              <Plus className="mr-1 h-3.5 w-3.5" />
               {t("newPreset")}
             </Button>
           </div>
         </ScrollArea>
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden">
         {!selected ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            <div className="text-center space-y-2">
+          <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+            <div className="space-y-2 text-center">
               <p>{t("selectOrCreate")}</p>
               <Button variant="outline" size="sm" onClick={handleCreate}>
-                <Plus className="h-4 w-4 mr-1" />
+                <Plus className="mr-1 h-4 w-4" />
                 {t("newPreset")}
               </Button>
             </div>
@@ -501,18 +509,18 @@ export function PresetPage() {
                   <Input
                     value={editName}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditName(e.target.value)}
-                    className="border-0 border-b rounded-none px-0 h-auto text-2xl font-bold shadow-none focus-visible:ring-0"
+                    className="h-auto rounded-none border-0 border-b px-0 text-2xl font-bold shadow-none focus-visible:ring-0"
                     placeholder={t("namePlaceholder")}
                   />
                   <Textarea
                     value={editDesc}
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditDesc(e.target.value)}
-                    className="border-0 border-b rounded-none px-0 min-h-[40px] resize-none text-sm text-muted-foreground shadow-none focus-visible:ring-0"
+                    className="text-muted-foreground min-h-[40px] resize-none rounded-none border-0 border-b px-0 text-sm shadow-none focus-visible:ring-0"
                     placeholder={t("descPlaceholder")}
                     rows={1}
                   />
                 </div>
-                <div className="flex flex-wrap gap-1 shrink-0">
+                <div className="flex shrink-0 flex-wrap gap-1">
                   <Button size="sm" variant="outline" onClick={handleSaveMeta}>
                     {t("save")}
                   </Button>
@@ -550,7 +558,7 @@ export function PresetPage() {
               )}
 
               <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <div className="rounded-md border bg-muted/10 p-3">
+                <div className="bg-muted/10 rounded-md border p-3">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center">
                     <div className="min-w-0 flex-1">
                       <Label htmlFor="extra-preset-entry" className="flex items-center gap-1.5">
@@ -559,10 +567,9 @@ export function PresetPage() {
                       </Label>
                       <select
                         id="extra-preset-entry"
-                        value={selectedSourceItem?.key ?? ""}
-                        onChange={(e) => setSourceItemKey(e.target.value)}
-                        className="mt-1 w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                        disabled={externalPresetItemOptions.length === 0}
+                        value={templateId}
+                        onChange={(e) => setTemplateId(e.target.value)}
+                        className="border-input focus-visible:ring-ring mt-1 h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
                       >
                         {externalPresetItemOptions.length === 0 ? (
                           <option value="">{t("extraPresetEmpty")}</option>
@@ -585,34 +592,25 @@ export function PresetPage() {
                             })
                         )}
                       </select>
-                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                        {selectedSourceItem
-                          ? `${selectedSourceItem.preset.name} · ${selectedSourceItem.item.role} · ${selectedSourceItem.item.content.slice(0, 160)}`
-                          : t("extraPresetEmptyHint")}
-                      </p>
+                      <p className="text-muted-foreground mt-1 line-clamp-2 text-xs">{selectedTemplate?.description}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={handleAddExternalPresetItem}
-                      disabled={!selectedSourceItem}
-                    >
-                      <Plus className="h-3.5 w-3.5 mr-1" />
+                    <Button size="sm" variant="outline" onClick={handleAddTemplateItem} disabled={!selectedTemplate}>
+                      <Plus className="mr-1 h-3.5 w-3.5" />
                       {t("addSelected")}
                     </Button>
                   </div>
                 </div>
 
-                <div className="rounded-md border bg-muted/10 p-3">
+                <div className="bg-muted/10 rounded-md border p-3">
                   <div className="flex h-full items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium">{t("items", { count: sortedItems.length })}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         {t("itemsEnabled", { count: sortedItems.filter((i) => i.enabled).length })}
                       </p>
                     </div>
                     <Button size="sm" onClick={openNewItem} className="shrink-0">
-                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      <Plus className="mr-1 h-3.5 w-3.5" />
                       {t("blankCard")}
                     </Button>
                   </div>
@@ -622,11 +620,11 @@ export function PresetPage() {
 
             <div className="flex-1 overflow-y-auto p-6">
               {sortedItems.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+                <div className="text-muted-foreground flex h-32 items-center justify-center text-sm">
                   <p>{t("noItems")}</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-w-5xl">
+                <div className="max-w-5xl space-y-2">
                   {sortedItems.map((item, index) => (
                     <Card
                       key={item.id}
@@ -634,11 +632,21 @@ export function PresetPage() {
                         if (node) itemRefs.current.set(item.id, node);
                         else itemRefs.current.delete(item.id);
                       }}
-                      className={cn("relative transition-all", !item.enabled && "opacity-50", draggedItemId === item.id && "opacity-40", dragOverItemId === item.id && draggedItemId !== item.id && "ring-1 ring-primary/40 bg-accent/20")}
+                      className={cn(
+                        "relative transition-all",
+                        !item.enabled && "opacity-50",
+                        draggedItemId === item.id && "opacity-40",
+                        dragOverItemId === item.id &&
+                          draggedItemId !== item.id &&
+                          "ring-primary/40 bg-accent/20 ring-1",
+                      )}
                     >
                       {dragOverItemId === item.id && draggedItemId !== item.id && (
                         <div
-                          className={cn("pointer-events-none absolute left-3 right-3 z-10 h-0.5 rounded-full bg-primary", dropPlacement === "before" ? "top-0" : "bottom-0")}
+                          className={cn(
+                            "bg-primary pointer-events-none absolute right-3 left-3 z-10 h-0.5 rounded-full",
+                            dropPlacement === "before" ? "top-0" : "bottom-0",
+                          )}
                         />
                       )}
                       <CardHeader className="p-3 pb-0">
@@ -648,7 +656,7 @@ export function PresetPage() {
                             onPointerDown={(e: ReactPointerEvent<HTMLButtonElement>) =>
                               handleItemPointerDown(e, item.id)
                             }
-                            className="mt-0.5 flex h-7 w-5 shrink-0 touch-none select-none items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground cursor-grab active:cursor-grabbing"
+                            className="text-muted-foreground hover:bg-accent hover:text-foreground mt-0.5 flex h-7 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded select-none active:cursor-grabbing"
                             title="Drag to reorder"
                           >
                             <GripVertical className="h-4 w-4" />
@@ -658,25 +666,31 @@ export function PresetPage() {
                             role="switch"
                             aria-checked={item.enabled}
                             onClick={() => handleToggleItem(item)}
-                            className={cn("mt-0.5 shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer", item.enabled ? "bg-primary" : "bg-muted-foreground/30")}
+                            className={cn(
+                              "focus-visible:ring-ring relative mt-0.5 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:ring-1 focus-visible:outline-none",
+                              item.enabled ? "bg-primary" : "bg-muted-foreground/30",
+                            )}
                             title={item.enabled ? "Disable" : "Enable"}
                           >
                             <span
-                              className={cn("inline-block h-3.5 w-3.5 transform rounded-full bg-background shadow-sm transition-transform", item.enabled ? "translate-x-[18px]" : "translate-x-[4px]")}
+                              className={cn(
+                                "bg-background inline-block h-3.5 w-3.5 transform rounded-full shadow-sm transition-transform",
+                                item.enabled ? "translate-x-[18px]" : "translate-x-[4px]",
+                              )}
                             />
                           </button>
-                          <div className="flex-1 min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <CardTitle className="text-sm truncate">{item.name}</CardTitle>
-                              <span className="text-[10px] uppercase bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground shrink-0">
+                              <CardTitle className="truncate text-sm">{item.name}</CardTitle>
+                              <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
                                 {item.role}
                               </span>
-                              <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono text-muted-foreground shrink-0">
+                              <span className="bg-muted text-muted-foreground shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px]">
                                 Prompt #{index + 1}
                               </span>
                             </div>
                           </div>
-                          <div className="flex gap-0.5 shrink-0">
+                          <div className="flex shrink-0 gap-0.5">
                             <Button
                               size="icon"
                               variant="ghost"
@@ -703,7 +717,7 @@ export function PresetPage() {
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              className="text-destructive hover:text-destructive h-7 w-7"
                               onClick={() => setDeleteItemTarget(item)}
                             >
                               <Trash2 className="h-3 w-3" />
@@ -712,7 +726,7 @@ export function PresetPage() {
                         </div>
                       </CardHeader>
                       <CardContent className="p-3 pt-1">
-                        <p className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap">{item.content}</p>
+                        <p className="text-muted-foreground line-clamp-2 text-xs whitespace-pre-wrap">{item.content}</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -744,7 +758,7 @@ export function PresetPage() {
                 <select
                   value={itemRole}
                   onChange={(e) => setItemRole(e.target.value as "system" | "user")}
-                  className="w-full h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="border-input focus-visible:ring-ring h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
                 >
                   <option value="system">{t("itemRoles.system")}</option>
                   <option value="user">{t("itemRoles.user")}</option>
@@ -830,18 +844,18 @@ export function PresetPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div
-              className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-accent/50 transition-colors"
+              className="hover:border-primary/50 hover:bg-accent/50 cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors"
               onClick={() => fileInputRef.current?.click()}
             >
               {importFile ? (
                 <div className="space-y-1">
                   <p className="text-sm font-medium">{importFile.name}</p>
-                  <p className="text-xs text-muted-foreground">{(importFile.size / 1024).toFixed(1)} KB</p>
+                  <p className="text-muted-foreground text-xs">{(importFile.size / 1024).toFixed(1)} KB</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">{t("importDialog.clickToSelect")}</p>
+                  <Upload className="text-muted-foreground mx-auto h-8 w-8" />
+                  <p className="text-muted-foreground text-sm">{t("importDialog.clickToSelect")}</p>
                 </div>
               )}
               <input ref={fileInputRef} type="file" accept=".json" onChange={handleFileChange} className="hidden" />

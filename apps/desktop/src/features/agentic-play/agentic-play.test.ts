@@ -566,5 +566,4 @@ describe("Agentic Play", () => {
     expect(streamed.join("")).toBe(result.content);
     expect(provider.streamGenerate).toHaveBeenCalledTimes(2);
   });
-
 });

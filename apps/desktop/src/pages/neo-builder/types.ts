@@ -1,8 +1,4 @@
-import type {
-  CreateCharacterInput,
-  CreateWorldbookEntryInput,
-  MessageUsage,
-} from "@neo-tavern/shared";
+import type { CreateCharacterInput, CreateWorldbookEntryInput, MessageUsage } from "@neo-tavern/shared";
 import type {
   NeoBuilderChoice,
   NeoBuilderEvaluationReport,
@@ -73,7 +69,13 @@ export type BuilderWorkspaceRecord = BuilderWorkspaceSnapshot & {
 };
 
 // ── Re-exports from shared packages ──────────────────
-export type { Character, CreateCharacterInput, CreateWorldbookEntryInput, MessageUsage, Worldbook } from "@neo-tavern/shared";
+export type {
+  Character,
+  CreateCharacterInput,
+  CreateWorldbookEntryInput,
+  MessageUsage,
+  Worldbook,
+} from "@neo-tavern/shared";
 export type {
   NeoBuilderEvaluationReport,
   NeoBuilderChoice,

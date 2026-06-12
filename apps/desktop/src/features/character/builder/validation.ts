@@ -14,13 +14,7 @@ import type {
   NeoMvuConfig,
   ValidationResult,
 } from "./types";
-import {
-  trimString,
-  optionalString,
-  normalizeStringList,
-  splitEntryKeys,
-  isSingleHanKey,
-} from "./utils";
+import { trimString, optionalString, normalizeStringList, splitEntryKeys, isSingleHanKey } from "./utils";
 import { buildCreationPlanYaml } from "./prompt";
 
 const PLACEHOLDER_PATTERN = /(某城市|某学校|某组织|某地点|某角色|某人|待定|占位|TODO|TBD|未命名)/i;
@@ -76,10 +70,16 @@ export function normalizeWorldbookEntries(value: unknown): CreateWorldbookEntryI
 
       // keys can be a comma-separated string or a string array — normalize to comma string
       const keysRaw = Array.isArray(data.keys)
-        ? data.keys.map((k) => trimString(k)).filter(Boolean).join(", ")
+        ? data.keys
+            .map((k) => trimString(k))
+            .filter(Boolean)
+            .join(", ")
         : trimString(data.keys);
       const secondaryRaw = Array.isArray(data.secondaryKeys)
-        ? data.secondaryKeys.map((k) => trimString(k)).filter(Boolean).join(", ")
+        ? data.secondaryKeys
+            .map((k) => trimString(k))
+            .filter(Boolean)
+            .join(", ")
         : optionalString(data.secondaryKeys);
 
       return {
@@ -208,18 +208,11 @@ export function normalizePlanEntries(value: unknown): NeoCreationPlanEntry[] {
     .slice(0, 32);
 }
 
-export function normalizeCreationPlan(
-  value: unknown,
-  existing?: NeoCreationPlan | null,
-): NeoCreationPlan | undefined {
+export function normalizeCreationPlan(value: unknown, existing?: NeoCreationPlan | null): NeoCreationPlan | undefined {
   if (!value || typeof value !== "object") return existing ?? undefined;
   const data = value as Record<string, unknown>;
-  const project = data.project && typeof data.project === "object"
-    ? (data.project as Record<string, unknown>)
-    : {};
-  const world = data.world && typeof data.world === "object"
-    ? (data.world as Record<string, unknown>)
-    : {};
+  const project = data.project && typeof data.project === "object" ? (data.project as Record<string, unknown>) : {};
+  const world = data.world && typeof data.world === "object" ? (data.world as Record<string, unknown>) : {};
   const characters: NeoCreationPlan["characters"] = Array.isArray(data.characters)
     ? data.characters
         .map((char): NeoCreationPlan["characters"][number] | null => {
@@ -229,34 +222,37 @@ export function normalizeCreationPlan(
             name: trimString(c.name),
             identity: optionalString(c.identity),
             relationship: optionalString(c.relationship),
-            palette: c.palette && typeof c.palette === "object"
-              ? {
-                  base: optionalString((c.palette as Record<string, unknown>).base),
-                  main: normalizeStringList((c.palette as Record<string, unknown>).main),
-                  accents: normalizeStringList((c.palette as Record<string, unknown>).accents),
-                }
-              : undefined,
+            palette:
+              c.palette && typeof c.palette === "object"
+                ? {
+                    base: optionalString((c.palette as Record<string, unknown>).base),
+                    main: normalizeStringList((c.palette as Record<string, unknown>).main),
+                    accents: normalizeStringList((c.palette as Record<string, unknown>).accents),
+                  }
+                : undefined,
           };
         })
         .filter((char): char is NeoCreationPlan["characters"][number] => !!char)
         .slice(0, 12)
     : [];
-  const style = data.style && typeof data.style === "object"
-    ? {
-        perspective: optionalString((data.style as Record<string, unknown>).perspective),
-        tone: optionalString((data.style as Record<string, unknown>).tone),
-        mood: optionalString((data.style as Record<string, unknown>).mood),
-      }
-    : undefined;
+  const style =
+    data.style && typeof data.style === "object"
+      ? {
+          perspective: optionalString((data.style as Record<string, unknown>).perspective),
+          tone: optionalString((data.style as Record<string, unknown>).tone),
+          mood: optionalString((data.style as Record<string, unknown>).mood),
+        }
+      : undefined;
   const entries = normalizePlanEntries(data.entries || data.entryPlan);
-  const firstMessage = data.firstMessage && typeof data.firstMessage === "object"
-    ? {
-        format: optionalString((data.firstMessage as Record<string, unknown>).format),
-        scene: optionalString((data.firstMessage as Record<string, unknown>).scene),
-        openingSituation: optionalString((data.firstMessage as Record<string, unknown>).openingSituation),
-        wordCount: optionalString((data.firstMessage as Record<string, unknown>).wordCount),
-      }
-    : undefined;
+  const firstMessage =
+    data.firstMessage && typeof data.firstMessage === "object"
+      ? {
+          format: optionalString((data.firstMessage as Record<string, unknown>).format),
+          scene: optionalString((data.firstMessage as Record<string, unknown>).scene),
+          openingSituation: optionalString((data.firstMessage as Record<string, unknown>).openingSituation),
+          wordCount: optionalString((data.firstMessage as Record<string, unknown>).wordCount),
+        }
+      : undefined;
   const openQuestions = Array.isArray(data.openQuestions)
     ? data.openQuestions.map((q) => trimString(q)).filter(Boolean)
     : [];
@@ -265,20 +261,18 @@ export function normalizeCreationPlan(
     project: {
       name: trimString(project.name || data.projectName) || existing?.project?.name || "Whale Builder",
       worldbookName: optionalString(project.worldbookName || data.worldbookName),
-      form:
-        project.form === "worldbook" || data.form === "worldbook"
-          ? "worldbook"
-          : "charactercard",
+      form: project.form === "worldbook" || data.form === "worldbook" ? "worldbook" : "charactercard",
       sourceType: optionalString(project.sourceType || data.sourceType),
       planningMode: optionalString(project.planningMode || data.planningMode),
     },
-    world: world.overview || data.worldPlan
-      ? {
-          overview: optionalString(world.overview || data.worldPlan),
-          regions: normalizeStringList(world.regions),
-          factions: normalizeStringList(world.factions),
-        }
-      : undefined,
+    world:
+      world.overview || data.worldPlan
+        ? {
+            overview: optionalString(world.overview || data.worldPlan),
+            regions: normalizeStringList(world.regions),
+            factions: normalizeStringList(world.factions),
+          }
+        : undefined,
     characters,
     style,
     entries,
@@ -300,9 +294,7 @@ export function updatePlanEntryStatus(
   if (!plan) return undefined;
   const entryId = trimString(args.entryId || args.id);
   const status: NeoCreationPlanEntry["status"] =
-    args.status === "done" || args.status === "in_progress" || args.status === "skipped"
-      ? args.status
-      : "done";
+    args.status === "done" || args.status === "in_progress" || args.status === "skipped" ? args.status : "done";
   const entries = plan.entries.map((entry) =>
     entry.id === entryId || entry.name === entryId || !entryId
       ? {
@@ -318,10 +310,7 @@ export function updatePlanEntryStatus(
 
 // ── Evaluation Report ──
 
-export function normalizeEvaluationReport(
-  args: Record<string, unknown>,
-  issues: string[],
-): NeoBuilderEvaluationReport {
+export function normalizeEvaluationReport(args: Record<string, unknown>, issues: string[]): NeoBuilderEvaluationReport {
   const argIssuesFromModel: NeoBuilderEvaluationReport["issues"] = Array.isArray(args.issues)
     ? (args.issues as unknown[])
         .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
@@ -341,9 +330,7 @@ export function normalizeEvaluationReport(
       .map((issue) => ({ severity: "medium" as const, target: "character", message: issue })),
   );
 
-  const suggestions = Array.isArray(args.suggestions)
-    ? args.suggestions.map((s) => trimString(s)).filter(Boolean)
-    : [];
+  const suggestions = Array.isArray(args.suggestions) ? args.suggestions.map((s) => trimString(s)).filter(Boolean) : [];
 
   return {
     summary: trimString(args.summary) || "角色草稿评估",
@@ -538,7 +525,9 @@ export function normalizeDraft(
     if (!personalityPalette.base) issues.push("性格调色盘需要底色");
     if (personalityPalette.main.length === 0) issues.push("性格调色盘需要至少一个主色调");
     if (personalityPalette.derivatives.length === 0) {
-      issues.push("性格调色盘需要衍生（[{color:\"性格名\", items:[\"场景描述1\", \"场景描述2\"]}] 或 {\"性格名\": [\"描述1\", \"描述2\"]} 格式，每个性格 ≥2 条）");
+      issues.push(
+        '性格调色盘需要衍生（[{color:"性格名", items:["场景描述1", "场景描述2"]}] 或 {"性格名": ["描述1", "描述2"]} 格式，每个性格 ≥2 条）',
+      );
     }
     for (const derivative of personalityPalette.derivatives) {
       if (derivative.items.length < 2) {

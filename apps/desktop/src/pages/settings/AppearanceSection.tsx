@@ -24,7 +24,8 @@ export function AppearanceSection({ t }: { t: (key: string, params?: Record<stri
           ? t("appearance.eyeCare")
           : t("appearance.light");
 
-  const TitleIcon = resolvedTheme === "dark" ? Moon : resolvedTheme === "blue" ? Waves : resolvedTheme === "sepia" ? Eye : Sun;
+  const TitleIcon =
+    resolvedTheme === "dark" ? Moon : resolvedTheme === "blue" ? Waves : resolvedTheme === "sepia" ? Eye : Sun;
 
   return (
     <Card>
@@ -41,14 +42,13 @@ export function AppearanceSection({ t }: { t: (key: string, params?: Record<stri
             <button
               key={th.value}
               onClick={() => setTheme(th.value)}
-              className={`relative flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors
-                ${
-                  theme === th.value
-                    ? "app-sidebar-gradient border-border/90 text-foreground shadow-sm"
-                    : "border-border bg-background/35 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
-                }`}
+              className={`relative flex flex-col items-center gap-2 rounded-lg border p-4 transition-colors ${
+                theme === th.value
+                  ? "app-sidebar-gradient border-border/90 text-foreground shadow-sm"
+                  : "border-border bg-background/35 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+              }`}
             >
-              {theme === th.value && <CheckCircle2 className="absolute right-2 top-2 h-3.5 w-3.5 text-foreground" />}
+              {theme === th.value && <CheckCircle2 className="text-foreground absolute top-2 right-2 h-3.5 w-3.5" />}
               <th.icon className="h-5 w-5" />
               <span className="text-sm font-medium">{th.label}</span>
             </button>
@@ -64,9 +64,9 @@ export function AppearanceSection({ t }: { t: (key: string, params?: Record<stri
                   ? t("appearance.eyeCare")
                   : theme === "blue"
                     ? t("appearance.blue")
-                  : theme === "dark"
-                    ? t("appearance.dark")
-                    : t("appearance.light"),
+                    : theme === "dark"
+                      ? t("appearance.dark")
+                      : t("appearance.light"),
           })}
         </div>
       </CardContent>

@@ -12,9 +12,11 @@ export function registerDevFixtures() {
   (window as unknown as Record<string, unknown>).__mockUpdate = () => {
     // eslint-disable-next-line no-console
     console.log("🔧 Mocking update available...");
-    window.dispatchEvent(new CustomEvent("neotavern-mock-update", {
-      detail: { version: "99.0.0", body: "🐳 模拟更新：修复了所有 bug，添加了所有功能。" },
-    }));
+    window.dispatchEvent(
+      new CustomEvent("neotavern-mock-update", {
+        detail: { version: "99.0.0", body: "🐳 模拟更新：修复了所有 bug，添加了所有功能。" },
+      }),
+    );
   };
 
   (window as unknown as Record<string, unknown>).__seedFixture = async () => {

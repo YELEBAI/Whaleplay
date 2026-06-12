@@ -189,23 +189,28 @@ export function RegexSection({ t }: RegexSectionProps) {
   // ── JSX ──────────────────────────────────────────────
 
   return (
-    <div className="flex h-full -m-6">
+    <div className="-m-6 flex h-full">
       {/* ── Left sidebar: preset list ── */}
-      <div className="w-52 border-r p-4 flex flex-col gap-2">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("regex.presets")}</h2>
+      <div className="flex w-52 flex-col gap-2 border-r p-4">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">{t("regex.presets")}</h2>
           <Button size="icon" variant="ghost" className="h-6 w-6" onClick={handleCreateRegexPreset}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <ScrollArea className="flex-1 -mx-2 px-2">
+        <ScrollArea className="-mx-2 flex-1 px-2">
           <div className="flex flex-col gap-0.5">
-            {regexPresets.length === 0 && <p className="text-xs text-muted-foreground p-2">{t("regex.noPresets")}</p>}
+            {regexPresets.length === 0 && <p className="text-muted-foreground p-2 text-xs">{t("regex.noPresets")}</p>}
             {regexPresets.map((p) => (
               <button
                 key={p.id}
                 onClick={() => handleSelectRegexPreset(p.id)}
-                className={cn("text-left px-2 py-1.5 rounded text-sm transition-colors flex items-center justify-between gap-1", selectedRegexPresetId === p.id ? "bg-accent text-foreground font-medium" : "hover:bg-accent/50 text-muted-foreground hover:text-foreground")}
+                className={cn(
+                  "flex items-center justify-between gap-1 rounded px-2 py-1.5 text-left text-sm transition-colors",
+                  selectedRegexPresetId === p.id
+                    ? "bg-accent text-foreground font-medium"
+                    : "hover:bg-accent/50 text-muted-foreground hover:text-foreground",
+                )}
               >
                 <span className="truncate text-xs">{p.name}</span>
                 {activeRegexPresetId === p.id && <CheckCircle2 className="h-3 w-3 shrink-0 text-green-500" />}
@@ -216,13 +221,13 @@ export function RegexSection({ t }: RegexSectionProps) {
       </div>
 
       {/* ── Right main area ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden">
         {!selectedRegexPreset ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            <div className="text-center space-y-2">
+          <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
+            <div className="space-y-2 text-center">
               <p>{t("regex.selectOrCreate")}</p>
               <Button variant="outline" size="sm" onClick={handleCreateRegexPreset}>
-                <Plus className="h-3.5 w-3.5 mr-1" />
+                <Plus className="mr-1 h-3.5 w-3.5" />
                 {t("regex.newPreset")}
               </Button>
             </div>
@@ -230,23 +235,23 @@ export function RegexSection({ t }: RegexSectionProps) {
         ) : (
           <>
             {/* ── Preset meta header ── */}
-            <div className="p-4 pb-2 shrink-0 border-b">
-              <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="shrink-0 border-b p-4 pb-2">
+              <div className="mb-3 flex items-start justify-between gap-3">
                 <div className="flex-1 space-y-1.5">
                   <Input
                     value={regexPresetName}
                     onChange={(e) => setRegexPresetName(e.target.value)}
-                    className="border-0 border-b rounded-none px-0 h-auto text-lg font-bold focus-visible:ring-0"
+                    className="h-auto rounded-none border-0 border-b px-0 text-lg font-bold focus-visible:ring-0"
                     placeholder={t("regex.namePlaceholder")}
                   />
                   <Input
                     value={regexPresetDesc}
                     onChange={(e) => setRegexPresetDesc(e.target.value)}
-                    className="border-0 border-b rounded-none px-0 h-auto text-xs text-muted-foreground focus-visible:ring-0"
+                    className="text-muted-foreground h-auto rounded-none border-0 border-b px-0 text-xs focus-visible:ring-0"
                     placeholder={t("regex.descPlaceholder")}
                   />
                 </div>
-                <div className="flex gap-1 shrink-0">
+                <div className="flex shrink-0 gap-1">
                   <Button size="sm" variant="outline" onClick={handleSaveRegexPresetMeta}>
                     Save
                   </Button>
@@ -278,9 +283,9 @@ export function RegexSection({ t }: RegexSectionProps) {
             </div>
 
             {/* ── Rule form ── */}
-            <div className="p-4 shrink-0 border-b">
-              <h3 className="text-sm font-semibold mb-3">{editingRuleId ? t("regex.editRule") : t("regex.addRule")}</h3>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="shrink-0 border-b p-4">
+              <h3 className="mb-3 text-sm font-semibold">{editingRuleId ? t("regex.editRule") : t("regex.addRule")}</h3>
+              <div className="mb-3 grid grid-cols-2 gap-3">
                 <Input
                   value={regexName}
                   onChange={(e) => setRegexName(e.target.value)}
@@ -288,37 +293,49 @@ export function RegexSection({ t }: RegexSectionProps) {
                   className="text-xs"
                 />
                 <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-1.5">
                     <button
                       type="button"
                       role="switch"
                       aria-checked={regexEnabled}
                       onClick={() => setRegexEnabled(!regexEnabled)}
-                      className={cn("relative inline-flex h-4 w-7 items-center rounded-full transition-colors", regexEnabled ? "bg-primary" : "bg-muted-foreground/30")}
+                      className={cn(
+                        "relative inline-flex h-4 w-7 items-center rounded-full transition-colors",
+                        regexEnabled ? "bg-primary" : "bg-muted-foreground/30",
+                      )}
                     >
                       <span
-                        className={cn("inline-block h-3 w-3 transform rounded-full bg-white transition-transform", regexEnabled ? "translate-x-[14px]" : "translate-x-[2px]")}
+                        className={cn(
+                          "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                          regexEnabled ? "translate-x-[14px]" : "translate-x-[2px]",
+                        )}
                       />
                     </button>
                     <span className="text-[10px]">{t("regex.on")}</span>
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
+                  <label className="flex cursor-pointer items-center gap-1.5">
                     <button
                       type="button"
                       role="switch"
                       aria-checked={regexStrip}
                       onClick={() => setRegexStrip(!regexStrip)}
-                      className={cn("relative inline-flex h-4 w-7 items-center rounded-full transition-colors", regexStrip ? "bg-primary" : "bg-muted-foreground/30")}
+                      className={cn(
+                        "relative inline-flex h-4 w-7 items-center rounded-full transition-colors",
+                        regexStrip ? "bg-primary" : "bg-muted-foreground/30",
+                      )}
                     >
                       <span
-                        className={cn("inline-block h-3 w-3 transform rounded-full bg-white transition-transform", regexStrip ? "translate-x-[14px]" : "translate-x-[2px]")}
+                        className={cn(
+                          "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                          regexStrip ? "translate-x-[14px]" : "translate-x-[2px]",
+                        )}
                       />
                     </button>
                     <span className="text-[10px]">{t("regex.strip")}</span>
                   </label>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="mb-3 grid grid-cols-2 gap-3">
                 <Input
                   value={regexPattern}
                   onChange={(e) => setRegexPattern(e.target.value)}
@@ -363,32 +380,41 @@ export function RegexSection({ t }: RegexSectionProps) {
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-1.5">
                 {selectedRules.length === 0 && (
-                  <p className="text-xs text-muted-foreground p-2">{t("regex.noRules")}</p>
+                  <p className="text-muted-foreground p-2 text-xs">{t("regex.noRules")}</p>
                 )}
                 {selectedRules.map((rule) => (
                   <div
                     key={rule.id}
-                    className={cn("flex items-center gap-2 p-2 rounded-lg", !rule.enabled ? "opacity-40" : "hover:bg-accent/50")}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg p-2",
+                      !rule.enabled ? "opacity-40" : "hover:bg-accent/50",
+                    )}
                   >
                     <button
                       type="button"
                       role="switch"
                       aria-checked={rule.enabled}
                       onClick={() => handleToggleRule(rule.id)}
-                      className={cn("shrink-0 relative inline-flex h-4 w-7 items-center rounded-full transition-colors", rule.enabled ? "bg-primary" : "bg-muted-foreground/30")}
+                      className={cn(
+                        "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
+                        rule.enabled ? "bg-primary" : "bg-muted-foreground/30",
+                      )}
                     >
                       <span
-                        className={cn("inline-block h-3 w-3 transform rounded-full bg-white transition-transform", rule.enabled ? "translate-x-[14px]" : "translate-x-[2px]")}
+                        className={cn(
+                          "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
+                          rule.enabled ? "translate-x-[14px]" : "translate-x-[2px]",
+                        )}
                       />
                     </button>
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium truncate">{rule.name}</span>
+                        <span className="truncate text-xs font-medium">{rule.name}</span>
                         {rule.stripFromPrompt && (
-                          <span className="text-[8px] bg-muted px-1 py-0.5 rounded font-mono shrink-0">strip</span>
+                          <span className="bg-muted shrink-0 rounded px-1 py-0.5 font-mono text-[8px]">strip</span>
                         )}
                       </div>
-                      <p className="text-[10px] font-mono text-muted-foreground truncate">{rule.pattern}</p>
+                      <p className="text-muted-foreground truncate font-mono text-[10px]">{rule.pattern}</p>
                     </div>
                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => startEditRule(rule)}>
                       <span className="text-[10px]">✎</span>
@@ -396,7 +422,7 @@ export function RegexSection({ t }: RegexSectionProps) {
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-6 w-6 text-destructive"
+                      className="text-destructive h-6 w-6"
                       onClick={() => handleDeleteRule(rule.id)}
                     >
                       <Trash2 className="h-3 w-3" />

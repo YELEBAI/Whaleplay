@@ -82,12 +82,12 @@ export function ArtifactsPanel({
   ).length;
 
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
+    <aside className="bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border">
       <div className="shrink-0 border-b p-4">
         <h2 className="font-semibold">{t("sidebar.progressAndArtifacts")}</h2>
       </div>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4">
         <section>
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
             <CheckCircle2 className="h-4 w-4" />
@@ -97,7 +97,7 @@ export function ArtifactsPanel({
             {steps.map((step, index) => (
               <div
                 key={step.label}
-                className={`flex items-center gap-3 rounded-md border bg-background p-3 ${
+                className={`bg-background flex items-center gap-3 rounded-md border p-3 ${
                   step.active ? "border-primary/60 bg-primary/5" : ""
                 }`}
               >
@@ -121,15 +121,15 @@ export function ArtifactsPanel({
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{step.label}</div>
                   {step.optional && !step.done ? (
-                    <div className="text-xs text-muted-foreground">{t("sidebar.optional")}</div>
+                    <div className="text-muted-foreground text-xs">{t("sidebar.optional")}</div>
                   ) : null}
                 </div>
               </div>
             ))}
           </div>
           {planEntries.length ? (
-            <div className="mt-3 rounded-md border bg-background p-3">
-              <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <div className="bg-background mt-3 rounded-md border p-3">
+              <div className="text-muted-foreground mb-2 flex items-center justify-between gap-3 text-xs">
                 <span>{t("planEntries.title")}</span>
                 <span>
                   {completedPlanEntries}/{planEntries.length}
@@ -150,7 +150,7 @@ export function ArtifactsPanel({
                       }`}
                     />
                     <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-                    <span className="shrink-0 text-muted-foreground">{getPlanStatusLabel(entry.status)}</span>
+                    <span className="text-muted-foreground shrink-0">{getPlanStatusLabel(entry.status)}</span>
                   </div>
                 ))}
               </div>
@@ -164,39 +164,34 @@ export function ArtifactsPanel({
             {t("sidebar.artifacts")}
           </div>
           <div className="space-y-3">
-            <div className="rounded-md border bg-background p-3">
+            <div className="bg-background rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <FileText className="h-4 w-4" />
                     {t("artifacts.plan.title")}
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 truncate text-xs">
                     {creationPlan
                       ? t("artifacts.plan.entries", { count: creationPlan.entries.length })
                       : t("status.generated")}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setArtifactView("plan")}
-                  disabled={!creationPlan}
-                >
+                <Button size="sm" variant="outline" onClick={() => setArtifactView("plan")} disabled={!creationPlan}>
                   <Eye className="mr-1 h-3.5 w-3.5" />
                   {t("view")}
                 </Button>
               </div>
             </div>
 
-            <div className="rounded-md border bg-background p-3">
+            <div className="bg-background rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Activity className="h-4 w-4" />
                     状态栏
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 truncate text-xs">
                     {statusBars?.bars.length ? `${statusBars.bars.length} 个初始状态` : t("status.generated")}
                   </p>
                 </div>
@@ -212,14 +207,14 @@ export function ArtifactsPanel({
               </div>
             </div>
 
-            <div className="rounded-md border bg-background p-3">
+            <div className="bg-background rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Brain className="h-4 w-4" />
                     {t("artifacts.palette.title")}
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 truncate text-xs">
                     {personalityPalette
                       ? t("artifacts.palette.summary", {
                           base: personalityPalette.base || t("artifacts.palette.noBase"),
@@ -240,37 +235,32 @@ export function ArtifactsPanel({
               </div>
             </div>
 
-            <div className="rounded-md border bg-background p-3">
+            <div className="bg-background rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <FileText className="h-4 w-4" />
                     {t("artifacts.character.title")}
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 truncate text-xs">
                     {draft ? draft.name : t("status.generated")}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setArtifactView("character")}
-                  disabled={!draft}
-                >
+                <Button size="sm" variant="outline" onClick={() => setArtifactView("character")} disabled={!draft}>
                   <Eye className="mr-1 h-3.5 w-3.5" />
                   {t("view")}
                 </Button>
               </div>
             </div>
 
-            <div className="rounded-md border bg-background p-3">
+            <div className="bg-background rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <BookOpen className="h-4 w-4" />
                     {t("artifacts.worldbook.title")}
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 truncate text-xs">
                     {worldbookDraft?.entries.length
                       ? t("artifacts.worldbook.entries", { count: worldbookDraft.entries.length })
                       : t("status.generated")}
@@ -288,14 +278,14 @@ export function ArtifactsPanel({
               </div>
             </div>
 
-            <div className="rounded-md border bg-background p-3">
+            <div className="bg-background rounded-md border p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <CheckCircle2 className="h-4 w-4" />
                     {t("artifacts.evaluation.title")}
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 truncate text-xs">
                     {evaluationReport
                       ? t("artifacts.evaluation.issues", { count: evaluationReport.issues.length })
                       : t("status.evaluated")}
@@ -326,21 +316,12 @@ export function ArtifactsPanel({
               {t("evaluate")}
             </Button>
 
-            <Button
-              className="w-full"
-              onClick={onSave}
-              disabled={!draft?.name.trim() || running || saving}
-            >
+            <Button className="w-full" onClick={onSave} disabled={!draft?.name.trim() || running || saving}>
               <Save className="mr-1 h-4 w-4" />
               {saving ? t("save.saving") : savedCharacterId ? t("save.update") : t("save.create")}
             </Button>
 
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={onExport}
-              disabled={!draft?.name.trim() || running}
-            >
+            <Button variant="outline" className="w-full" onClick={onExport} disabled={!draft?.name.trim() || running}>
               <Download className="mr-1 h-4 w-4" />
               {t("export.toFolder")}
             </Button>

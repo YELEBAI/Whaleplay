@@ -49,7 +49,6 @@ import type { ChatMemory, ChatMemorySegment } from "@/db/repositories";
 import type { GenerationPhase } from "../chat.types";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
 
-
 interface UseSendMessageOptions {
   character: Character | undefined;
   chatId: string | undefined;
@@ -463,7 +462,6 @@ export function useSendMessage({
   const streamingMessageId = activeChatGeneration?.streamingMessageId ?? null;
   const generationPhase = activeChatGeneration?.generationPhase ?? null;
   const error = chatId ? (errors[chatId] ?? null) : null;
-
 
   const setChatError = useCallback((targetChatId: string | null | undefined, message: string | null) => {
     if (!targetChatId) return;

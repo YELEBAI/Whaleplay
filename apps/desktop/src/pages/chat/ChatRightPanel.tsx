@@ -70,9 +70,9 @@ function DiceFace({ value, sides, rolling }: { value: number; sides: number; rol
   const maxDigitCount = String(sides).length;
   return (
     <span
-      className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 bg-card text-lg font-bold tabular-nums shadow-sm transition-all ${
+      className={`bg-card inline-flex h-10 w-10 items-center justify-center rounded-lg border-2 text-lg font-bold tabular-nums shadow-sm transition-all ${
         rolling
-          ? "animate-[dice-spin_0.15s_ease-in-out_infinite] border-primary/50 text-primary/60"
+          ? "border-primary/50 text-primary/60 animate-[dice-spin_0.15s_ease-in-out_infinite]"
           : value === 1
             ? "border-red-400 text-red-500"
             : value === sides
@@ -106,18 +106,18 @@ function DiceSlotMachine({ result, isGenerating }: { result: DiceRollResult; isG
 
       {/* Total */}
       <div className="text-center">
-        <div className="text-2xl font-bold tabular-nums tracking-tight">
+        <div className="text-2xl font-bold tracking-tight tabular-nums">
           {result.roll}
           {result.modifier !== 0 && (
-            <span className="text-base text-muted-foreground">
+            <span className="text-muted-foreground text-base">
               {result.modifier > 0 ? "+" : ""}
               {result.modifier}
             </span>
           )}
-          <span className="text-base text-muted-foreground"> = {result.total}</span>
+          <span className="text-muted-foreground text-base"> = {result.total}</span>
         </div>
         {result.difficulty !== undefined && (
-          <div className="mt-0.5 text-xs text-muted-foreground">
+          <div className="text-muted-foreground mt-0.5 text-xs">
             {t("rightPanel.dice.dc", { value: result.difficulty })}
             {result.successProbability !== undefined && (
               <span> · {t("rightPanel.dice.successRate", { rate: result.successProbability })}</span>
@@ -127,13 +127,13 @@ function DiceSlotMachine({ result, isGenerating }: { result: DiceRollResult; isG
       </div>
 
       {/* Outcome */}
-      <div className={`flex items-center justify-center gap-1.5 rounded-md bg-muted/50 px-3 py-1.5`}>
+      <div className={`bg-muted/50 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5`}>
         <OutcomeIcon className={cn("h-4 w-4", outcomeColor)} />
         <span className={cn("text-sm font-semibold", outcomeColor)}>{outcomeLabel}</span>
       </div>
 
       {/* Reason */}
-      <p className="text-center text-xs leading-relaxed text-muted-foreground">{result.reason}</p>
+      <p className="text-muted-foreground text-center text-xs leading-relaxed">{result.reason}</p>
     </div>
   );
 }
@@ -257,7 +257,7 @@ export function ChatRightPanel({
     return (
       <div key={message.id}>
         <div
-          className={`flex items-center gap-1 py-0.5 text-xs hover:bg-accent/50 rounded ${
+          className={`hover:bg-accent/50 flex items-center gap-1 rounded py-0.5 text-xs ${
             isOnActivePath ? "bg-accent/30" : ""
           }`}
           style={{ paddingLeft: `${4 + depth * 10}px`, paddingRight: 4 }}
@@ -266,7 +266,7 @@ export function ChatRightPanel({
           {hasChildren ? (
             <button
               type="button"
-              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded"
               onClick={() => toggleExpand(message.id)}
             >
               {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -285,7 +285,10 @@ export function ChatRightPanel({
           {/* Content preview + switch action */}
           <button
             type="button"
-            className={cn("min-w-0 truncate text-left", isOnActivePath ? "font-medium text-primary" : "text-foreground")}
+            className={cn(
+              "min-w-0 truncate text-left",
+              isOnActivePath ? "text-primary font-medium" : "text-foreground",
+            )}
             title={message.content.slice(0, 200)}
             onClick={() => onSwitchBranch?.(message.id)}
           >
@@ -304,7 +307,7 @@ export function ChatRightPanel({
           {hasChildren && onCreateBranch && (
             <button
               type="button"
-              className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground group-hover:opacity-100"
+              className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100"
               style={{ opacity: isFork ? undefined : 0 }}
               title={t("rightPanel.tree.createBranch")}
               onClick={(e) => {
@@ -326,7 +329,7 @@ export function ChatRightPanel({
           untakenOptions.map((opt) => (
             <div
               key={`untaken-${message.id}-${opt.id}`}
-              className="flex items-center gap-1 py-0.5 text-xs hover:bg-accent/50 rounded text-muted-foreground cursor-pointer"
+              className="hover:bg-accent/50 text-muted-foreground flex cursor-pointer items-center gap-1 rounded py-0.5 text-xs"
               style={{ paddingLeft: `${8 + (depth + 1) * 14}px`, paddingRight: 4 }}
               title={
                 opt.difficulty !== undefined
@@ -339,7 +342,7 @@ export function ChatRightPanel({
               <Dice5 className="h-3 w-3 shrink-0 text-amber-400/60" />
               <span className="min-w-0 truncate italic">{opt.label}</span>
               {opt.difficulty !== undefined && (
-                <span className="shrink-0 text-[10px] text-muted-foreground/50">DC{opt.difficulty}</span>
+                <span className="text-muted-foreground/50 shrink-0 text-[10px]">DC{opt.difficulty}</span>
               )}
               <span className="shrink-0 rounded bg-amber-400/10 px-1 py-0.5 text-[10px] text-amber-400/70">
                 {t("rightPanel.tree.unexplored")}
@@ -351,7 +354,7 @@ export function ChatRightPanel({
   };
 
   return (
-    <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-card">
+    <aside className="bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border">
       {/* Header with toggle */}
       <div className="shrink-0 border-b p-3">
         <div className="flex items-center gap-1">
@@ -384,14 +387,14 @@ export function ChatRightPanel({
         {effectiveView === "tree" ? (
           <div className="space-y-0.5">
             {rootMessages.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t("rightPanel.tree.noBranches")}</p>
+              <p className="text-muted-foreground text-xs">{t("rightPanel.tree.noBranches")}</p>
             ) : (
               rootMessages.map((msg) => renderTreeNode(msg, 0))
             )}
           </div>
         ) : (
           <>
-            <section className="rounded-lg border bg-background/45 p-3">
+            <section className="bg-background/45 rounded-lg border p-3">
               <button
                 type="button"
                 className="flex w-full items-center justify-between gap-3 text-left"
@@ -403,14 +406,14 @@ export function ChatRightPanel({
                   <BarChart3 className="h-4 w-4 shrink-0" />
                   <span className="truncate">{t("rightPanel.overview.title")}</span>
                 </span>
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                <span className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors">
                   {overviewCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                 </span>
               </button>
 
               {!overviewCollapsed && (
                 <div className="mt-3 space-y-2">
-                  <div className="rounded-md border bg-card/60 p-3">
+                  <div className="bg-card/60 rounded-md border p-3">
                     <div className={labelClass}>{t("rightPanel.overview.messages")}</div>
                     <div className="mt-1 text-sm font-medium">
                       {t("rightPanel.overview.messageCount", { count: messagesCount })}
@@ -419,11 +422,11 @@ export function ChatRightPanel({
                   <button
                     type="button"
                     onClick={onTokenDialogOpen}
-                    className="w-full rounded-md border bg-card/60 p-3 text-left transition-colors hover:bg-accent"
+                    className="bg-card/60 hover:bg-accent w-full rounded-md border p-3 text-left transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div className={labelClass}>{t("rightPanel.overview.tokenUsage")}</div>
-                      <span className="text-xs text-primary">{t("rightPanel.overview.viewDetails")}</span>
+                      <span className="text-primary text-xs">{t("rightPanel.overview.viewDetails")}</span>
                     </div>
                     <div className="mt-1 text-sm font-medium">
                       {hasUsage
@@ -435,7 +438,7 @@ export function ChatRightPanel({
                         : t("rightPanel.overview.noStats")}
                     </div>
                     {hasUsage && (
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
                         <div
                           className={cn("h-full rounded-full transition-[width]", contextUsageBarTone)}
                           style={{ width: `${contextUsagePercent}%` }}
@@ -444,12 +447,12 @@ export function ChatRightPanel({
                     )}
                   </button>
                   {hasUsage && (
-                    <div className="rounded-md border bg-card/60 p-3">
-                      <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="bg-card/60 rounded-md border p-3">
+                      <div className="text-muted-foreground mb-1 flex items-center justify-between text-xs">
                         <span>{t("rightPanel.overview.context")}</span>
                         <span>{contextUsageDisplay}</span>
                       </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
                         <span
                           className={cn("block h-full rounded-full transition-[width]", contextUsageBarTone)}
                           style={{ width: `${contextUsagePercent}%` }}
@@ -470,7 +473,7 @@ export function ChatRightPanel({
                 <div className="space-y-2">
                   {statusMeters.length > 0 && (
                     <div className="space-y-2">
-                      <div className="px-1 text-xs font-semibold text-muted-foreground">
+                      <div className="text-muted-foreground px-1 text-xs font-semibold">
                         {t("rightPanel.agentic.dynamicVariables")}
                       </div>
                       {statusMeters.slice(0, 8).map((meter) => (
@@ -496,18 +499,18 @@ export function ChatRightPanel({
                     <Dice5 className="h-4 w-4" />
                     {t("rightPanel.agentic.judgment")}
                   </div>
-                  <div className="rounded-md border bg-background p-4">
+                  <div className="bg-background rounded-md border p-4">
                     {lastDiceResult ? (
                       <DiceSlotMachine result={lastDiceResult} isGenerating={isGeneratingCurrentChat} />
                     ) : (
                       <div className="flex items-center gap-3">
-                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-md border bg-card">
+                        <div className="bg-card relative flex h-12 w-12 shrink-0 items-center justify-center rounded-md border">
                           <Dice5
-                            className={`h-6 w-6 text-primary ${
+                            className={`text-primary h-6 w-6 ${
                               isGeneratingCurrentChat ? "animate-spin" : "animate-pulse"
                             }`}
                           />
-                          <span className="absolute inset-1 rounded-md border border-primary/20" />
+                          <span className="border-primary/20 absolute inset-1 rounded-md border" />
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm font-medium">
@@ -515,7 +518,7 @@ export function ChatRightPanel({
                               ? t("rightPanel.agentic.judging")
                               : t("rightPanel.agentic.waitingJudgment")}
                           </div>
-                          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
                             {isGeneratingCurrentChat
                               ? t("rightPanel.agentic.judgingHint")
                               : t("rightPanel.agentic.waitingJudgmentHint")}

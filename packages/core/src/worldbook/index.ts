@@ -1,1 +1,1 @@
-export * from './worldbook-contributor'
+export * from "./worldbook-contributor";

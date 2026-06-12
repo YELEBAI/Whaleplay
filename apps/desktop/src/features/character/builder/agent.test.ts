@@ -38,7 +38,8 @@ function createValidDraft(name = "灯塔管理员") {
     character: {
       name,
       description: "海边灯塔的年轻管理员，总在暴风雨前检查铜铃。",
-      personality: "谨慎、温和。\n\n性格调色盘：底色：责任感\n主色调：谨慎\n谨慎衍生1：说话前会确认门窗。\n谨慎衍生2：遇到危险先规划退路。",
+      personality:
+        "谨慎、温和。\n\n性格调色盘：底色：责任感\n主色调：谨慎\n谨慎衍生1：说话前会确认门窗。\n谨慎衍生2：遇到危险先规划退路。",
       scenario: "暴风雨将至，用户来到灯塔门前。",
       firstMessage: "铜铃在风里轻响，她抬头看向门口：你来得正是时候。",
       exampleDialogues: "用户: 这里安全吗？\n灯塔管理员: 如果灯还亮着，就还有办法。",
