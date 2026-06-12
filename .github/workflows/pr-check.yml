@@ -92,6 +92,9 @@ jobs:
       - name: Install JS dependencies (needed for Tauri build scripts)
         run: pnpm install --frozen-lockfile
 
+      - name: Build dist
+        run: pnpm build
+
       - name: Cache Rust target
         uses: actions/cache@v4
         with:
