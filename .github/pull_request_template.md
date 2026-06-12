@@ -15,8 +15,8 @@
 
 <!-- 如何测试这些变更？ -->
 
-- [ ] `pnpm lint` 通过
-- [ ] `pnpm build` 通过
+- [ ] `pnpm lint` 或 `make lint` 通过
+- [ ] `pnpm build` 或 `make build` 通过
 - [ ] 手动测试通过
 
 ## 截图（如有 UI 变更）
