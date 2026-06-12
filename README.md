@@ -13,7 +13,7 @@ Whale Play 是一个面向角色卡创作和角色扮演聊天的桌面应用。
 
 项目基于 Tauri v2、React、TypeScript、Vite 和 pnpm workspace 构建，模型接口使用 OpenAI-compatible API，可接入 DeepSeek、OpenAI 兼容服务或其他同协议模型。
 
-中文文档位于[docs](docs/zh/index.md)
+中文文档位于[docs](docs/zh)
 
 ## 当前重点
 

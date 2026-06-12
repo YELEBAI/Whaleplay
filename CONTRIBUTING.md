@@ -62,6 +62,43 @@ pnpm build
 pnpm build:desktop
 ```
 
+## 项目架构
+
+Whale Play 的技术栈分为三个层级，从底层向上层层依赖：
+
+```mermaid
+graph BT
+    subgraph Languages["底层语言 ｜ Languages"]
+        direction LR
+        HTML["HTML"]
+        CSS["CSS"]
+        TS["TypeScript / JavaScript"]
+        Rust["Rust"]
+    end
+
+    subgraph Frameworks["框架层 ｜ Frameworks"]
+        direction LR
+        React["React"]
+        Vite["Vite"]
+        Tailwind["Tailwind CSS"]
+        Tauri["Tauri v2"]
+    end
+
+    subgraph Tooling["工具链 ｜ Tooling"]
+        direction LR
+        Make["make"]
+        Pnpm["pnpm"]
+        Cargo["cargo"]
+        ESLint["ESLint"]
+    end
+
+    Languages --> Frameworks --> Tooling
+```
+
+- **底层语言**：HTML/CSS 负责界面，TypeScript 负责逻辑，Rust 负责 Tauri 的桌面桥接和文件访问。
+- **框架层**：React 构建 UI，Vite 做打包和 HMR，Tauri 将 Web 应用包装为原生窗口，其余库（Zustand、react-i18next 等）解决具体问题。
+- **工具链**：pnpm 管理 JS 依赖和 workspace，cargo 管理 Rust 依赖和构建，make 作为统一入口脚本，ESLint 和 Vitest 做检查与测试。
+
 ## 项目结构
 
 ```

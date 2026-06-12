@@ -1,36 +1,32 @@
-.PHONY: help dev tauri build desktop lint install clean
+.PHONY: help dev lint lint-tauri tauri deps build install clean
 
-.DEFAULT_GOAL := help
+.DEFAULT_GOAL := build
 
 help:
-	@echo "Whale Play - Available Make Command"
-	@echo "==================================="
-	@echo "make install     Install pnpm packages and fetch cargo packages"
+	@echo "Whale Play - Available Make Commands"
+	@echo "===================================="
+	@echo ""
+	@echo "Setup:"
+	@echo " make deps       Install JS & Rust dependencies"
 	@echo ""
 	@echo "Develop:"
-	@echo " make dev        Open Web Pages"
-	@echo " make tauri      Open Tauri Pages"
-	@echo " make lint       Use eslint check react code"
+	@echo " make dev        Start browser dev server (http://localhost:1420)"
+	@echo " make tauri      Start Tauri native window (requires Rust)"
+	@echo " make lint       Use eslint to check TS code"
 	@echo ""
-	@echo "Build:"
-	@echo " make build      Build React dist"
-	@echo " make desktop    Build Tauri exe"
-	@echo ""
-	@echo "make clean       clean ALL deps of this project"
-
-dev:
-	pnpm dev
-
-tauri:
-	pnpm tauri dev
-
+	@echo "Build & Install:"
+	@echo " make            Build JS dist + TS check (no Rust)"
+	@echo " make install    Build + package native installer (.exe/.AppImage/.dmg)"
+	@echo " make clean      Remove build artifacts + deps"
 
 build:
 	pnpm build && cd apps/desktop/src-tauri && cargo check
 
-desktop:
+install:
 	pnpm build:desktop
 
+deps:
+	pnpm install && cd apps/desktop/src-tauri && cargo fetch
 
 lint:
 	pnpm lint:fix && cd apps/desktop/src-tauri && cargo fmt
@@ -38,9 +34,11 @@ lint:
 lint-tauri:
 	cd apps/desktop/src-tauri && cargo fmt
 
+dev:
+	pnpm dev
 
-install:
-	pnpm i && cd apps/desktop/src-tauri && cargo fetch
+tauri:
+	pnpm tauri dev
 
 clean:
 	pnpm clean && cd apps/desktop/src-tauri && cargo clean
