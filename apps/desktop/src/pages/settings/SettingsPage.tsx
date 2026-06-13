@@ -3,17 +3,17 @@ import { useNavigate } from "react-router";
 import { Bug, Plug, Palette, Regex, SlidersHorizontal, Image as ImageIcon } from "lucide-react";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { getStorageItem, setStorageItem } from "@/db/storage";
-import { SettingsSidebar } from "./settings/SettingsSidebar";
-import { AppearanceSection } from "./settings/AppearanceSection";
-import { ContextSection } from "./settings/ContextSection";
-import { GeneralSection } from "./settings/GeneralSection";
-import { ApiSection } from "./settings/ApiSection";
-import { ImageSection } from "./settings/ImageSection";
-import { RegexSection } from "./settings/RegexSection";
+import { SettingsSidebar } from "./SettingsSidebar";
+import { AppearanceSection } from "./AppearanceSection";
+import { ContextSection } from "./ContextSection";
+import { GeneralSection } from "./GeneralSection";
+import { ApiSection } from "./ApiSection";
+import { ImageSection } from "./ImageSection";
+import { RegexSection } from "./RegexSection";
 import { toast } from "@/utils/toast";
 import { getLocale, type Locale } from "@/i18n";
 import { useTranslation } from "react-i18next";
-import type { Section, SectionWithLabel } from "./settings/types";
+import type { Section, SectionWithLabel } from "./types";
 
 const SETTINGS_TAB_KEY = "neotavern_settings_tab";
 const SETTINGS_TAB_TTL_MS = 60_000; // 1 minute

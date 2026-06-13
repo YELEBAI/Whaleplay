@@ -19,9 +19,9 @@ import { toast } from "@/utils/toast";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
 
-import { BuilderWorkspaceList } from "./neo-builder/WorkspaceList";
-import { BuilderChatMessage } from "./neo-builder/ChatMessage";
-import { ArtifactsPanel } from "./neo-builder/ArtifactsPanel";
+import { BuilderWorkspaceList } from "./WorkspaceList";
+import { BuilderChatMessage } from "./ChatMessage";
+import { ArtifactsPanel } from "./ArtifactsPanel";
 
 import type {
   BuilderMessage,
@@ -30,8 +30,8 @@ import type {
   BuilderWorkspaceSnapshot,
   WorldbookDraft,
   ArtifactView,
-} from "./neo-builder/types";
-import type { Character, CreateCharacterInput, Worldbook } from "./neo-builder/types";
+} from "./types";
+import type { Character, CreateCharacterInput, Worldbook } from "./types";
 import type {
   NeoBuilderEvaluationReport,
   NeoBuilderTurnResult,
@@ -39,7 +39,7 @@ import type {
   NeoPersonalityPalette,
   NeoMvuConfig,
   NeoStatusBarConfig,
-} from "./neo-builder/types";
+} from "./types";
 
 import {
   NEW_TARGET,
@@ -54,7 +54,7 @@ import {
   writeBuilderWorkspaceRecords,
   getChoicePanelTitle,
   formatCharacterUpdatedAt,
-} from "./neo-builder/utils";
+} from "./utils";
 
 export function NeoBuilderPage() {
   const { t } = useTranslation("neo-builder");

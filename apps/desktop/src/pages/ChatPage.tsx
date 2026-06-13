@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router";
 import {
-  ChevronDown,
   ChevronRight,
   Copy,
   Pencil,
@@ -14,7 +13,6 @@ import {
   Bot,
   User as UserIcon,
   CircleDashed,
-  CheckCircle2,
 } from "lucide-react";
 import { Button, Card, CardContent, cn } from "@neo-tavern/ui";
 import { useCharacterStore } from "@/features/character/character.store";
@@ -67,34 +65,33 @@ import {
 } from "@/features/agentic-play/agentic-play";
 import { getAgenticPlayPresetItems } from "@/features/agentic-play/agentic-preset";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChatSidebar } from "@/pages/chat/ChatSidebar";
-import { ChatRightPanel } from "@/pages/chat/ChatRightPanel";
-import { ChatInputArea } from "@/pages/chat/ChatInputArea";
-import { useBranchNavigation } from "@/pages/chat/hooks/useBranchNavigation";
-import { useSavepointManager } from "@/pages/chat/hooks/useSavepointManager";
 import {
+  ChatSidebar,
+  ChatRightPanel,
+  ChatInputArea,
+  useBranchNavigation,
+  useSavepointManager,
+  ChatActivityTimeline,
   ImageDisplayBlockView,
   ensureImageSlots,
   clipImageReference,
   resolveImagePlannerConfig,
-} from "@/pages/chat/DisplayBlocks";
+  Avatar,
+  SideBlockView,
+  TemplateDisplayBlockView,
+} from "@/pages/chat";
 import { toast } from "@/utils/toast";
-
-import { Avatar, SideBlockView, TemplateDisplayBlockView } from "@/pages/chat/display";
 import {
   CONTINUE_PROMPT,
   DEEPSEEK_CONTEXT_LIMIT,
   CHAT_FONT_SIZE_KEY,
   clampChatFontSize,
   getChatDraftKey,
-  formatDuration,
   getGenerationStatus,
   replaceUserPlaceholders,
   type PendingSendItem,
-} from "@/pages/chat/utils";
-import { MessageEditBox } from "@/pages/chat/MessageEditBox";
-import type { TokenUsageView } from "@/pages/chat/types";
-import {
+  type TokenUsageView,
+  MessageEditBox,
   ImagePromptDialog,
   PromptDialog,
   SaveDialog,
@@ -103,7 +100,7 @@ import {
   DeleteMessageDialog,
   ThinkingDialog,
   RegenerateDialog,
-} from "@/pages/chat/ChatDialogs";
+} from "@/pages/chat";
 
 function getChoiceAgenticOption(choice?: ChoiceInputPanelChoice): AgenticActionOption | null {
   const raw = choice?.meta?.agenticOption;
@@ -126,86 +123,6 @@ function buildAgenticChoicePayload(option: AgenticActionOption, roll: DiceRollRe
     },
     null,
     2,
-  );
-}
-
-function ChatActivityTimeline({
-  message,
-  active,
-  generationStatus,
-}: {
-  message: Message;
-  active: boolean;
-  generationStatus: ReturnType<typeof getGenerationStatus>;
-}) {
-  const [now, setNow] = useState(() => Date.now());
-  const [thinkingOpen, setThinkingOpen] = useState(false);
-
-  useEffect(() => {
-    if (!active) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [active]);
-
-  const startedAt = new Date(message.createdAt).getTime();
-  const activeElapsed = active && Number.isFinite(startedAt) ? now - startedAt : null;
-  const finalElapsed = message.generateDuration ?? message.thinkingDuration ?? null;
-  const elapsed = activeElapsed ?? finalElapsed;
-
-  const reasoningLines = (message.reasoningContent ?? "")
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const reasoningPreview = reasoningLines.length
-    ? reasoningLines[reasoningLines.length - 1]
-    : active
-      ? generationStatus.detail
-      : "回复已生成";
-
-  return (
-    <div className="mb-3 min-w-0">
-      {elapsed != null && (
-        <div className="text-muted-foreground mb-3 grid grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,1fr)] items-center gap-3 text-xs">
-          <div className="bg-border h-px flex-1" />
-          <span className="shrink-0 text-center tabular-nums">任务耗时 {formatDuration(Math.max(0, elapsed))}</span>
-          <div className="bg-border h-px flex-1" />
-        </div>
-      )}
-
-      <div className="border-border/80 min-w-0 border-l">
-        <div className="relative pb-3 pl-5">
-          <span
-            className={`bg-background absolute top-1 left-0 flex h-3 w-3 items-center justify-center rounded-full ${
-              active ? "text-primary" : "text-emerald-500"
-            }`}
-          >
-            {active ? <CircleDashed className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
-          </span>
-          <button
-            type="button"
-            className="flex w-full max-w-full min-w-0 items-center gap-1 overflow-hidden text-left text-sm font-medium disabled:cursor-default"
-            onClick={() => setThinkingOpen((open) => !open)}
-            disabled={!message.reasoningContent}
-          >
-            <Brain className="h-3.5 w-3.5 shrink-0" />
-            <span className="shrink-0">{active ? "正在思考" : "已完成思考"}</span>
-            {!thinkingOpen && reasoningPreview ? (
-              <span className="text-muted-foreground min-w-0 truncate">· {reasoningPreview}</span>
-            ) : null}
-            {thinkingOpen ? (
-              <ChevronDown className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            ) : (
-              <ChevronRight className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            )}
-          </button>
-          {thinkingOpen && message.reasoningContent ? (
-            <div className="text-muted-foreground mt-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap">
-              {message.reasoningContent}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
   );
 }
 

@@ -3,11 +3,11 @@ import { Layout } from "@/components";
 import { HomePage } from "@/pages/HomePage";
 import { CharacterPage } from "@/pages/CharacterPage";
 import { ChatPage } from "@/pages/ChatPage";
-import { SettingsPage } from "@/pages/SettingsPage";
+import { SettingsPage } from "@/pages/settings";
 import { PresetPage } from "@/pages/PresetPage";
 import { WorldbookPage } from "@/pages/WorldbookPage";
 import { PersonaPage } from "@/pages/PersonaPage";
-import { NeoBuilderPage } from "@/pages/NeoBuilderPage";
+import { NeoBuilderPage } from "@/pages/neo-builder";
 import { AboutPage } from "@/pages/AboutPage";
 
 export const router: ReturnType<typeof createBrowserRouter> = createBrowserRouter([

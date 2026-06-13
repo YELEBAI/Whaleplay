@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@/test/utils";
-import { SettingsPage } from "@/pages/SettingsPage";
+import { SettingsPage } from "@/pages/settings";
 
 describe("SettingsPage", () => {
   it("renders settings sections in sidebar", () => {
