@@ -37,7 +37,7 @@
 - 一个 PR 只做一件事
 - PR 标题简洁描述变更内容
 - 描述中说明动机和实现思路
-- 关联相关 Issue（`Closes #123`）
+- 修复问题时关联相关 Issue（`Closes #123`）
 
 ## 项目架构
 
@@ -78,12 +78,13 @@ graph BT
 
 ### 前置要求
 
-| 工具 | 是否必须 | 说明 |
-|------|----------|------|
-| Node.js >= 22 | ✅ 必须 | 用于运行 pnpm 和前端构建 |
-| pnpm | ✅ 必须 | 包管理，安装后通过 `corepack enable` 启用 |
-| Rust stable | ⚠️ 可选 | 仅在需要 Tauri 桌面开发/打包时需要 |
-| make | ⚠️ 可选 | 便捷命令入口，Windows 可通过 coreutils 或 MinGW 使用 |
+| 工具          | 是否必须 | 说明                                                 |
+| ------------- | -------- | ---------------------------------------------------- |
+| Node.js >= 22 | ✅ 必须  |                                                      |
+| pnpm          | ✅ 必须  |                                                      |
+| Rust stable   | ⚠️ 可选  | 仅在需要 Tauri 桌面开发/打包时需要                   |
+| make          | ⚠️ 可选  | 便捷命令入口，Windows 可通过 coreutils 或 MinGW 使用 |
+
 
 ### 常用命令
 
@@ -126,7 +127,6 @@ docs/             # 文档（zh/en 双语）
 - React 函数组件 + Hooks
 - Zustand 状态管理
 - Tailwind CSS 样式（优先用 `@layer components` 工具类）
-- 组件文件：同目录 `types.ts` + `utils.tsx` 放类型和工具函数
 
 ## 文档
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Dice5, MessageCircle, Plus, Save, Settings, Trash2 } from "lucide-react";
@@ -45,7 +45,7 @@ export function HomePage() {
   const [savepointName, setSavepointName] = useState("");
   const [savingSavepoint, setSavingSavepoint] = useState(false);
   const [contextMenu, setContextMenu] = useState<HomeContextMenu | null>(null);
-  const charactersById = useMemo(() => new Map(characters.map((char) => [char.id, char])), [characters]);
+  const charactersById = new Map(characters.map((char) => [char.id, char]));
 
   // Data is loaded by App.tsx seed; HomePage just reacts
   useEffect(() => {

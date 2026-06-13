@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -161,12 +161,9 @@ export function WorldbookPage() {
   }, [worldbooks]);
 
   const selected = worldbooks.find((worldbook) => worldbook.id === selectedId) ?? null;
-  const entries = useMemo(
-    () => (selected ? [...selected.entries].sort((a, b) => b.priority - a.priority) : []),
-    [selected],
-  );
+  const entries = selected ? [...selected.entries].sort((a, b) => b.priority - a.priority) : [];
   const selectedEntry = editingEntryId ? entries.find((entry) => entry.id === editingEntryId) : null;
-  const stats = useMemo(() => {
+  const stats = (() => {
     const source = selected?.entries ?? [];
     return {
       total: source.length,
@@ -174,7 +171,7 @@ export function WorldbookPage() {
       always: source.filter((entry) => entry.enabled && entry.type === "always").length,
       trigger: source.filter((entry) => entry.enabled && entry.type === "trigger").length,
     };
-  }, [selected]);
+  })();
 
   const handleCreate = async () => {
     try {

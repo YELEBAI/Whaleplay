@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useChatStore } from "@/features/chat/chat.store";
 import type { Message } from "@neo-tavern/shared";
 
@@ -21,18 +20,14 @@ export function useBranchNavigation(_chatId: string | undefined) {
   const setBranchName = useChatStore((s) => s.setBranchName);
 
   /** Messages along the active branch path, excluding hidden user messages */
-  const visibleMessages = useMemo(() => {
+  const visibleMessages = (() => {
     if (!chatId) return [];
     const path = getActivePath(chatId);
     return path.filter((m: Message) => !m.hidden);
-    // activeLeafId is read inside getActivePath via store.get(),
-    // but we still list it as a dep so useMemo re-runs on branch switch
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatId, messages, activeLeafId]);
+  })();
 
   /** Message ids that have 2+ children — displayed as fork points in the tree panel */
-  const forkParents = useMemo(() => {
-    // Only compute when all messages are loaded for this chat
+  const forkParents = (() => {
     if (!messagesHydrated || !chatId) return new Set<string>();
     const childCounts = new Map<string, number>();
     for (const m of messages) {
@@ -41,7 +36,7 @@ export function useBranchNavigation(_chatId: string | undefined) {
       }
     }
     return new Set([...childCounts].filter(([, c]) => c >= 2).map(([id]) => id));
-  }, [messages, messagesHydrated, chatId]);
+  })();
 
   return {
     activeLeafId,

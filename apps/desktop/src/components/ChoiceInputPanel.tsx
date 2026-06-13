@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, CornerDownLeft, MessageSquare, X } from "lucide-react";
 import { Button } from "@neo-tavern/ui";
 
@@ -45,23 +45,14 @@ export function ChoiceInputPanel({
   onSubmit: (value: string, choice?: ChoiceInputPanelChoice, answers?: ChoiceInputPanelAnswer[]) => void;
   onCancel?: () => void;
 }) {
-  const panelQuestions = useMemo<ChoiceInputPanelQuestion[]>(() => {
-    if (questions?.length) return questions.filter((question) => question.choices.length > 0);
-    return [
-      {
-        id: "question_1",
-        title,
-        choices: choices ?? [],
-      },
-    ];
-  }, [choices, questions, title]);
-  const questionsKey = useMemo(
-    () =>
-      panelQuestions
-        .map((question) => `${question.id}:${question.title}:${question.choices.map((choice) => choice.id).join(",")}`)
-        .join("\u0000"),
-    [panelQuestions],
-  );
+  const panelQuestions: ChoiceInputPanelQuestion[] =
+    questions?.length
+      ? questions.filter((question) => question.choices.length > 0)
+      : [{ id: "question_1", title, choices: choices ?? [] }];
+
+  const questionsKey = panelQuestions
+    .map((question) => `${question.id}:${question.title}:${question.choices.map((choice) => choice.id).join(",")}`)
+    .join("\u0000");
   const [questionIndex, setQuestionIndex] = useState(0);
   const [draftAnswers, setDraftAnswers] = useState<Record<string, DraftAnswer>>({});
   const currentQuestion = panelQuestions[Math.min(questionIndex, Math.max(0, panelQuestions.length - 1))];

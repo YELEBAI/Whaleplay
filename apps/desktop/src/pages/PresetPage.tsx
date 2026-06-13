@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useState, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -725,97 +725,95 @@ export function PresetPage() {
     );
   };
 
-  const handleItemPointerDown = useCallback(
-    (e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => {
-      if (!selected || e.button !== 0) return;
-      e.preventDefault();
-      e.stopPropagation();
+  const handleItemPointerDown = (e: ReactPointerEvent<HTMLButtonElement>, itemId: string) => {
+    if (!selected || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
 
-      const presetId = selected.id;
-      const orderedItems = sortPresetItems(selected.items);
-      const visibleItems = orderedItems.filter((i) => !i.hidden || secretUnlocked);
+    const presetId = selected.id;
+    const orderedItems = sortPresetItems(selected.items);
+    const visibleItems = orderedItems.filter((i) => !i.hidden || secretUnlocked);
 
-      const getDropTarget = (clientY: number) => {
-        if (visibleItems.length === 0) return null;
+    const getDropTarget = (clientY: number) => {
+      if (visibleItems.length === 0) return null;
 
-        for (const item of visibleItems) {
-          const el = itemRefs.current.get(item.id);
-          if (!el) continue;
-          const rect = el.getBoundingClientRect();
-          if (clientY >= rect.top && clientY <= rect.bottom) {
-            return {
-              itemId: item.id,
-              placement: clientY > rect.top + rect.height / 2 ? ("after" as const) : ("before" as const),
-            };
-          }
+      for (const item of visibleItems) {
+        const el = itemRefs.current.get(item.id);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (clientY >= rect.top && clientY <= rect.bottom) {
+          return {
+            itemId: item.id,
+            placement: clientY > rect.top + rect.height / 2 ? ("after" as const) : ("before" as const),
+          };
         }
+      }
 
-        const first = itemRefs.current.get(visibleItems[0].id);
-        const last = itemRefs.current.get(visibleItems[visibleItems.length - 1].id);
-        if (first && clientY < first.getBoundingClientRect().top) {
-          return { itemId: visibleItems[0].id, placement: "before" as const };
-        }
-        if (last && clientY > last.getBoundingClientRect().bottom) {
-          return { itemId: visibleItems[visibleItems.length - 1].id, placement: "after" as const };
-        }
+      const first = itemRefs.current.get(visibleItems[0].id);
+      const last = itemRefs.current.get(visibleItems[visibleItems.length - 1].id);
+      if (first && clientY < first.getBoundingClientRect().top) {
+        return { itemId: visibleItems[0].id, placement: "before" as const };
+      }
+      if (last && clientY > last.getBoundingClientRect().bottom) {
+        return { itemId: visibleItems[visibleItems.length - 1].id, placement: "after" as const };
+      }
 
-        return null;
-      };
+      return null;
+    };
 
-      const previousUserSelect = document.body.style.userSelect;
+    const previousUserSelect = document.body.style.userSelect;
 
-      document.body.style.userSelect = "none";
-      setDraggedItemId(itemId);
-      setDragOverItemId(itemId);
-      setDropPlacement("before");
+    // eslint-disable-next-line react-hooks/immutability -- drag-and-drop body lock
+    document.body.style.userSelect = "none";
+    setDraggedItemId(itemId);
+    setDragOverItemId(itemId);
+    setDropPlacement("before");
 
-      const handlePointerMove = (event: PointerEvent) => {
-        const target = getDropTarget(event.clientY);
-        if (!target) return;
-        setDragOverItemId(target.itemId);
-        setDropPlacement(target.placement);
-      };
+    const handlePointerMove = (event: PointerEvent) => {
+      const target = getDropTarget(event.clientY);
+      if (!target) return;
+      setDragOverItemId(target.itemId);
+      setDropPlacement(target.placement);
+    };
 
-      const finishDrag = async (event: PointerEvent) => {
-        window.removeEventListener("pointermove", handlePointerMove);
-        window.removeEventListener("pointerup", finishDrag);
-        window.removeEventListener("pointercancel", cancelDrag);
-        document.body.style.userSelect = previousUserSelect;
+    const finishDrag = async (event: PointerEvent) => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", cancelDrag);
+      document.body.style.userSelect = previousUserSelect;
 
-        const target = getDropTarget(event.clientY);
-        setDraggedItemId(null);
-        setDragOverItemId(null);
-        if (!target || target.itemId === itemId) return;
+      const target = getDropTarget(event.clientY);
+      setDraggedItemId(null);
+      setDragOverItemId(null);
+      if (!target || target.itemId === itemId) return;
 
-        const sourceItem = orderedItems.find((item) => item.id === itemId);
-        if (!sourceItem) return;
+      const sourceItem = orderedItems.find((item) => item.id === itemId);
+      if (!sourceItem) return;
 
-        const nextItems = orderedItems.filter((item) => item.id !== itemId);
-        const targetIndex = nextItems.findIndex((item) => item.id === target.itemId);
-        if (targetIndex < 0) return;
+      const nextItems = orderedItems.filter((item) => item.id !== itemId);
+      const targetIndex = nextItems.findIndex((item) => item.id === target.itemId);
+      if (targetIndex < 0) return;
 
-        nextItems.splice(target.placement === "after" ? targetIndex + 1 : targetIndex, 0, sourceItem);
-        await store.reorderItems(
-          presetId,
-          nextItems.map((item) => item.id),
-        );
-      };
+      nextItems.splice(target.placement === "after" ? targetIndex + 1 : targetIndex, 0, sourceItem);
+      await store.reorderItems(
+        presetId,
+        nextItems.map((item) => item.id),
+      );
+    };
 
-      const cancelDrag = () => {
-        window.removeEventListener("pointermove", handlePointerMove);
-        window.removeEventListener("pointerup", finishDrag);
-        window.removeEventListener("pointercancel", cancelDrag);
-        document.body.style.userSelect = previousUserSelect;
-        setDraggedItemId(null);
-        setDragOverItemId(null);
-      };
+    const cancelDrag = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", cancelDrag);
+      document.body.style.userSelect = previousUserSelect;
+      setDraggedItemId(null);
+      setDragOverItemId(null);
+    };
 
-      window.addEventListener("pointermove", handlePointerMove);
-      window.addEventListener("pointerup", finishDrag);
-      window.addEventListener("pointercancel", cancelDrag);
-    },
-    [selected, secretUnlocked, store],
-  );
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", cancelDrag);
+  };
 
   const handleExport = async () => {
     if (!selected) return;
@@ -860,7 +858,7 @@ export function PresetPage() {
     if (file) setImportFile(file);
   };
 
-  const externalPresetItemOptions = useMemo(() => {
+  const externalPresetItemOptions = (() => {
     if (!selected) return [];
     return store.presets
       .filter((preset) => preset.id !== selected.id)
@@ -873,7 +871,7 @@ export function PresetPage() {
             item,
           })),
       );
-  }, [secretUnlocked, selected, store.presets]);
+  })();
 
   const selectedSourceItem =
     externalPresetItemOptions.find((option) => option.key === sourceItemKey) ?? externalPresetItemOptions[0] ?? null;

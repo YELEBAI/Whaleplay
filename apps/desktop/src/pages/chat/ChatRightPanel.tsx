@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
@@ -184,7 +184,7 @@ export function ChatRightPanel({
   const effectiveView = hasBranchTree ? activeView : "stats";
 
   // ── Tree data ──
-  const childrenMap = useMemo(() => {
+  const childrenMap = (() => {
     if (!allMessages) return new Map<string | null, Message[]>();
     const map = new Map<string | null, Message[]>();
     for (const m of allMessages) {
@@ -193,24 +193,21 @@ export function ChatRightPanel({
       map.get(key)!.push(m);
     }
     return map;
-  }, [allMessages]);
+  })();
 
-  const activePathIds = useMemo(() => {
+  const activePathIds = (() => {
     const ids = new Set<string>();
     if (!allMessages || !activeLeafId) return ids;
-    const idMap = new Map(allMessages.map((m) => [m.id, m]));
+    const idMap = new Map(allMessages.map((m: Message) => [m.id, m]));
     let current: Message | undefined = idMap.get(activeLeafId);
     while (current) {
       ids.add(current.id);
       current = current.parentId ? idMap.get(current.parentId) : undefined;
     }
     return ids;
-  }, [allMessages, activeLeafId]);
+  })();
 
-  const rootMessages = useMemo(() => {
-    if (!allMessages) return [];
-    return childrenMap.get(null) ?? [];
-  }, [allMessages, childrenMap]);
+  const rootMessages = allMessages ? (childrenMap.get(null) ?? []) : [];
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
 
