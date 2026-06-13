@@ -45,10 +45,9 @@ export function ChoiceInputPanel({
   onSubmit: (value: string, choice?: ChoiceInputPanelChoice, answers?: ChoiceInputPanelAnswer[]) => void;
   onCancel?: () => void;
 }) {
-  const panelQuestions: ChoiceInputPanelQuestion[] =
-    questions?.length
-      ? questions.filter((question) => question.choices.length > 0)
-      : [{ id: "question_1", title, choices: choices ?? [] }];
+  const panelQuestions: ChoiceInputPanelQuestion[] = questions?.length
+    ? questions.filter((question) => question.choices.length > 0)
+    : [{ id: "question_1", title, choices: choices ?? [] }];
 
   const questionsKey = panelQuestions
     .map((question) => `${question.id}:${question.title}:${question.choices.map((choice) => choice.id).join(",")}`)

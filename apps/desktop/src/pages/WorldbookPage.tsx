@@ -591,7 +591,7 @@ export function WorldbookPage() {
                                   event.stopPropagation();
                                   handleDeleteEntry(entry.id);
                                 }}
-                                title="Delete entry"
+                                title={t("entry.delete")}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -872,7 +872,7 @@ export function WorldbookPage() {
                   </Button>
                   {editingEntryId && (
                     <Button variant="outline" onClick={resetEntryForm}>
-                      Cancel
+                      {tc("actions.cancel")}
                     </Button>
                   )}
                 </div>
@@ -885,15 +885,15 @@ export function WorldbookPage() {
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete World Book</DialogTitle>
-            <DialogDescription>Delete "{deleteTarget?.name}" and all entries? This cannot be undone.</DialogDescription>
+            <DialogTitle>{t("deleteDialog.title")}</DialogTitle>
+            <DialogDescription>{t("deleteDialog.description", { name: deleteTarget?.name ?? "" })}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              Cancel
+              {tc("actions.cancel")}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {tc("actions.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
