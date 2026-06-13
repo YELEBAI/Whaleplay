@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+import { generationSessions } from "@/app/generation-session";
 import { getBackend } from "@/platform";
 import { useChatStore } from "../chat.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
@@ -75,7 +76,6 @@ interface UseSendMessageReturn {
   clearError: () => void;
 }
 
-const activeGenerationRuns = new Map<string, { controller: AbortController; generationId: string }>();
 const activeImageGenerations = new Map<string, { controller: AbortController; token: string }>();
 
 const LOCAL_MEMORY_COMPRESSOR_KEY = "local";
@@ -467,40 +467,14 @@ export function useSendMessage({
     });
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const beginGeneration = (nextChatId: string, controller: AbortController) => {
-    const generationId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    activeGenerationRuns.get(nextChatId)?.controller.abort();
-    activeGenerationRuns.set(nextChatId, { controller, generationId });
-    beginSending(nextChatId);
-    setChatError(nextChatId, null);
-    return generationId;
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const finishGeneration = (generationId: string | null, finishedChatId?: string) => {
-    if (!finishedChatId) return;
-    const active = activeGenerationRuns.get(finishedChatId);
-    if (active && generationId && active.generationId !== generationId) return;
-    activeGenerationRuns.delete(finishedChatId);
-    finishSending(finishedChatId);
-  };
-
   const abort = useCallback(() => {
     if (!chatId) return;
-    const active = activeGenerationRuns.get(chatId);
-    if (active) {
-      active.controller.abort();
-      activeGenerationRuns.delete(chatId);
-      finishSending(chatId);
-    }
+    generationSessions.abort(`chat:${chatId}`);
+    finishSending(chatId);
   }, [chatId, finishSending]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const isGenerationActive = (targetChatId: string, generationId: string) => {
-    const active = activeGenerationRuns.get(targetChatId);
-    return !!active && active.generationId === generationId && !active.controller.signal.aborted;
-  };
+  const isGenerationActive = (controller: AbortController) => !controller.signal.aborted;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stripMessages = (msgs: Message[]): Message[] => {
@@ -700,7 +674,6 @@ export function useSendMessage({
     built: BuiltPrompt,
     modelConfig: ModelConfig,
     controller: AbortController,
-    generationId: string,
     retrying: boolean,
     attempt: number,
     debugContext?: DebugPromptContext,
@@ -763,7 +736,7 @@ export function useSendMessage({
         userId,
         signal: controller.signal,
       })) {
-        if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+        if (!isGenerationActive(controller)) throwGenerationStopped();
         if (chunk.reasoningContentDelta) {
           nextReasoningContent += chunk.reasoningContentDelta;
           if (useChatStore.getState().activeGenerations[targetChatId]?.generationPhase !== "writing") {
@@ -800,7 +773,7 @@ export function useSendMessage({
         userId,
         signal: controller.signal,
       });
-      if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+      if (!isGenerationActive(controller)) throwGenerationStopped();
       thinkingDuration = Date.now() - genStart;
       setGenerationPhase(targetChatId, "writing");
       await patchMessage(
@@ -835,7 +808,6 @@ export function useSendMessage({
     built: BuiltPrompt,
     modelConfig: ModelConfig,
     controller: AbortController,
-    generationId: string,
     debugContext?: DebugPromptContext,
   ): Promise<string> => {
     for (let attempt = 0; attempt <= EMPTY_ASSISTANT_RETRY_LIMIT; attempt++) {
@@ -846,7 +818,6 @@ export function useSendMessage({
         built,
         modelConfig,
         controller,
-        generationId,
         attempt > 0,
         attemptNumber,
         debugContext,
@@ -894,7 +865,6 @@ export function useSendMessage({
     modelConfig: ModelConfig,
     initialGameState: AgenticGameState,
     controller: AbortController,
-    generationId: string,
     retrying: boolean,
     attempt: number,
     debugContext?: DebugPromptContext,
@@ -966,7 +936,7 @@ export function useSendMessage({
         setGenerationPhase(targetChatId, "writing");
       },
       onContentDelta: async (delta) => {
-        if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+        if (!isGenerationActive(controller)) throwGenerationStopped();
         thinkingDuration ??= Date.now() - genStart;
         nextContent += delta;
         setGenerationPhase(targetChatId, "writing");
@@ -981,7 +951,7 @@ export function useSendMessage({
         );
       },
       onReasoningDelta: async (delta) => {
-        if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+        if (!isGenerationActive(controller)) throwGenerationStopped();
         nextReasoningContent += delta;
         await patchMessage(
           assistantId,
@@ -1009,7 +979,7 @@ export function useSendMessage({
       requirePlayerOptions: true,
     });
 
-    if (!isGenerationActive(targetChatId, generationId)) throwGenerationStopped();
+    if (!isGenerationActive(controller)) throwGenerationStopped();
 
     thinkingDuration ??= Date.now() - genStart;
     const usage = withDebugUsage(withDeepSeekUsageCost(result.usage, modelConfig), debugPrompt);
@@ -1032,7 +1002,6 @@ export function useSendMessage({
     modelConfig: ModelConfig,
     initialGameState: AgenticGameState,
     controller: AbortController,
-    generationId: string,
     debugContext?: DebugPromptContext,
   ): Promise<string> => {
     let currentState = initialGameState;
@@ -1045,7 +1014,6 @@ export function useSendMessage({
         modelConfig,
         currentState,
         controller,
-        generationId,
         attempt > 0,
         attemptNumber,
         debugContext,
@@ -1190,8 +1158,9 @@ export function useSendMessage({
       const trimmedContent = content.trim();
       if (!trimmedContent || !chatId || !character) return;
 
-      const controller = new AbortController();
-      const generationId = beginGeneration(chatId, controller);
+      const controller = generationSessions.start(`chat:${chatId}`);
+      beginSending(chatId);
+      setChatError(chatId, null);
 
       try {
         const activePath = getActivePath(chatId);
@@ -1286,31 +1255,22 @@ export function useSendMessage({
                 modelConfig,
                 agenticRecord.gameState,
                 controller,
-                generationId,
                 debugContext,
               )
-            : await generateAssistantWithEmptyRetry(
-                chatId,
-                assistant.id,
-                built,
-                modelConfig,
-                controller,
-                generationId,
-                debugContext,
-              );
-        if (isGenerationActive(chatId, generationId)) {
+            : await generateAssistantWithEmptyRetry(chatId, assistant.id, built, modelConfig, controller, debugContext);
+        if (isGenerationActive(controller)) {
           void notifyAssistantOutputComplete(character.name);
         }
         void processImageGeneration(chatId, assistant.id, finalContent);
         await removeEmptyStreamingDraft(assistant.id);
       } catch (err) {
-        if ((err as Error).name === "AbortError") {
+        if ((err as Error).name === "AbortError" || controller.signal.aborted) {
           setChatError(chatId, "Generation stopped");
         } else {
           setChatError(chatId, (err as Error).message || "Failed to send message");
         }
       } finally {
-        finishGeneration(generationId, chatId);
+        if (!controller.signal.aborted) finishSending(chatId);
       }
     },
     [
@@ -1321,7 +1281,7 @@ export function useSendMessage({
       agenticPlayEnabled,
       onPromptBuilt,
       getActivePath,
-      beginGeneration,
+      beginSending,
       setStreamingMessageId,
       getMemoryPromptPlan,
       getWorldbookContextBlocks,
@@ -1332,7 +1292,7 @@ export function useSendMessage({
       processImageGeneration,
       removeEmptyStreamingDraft,
       setChatError,
-      finishGeneration,
+      finishSending,
     ],
   );
 
@@ -1342,8 +1302,9 @@ export function useSendMessage({
     async (mode: "replace" | "fork" = "replace") => {
       if (!chatId || !character) return;
 
-      const controller = new AbortController();
-      const generationId = beginGeneration(chatId, controller);
+      const controller = generationSessions.start(`chat:${chatId}`);
+      beginSending(chatId);
+      setChatError(chatId, null);
       let assistantId: string | null = null;
 
       try {
@@ -1461,31 +1422,22 @@ export function useSendMessage({
                 modelConfig,
                 agenticRecord.gameState,
                 controller,
-                generationId,
                 debugContext,
               )
-            : await generateAssistantWithEmptyRetry(
-                chatId,
-                assistant.id,
-                built,
-                modelConfig,
-                controller,
-                generationId,
-                debugContext,
-              );
-        if (isGenerationActive(chatId, generationId)) {
+            : await generateAssistantWithEmptyRetry(chatId, assistant.id, built, modelConfig, controller, debugContext);
+        if (isGenerationActive(controller)) {
           void notifyAssistantOutputComplete(character.name);
         }
         void processImageGeneration(chatId, assistant.id, finalContent);
       } catch (err) {
-        if ((err as Error).name === "AbortError") {
+        if ((err as Error).name === "AbortError" || controller.signal.aborted) {
           setChatError(chatId, "Generation stopped");
         } else {
           setChatError(chatId, (err as Error).message || "Failed to regenerate");
         }
         await removeEmptyStreamingDraft(assistantId);
       } finally {
-        finishGeneration(generationId, chatId);
+        if (!controller.signal.aborted) finishSending(chatId);
       }
     },
     [
@@ -1496,7 +1448,7 @@ export function useSendMessage({
       ensureMessagesHydrated,
       agenticPlayEnabled,
       onPromptBuilt,
-      beginGeneration,
+      beginSending,
       setStreamingMessageId,
       getMemoryPromptPlan,
       getWorldbookContextBlocks,
@@ -1507,7 +1459,7 @@ export function useSendMessage({
       processImageGeneration,
       removeEmptyStreamingDraft,
       setChatError,
-      finishGeneration,
+      finishSending,
     ],
   );
 

@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useLayoutEffect, useState } from "react";
+import { startTransition, useEffect, useLayoutEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { ArrowLeft, CheckCircle2, Globe2, Send } from "lucide-react";
@@ -11,14 +11,12 @@ import {
   type ChoiceInputPanelQuestion,
 } from "@/components/ChoiceInputPanel";
 import { characterRepository, worldbookRepository } from "@/db/repositories";
+import { builderSessions, useBuilderSession } from "@/features/character/builder-session.store";
 import { recordUsageCostAndWarn } from "@/features/billing/usage-cost";
-import { runNeoCharacterBuilderTurn } from "@/features/character/neo-character-builder";
 import { exportPackToFolder, type CharacterCardPack } from "@/features/character/neo-character-builder";
 import { deleteWorkspaceDir } from "@/features/character/builder/workspace-files";
-import { searchWeb } from "@/features/character/web-search";
 import { toast } from "@/utils/toast";
 import { useCharacterStore } from "@/features/character/character.store";
-import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
 
 import { BuilderWorkspaceList } from "./neo-builder/WorkspaceList";
@@ -54,11 +52,6 @@ import {
   hasWorkspaceProgress,
   writeBuilderWorkspaceSnapshot,
   writeBuilderWorkspaceRecords,
-  applyEntryProgressEvent,
-  shouldRunBuilderTurnInBackground,
-  getBackgroundResultContent,
-  toConversation,
-  upsertToolEvent,
   getChoicePanelTitle,
   formatCharacterUpdatedAt,
 } from "./neo-builder/utils";
@@ -70,12 +63,12 @@ export function NeoBuilderPage() {
   const { loadCharacters, createCharacter, updateCharacter } = useCharacterStore();
   const [initialSnapshot] = useState(() => readInitialBuilderSnapshot());
   const [targetId, setTargetId] = useState<BuilderTarget>(() => initialSnapshot?.targetId ?? NEW_TARGET);
-  const [messages, setMessages] = useState<BuilderMessage[]>(() => initialSnapshot?.messages ?? initialMessages());
+  const [builderSessionId, setBuilderSessionId] = useState(() => initialSnapshot?.builderSessionId ?? generateId());
+  const session = useBuilderSession(builderSessionId);
+  const { messages, running, error } = session;
   const [input, setInput] = useState(() => initialSnapshot?.input ?? "");
-  const [running, setRunning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(() => initialSnapshot?.webSearchEnabled ?? false);
-  const [error, setError] = useState<string | null>(null);
   const [dismissedChoiceMessageId, setDismissedChoiceMessageId] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<NeoBuilderTurnResult | null>(() => initialSnapshot?.lastResult ?? null);
   const [draft, setDraft] = useState<CreateCharacterInput | null>(() => initialSnapshot?.draft ?? null);
@@ -100,7 +93,17 @@ export function NeoBuilderPage() {
   const [workspaceRecords, setWorkspaceRecords] = useState<BuilderWorkspaceRecord[]>(() =>
     readInitialBuilderRecords(initialSnapshot ?? null),
   );
-  const [builderSessionId, setBuilderSessionId] = useState(() => initialSnapshot?.builderSessionId ?? generateId());
+
+  // Restore snapshot messages into the persistent session store on mount
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    restoredRef.current = true;
+    if (initialSnapshot?.messages?.length) {
+      builderSessions.restore(builderSessionId, initialSnapshot.messages);
+    }
+  }, [builderSessionId, initialSnapshot]);
+
   const visibleMessages = messages.filter((message) => !message.hidden);
 
   const {
@@ -178,8 +181,9 @@ export function NeoBuilderPage() {
 
   const resetWorkspace = () => {
     setTargetId(NEW_TARGET);
-    setBuilderSessionId(generateId());
-    setMessages(initialMessages());
+    const newId = generateId();
+    setBuilderSessionId(newId);
+    builderSessions.restore(newId, initialMessages());
     setLastResult(null);
     setDraft(null);
     setWorldbookDraft(null);
@@ -190,7 +194,6 @@ export function NeoBuilderPage() {
     setStatusBars(null);
     setArtifactView(null);
     setSavedCharacterId(null);
-    setError(null);
     setInput("");
   };
 
@@ -201,7 +204,7 @@ export function NeoBuilderPage() {
   const handleSelectWorkspace = (record: BuilderWorkspaceRecord) => {
     setTargetId(record.targetId);
     setBuilderSessionId(record.builderSessionId);
-    setMessages(normalizeRestoredMessages(record.messages));
+    builderSessions.restore(record.builderSessionId, normalizeRestoredMessages(record.messages));
     setInput(record.input);
     setWebSearchEnabled(record.webSearchEnabled);
     setLastResult(record.lastResult);
@@ -214,7 +217,6 @@ export function NeoBuilderPage() {
     setStatusBars(record.statusBars ?? record.draft?.statusBars ?? null);
     setSavedCharacterId(record.savedCharacterId);
     setArtifactView(null);
-    setError(null);
   };
 
   const handleDeleteWorkspace = (record: BuilderWorkspaceRecord) => {
@@ -249,116 +251,23 @@ export function NeoBuilderPage() {
   };
 
   const sendMessage = async (content: string, webSearchOverride = webSearchEnabled, hiddenUserMessage = false) => {
-    const clean = content.trim();
-    if (!clean || running) return;
-
-    const config = useSettingsStore.getState().modelConfig;
-    if (!config) {
-      const message = tt("noApiConfig");
-      setError(message);
-      toast("error", message);
-      return;
+    if (hiddenUserMessage) {
+      // Hidden user messages bypass the store — they're added locally for context
+      const userMsg: BuilderMessage = { id: generateId(), role: "user", content: content.trim(), hidden: true };
+      builderSessions.setMessages(builderSessionId, [...messages, userMsg]);
     }
-
-    const userMessage: BuilderMessage = { id: generateId(), role: "user", content: clean, hidden: hiddenUserMessage };
-    const assistantId = generateId();
-    const backgroundCreation = shouldRunBuilderTurnInBackground(clean, creationPlan, draft, hiddenUserMessage);
-    const assistantMessage: BuilderMessage = {
-      id: assistantId,
-      role: "assistant",
-      content: "",
-      pending: true,
-      backgroundCreation,
-      startedAt: Date.now(),
-    };
-    const nextMessages = [...messages, userMessage];
-
-    setMessages([...nextMessages, assistantMessage]);
-    setInput("");
-    setRunning(true);
-    setError(null);
-
-    try {
-      const result = await runNeoCharacterBuilderTurn({
-        conversation: toConversation(nextMessages),
-        existingCharacter: null,
-        currentDraft: draft,
-        currentWorldbookEntries: worldbookDraft?.entries ?? [],
-        creationPlan,
-        personalityPalette,
-        currentMvu: mvu,
-        currentStatusBars: statusBars,
-        modelConfig: config,
-        scopeId: builderSessionId,
-        webSearchEnabled: webSearchOverride,
-        searchWeb,
-        onContentDelta: (delta) => {
-          if (backgroundCreation) return;
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId ? { ...message, content: `${message.content}${delta}` } : message,
-            ),
-          );
-        },
-        onReasoningDelta: (delta) => {
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId
-                ? { ...message, reasoningContent: `${message.reasoningContent ?? ""}${delta}` }
-                : message,
-            ),
-          );
-        },
-        onToolEvent: (event) => {
-          if (event.name === "record_entry_output") {
-            setCreationPlan((prev) => applyEntryProgressEvent(prev, event));
-          }
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantId
-                ? { ...message, toolEvents: upsertToolEvent(message.toolEvents, event) }
-                : message,
-            ),
-          );
-        },
-      });
-
-      setLastResult(result);
-      applyDraftFromResult(result);
-      void recordUsageCostAndWarn(result.usage);
-      const keepBackgroundCreation = backgroundCreation && !result.choices?.length && !result.questions?.length;
-      setMessages((prev) =>
-        prev.map((message) =>
-          message.id === assistantId
-            ? {
-                ...message,
-                content: keepBackgroundCreation ? getBackgroundResultContent(result) : result.content,
-                choices: result.choices,
-                questions: result.questions,
-                backgroundCreation: keepBackgroundCreation,
-                reasoningContent: result.reasoningContent,
-                toolEvents: result.toolEvents,
-                usage: result.usage,
-                pending: false,
-                completedAt: Date.now(),
-              }
-            : message,
-        ),
-      );
-    } catch (err) {
-      const message = (err as Error).message || tt("builderFailed");
-      setError(message);
-      setMessages((prev) =>
-        prev.map((item) =>
-          item.id === assistantId
-            ? { ...item, content: message, backgroundCreation: false, pending: false, completedAt: Date.now() }
-            : item,
-        ),
-      );
-      toast("error", message);
-    } finally {
-      setRunning(false);
-    }
+    const result = await builderSessions.sendMessage(builderSessionId, content, webSearchOverride, {
+      draft,
+      worldbookDraft,
+      creationPlan,
+      personalityPalette,
+      mvu,
+      statusBars,
+    });
+    if (!result) return;
+    setLastResult(result);
+    applyDraftFromResult(result);
+    void recordUsageCostAndWarn(result.usage);
   };
 
   const handleChoice = (value: string, choice?: ChoiceInputPanelChoice) => {
@@ -423,7 +332,6 @@ export function NeoBuilderPage() {
     if (!draft?.name.trim()) return;
 
     setSaving(true);
-    setError(null);
     try {
       const nextDraft = { ...draft, statusBars: statusBars ?? draft.statusBars };
       const existingCharacterId = await findExistingCharacterIdForSave(nextDraft);
@@ -442,7 +350,6 @@ export function NeoBuilderPage() {
       toast("success", tt("saveSuccess", { name: saved.name }));
     } catch (err) {
       const message = (err as Error).message || tt("saveFailed");
-      setError(message);
       toast("error", message);
     } finally {
       setSaving(false);
