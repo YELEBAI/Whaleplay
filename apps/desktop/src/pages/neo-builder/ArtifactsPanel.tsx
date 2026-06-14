@@ -59,6 +59,11 @@ function getPlanStatusLabel(status: NeoCreationPlanEntry["status"]): string {
 
 // ── Component ────────────────────────────────────────
 
+/**
+ * Right sidebar panel for the NeoBuilder page. Displays workflow steps,
+ * plan entry progress, artifact cards (character, worldbook, palette,
+ * evaluation), and save/export/evaluate actions.
+ */
 export function ArtifactsPanel({
   creationPlan,
   personalityPalette,

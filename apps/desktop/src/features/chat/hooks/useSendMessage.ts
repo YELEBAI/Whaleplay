@@ -1,6 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
-import { generationSessions } from "@/app/generation-session";
 import { getBackend } from "@/platform";
 import { useChatStore } from "../chat.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
@@ -443,6 +442,7 @@ export function useSendMessage({
   onPromptBuilt,
 }: UseSendMessageOptions): UseSendMessageReturn {
   const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const controllersRef = useRef(new Map<string, AbortController>());
   const addMessage = useChatStore((s) => s.addMessage);
   const patchMessage = useChatStore((s) => s.patchMessage);
   const deleteMessage = useChatStore((s) => s.deleteMessage);
@@ -469,9 +469,20 @@ export function useSendMessage({
 
   const abort = useCallback(() => {
     if (!chatId) return;
-    generationSessions.abort(`chat:${chatId}`);
+    controllersRef.current.get(chatId)?.abort();
+    controllersRef.current.delete(chatId);
     finishSending(chatId);
   }, [chatId, finishSending]);
+
+  useEffect(
+    () => () => {
+      if (!chatId) return;
+      controllersRef.current.get(chatId)?.abort();
+      controllersRef.current.delete(chatId);
+      finishSending(chatId);
+    },
+    [chatId, finishSending],
+  );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const isGenerationActive = (controller: AbortController) => !controller.signal.aborted;
@@ -1158,7 +1169,9 @@ export function useSendMessage({
       const trimmedContent = content.trim();
       if (!trimmedContent || !chatId || !character) return;
 
-      const controller = generationSessions.start(`chat:${chatId}`);
+      controllersRef.current.get(chatId)?.abort();
+      const controller = new AbortController();
+      controllersRef.current.set(chatId, controller);
       beginSending(chatId);
       setChatError(chatId, null);
 
@@ -1270,7 +1283,10 @@ export function useSendMessage({
           setChatError(chatId, (err as Error).message || "Failed to send message");
         }
       } finally {
-        if (!controller.signal.aborted) finishSending(chatId);
+        if (controllersRef.current.get(chatId) === controller) {
+          controllersRef.current.delete(chatId);
+          finishSending(chatId);
+        }
       }
     },
     [
@@ -1301,7 +1317,9 @@ export function useSendMessage({
   const regenerate = useCallback(async () => {
     if (!chatId || !character) return;
 
-    const controller = generationSessions.start(`chat:${chatId}`);
+    controllersRef.current.get(chatId)?.abort();
+    const controller = new AbortController();
+    controllersRef.current.set(chatId, controller);
     beginSending(chatId);
     setChatError(chatId, null);
     let assistantId: string | null = null;
@@ -1419,7 +1437,10 @@ export function useSendMessage({
       }
       await removeEmptyStreamingDraft(assistantId);
     } finally {
-      if (!controller.signal.aborted) finishSending(chatId);
+      if (controllersRef.current.get(chatId) === controller) {
+        controllersRef.current.delete(chatId);
+        finishSending(chatId);
+      }
     }
   }, [
     character,

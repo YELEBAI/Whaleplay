@@ -93,30 +93,36 @@ interface VirtualListProps {
 
 export function VirtualList({ virtualizer, containerRef, onScroll, containerClassName, renderItem }: VirtualListProps) {
   return (
-    <div ref={containerRef} onScroll={onScroll} className={containerClassName}>
+    <div ref={containerRef} onScroll={onScroll} className={containerClassName} style={{ overflowAnchor: "none" }}>
       <div
         style={{
           height: `${virtualizer.getTotalSize()}px`,
           width: "100%",
           position: "relative",
+          overflowAnchor: "none",
         }}
       >
-        {virtualizer.getVirtualItems().map((virtualItem) => (
-          <div
-            key={virtualItem.key}
-            data-index={virtualItem.index}
-            ref={virtualizer.measureElement}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: "100%",
-              transform: `translateY(${virtualItem.start}px)`,
-            }}
-          >
-            {renderItem(virtualItem.index)}
-          </div>
-        ))}
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const child = renderItem(virtualItem.index);
+          if (!child) return null;
+          return (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualItem.start}px)`,
+                overflowAnchor: "none",
+              }}
+            >
+              {child}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

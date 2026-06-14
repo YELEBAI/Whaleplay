@@ -1,19 +1,16 @@
 /**
- * BuilderSessionStore — Module-level store for NeoBuilder generation state
- * that survives React component mount/unmount cycles.
+ * BuilderSessionStore — Module-level store for NeoBuilder messages and
+ * the current page-bound generation state.
  *
  * Keyed by builderSessionId. Each session tracks its messages and running
  * generation independently, enabling parallel sessions.
  *
- * When a component unmounts mid-generation, the store keeps accumulating
- * stream deltas. On remount, the component re-subscribes and sees the
- * latest state. The component is responsible for syncing workspace-level
- * state (draft, creationPlan, etc.) after sendMessage completes.
+ * Generation is intentionally not kept alive across page unmounts. The page
+ * calls abort() during cleanup so switching away stops the current turn.
  */
 
 import { useSyncExternalStore, useCallback } from "react";
 import { generateId } from "@neo-tavern/shared";
-import { generationSessions } from "@/app/generation-session";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { runNeoCharacterBuilderTurn } from "@/features/character/neo-character-builder";
 import { searchWeb } from "@/features/character/web-search";
@@ -35,6 +32,8 @@ interface SessionState {
   messages: BuilderMessage[];
   running: boolean;
   error: string | null;
+  controller: AbortController | null;
+  snapshot: Snapshot;
 }
 
 type Snapshot = Pick<SessionState, "sessionId" | "messages" | "running" | "error">;
@@ -46,10 +45,30 @@ class BuilderSessionStore {
   private getOrCreate(sessionId: string): SessionState {
     let session = this.sessions.get(sessionId);
     if (!session) {
-      session = { sessionId, messages: [], running: false, error: null };
+      const snapshot: Snapshot = {
+        sessionId,
+        messages: [],
+        running: false,
+        error: null,
+      };
+      session = { ...snapshot, controller: null, snapshot };
       this.sessions.set(sessionId, session);
     }
     return session;
+  }
+
+  private refreshSnapshot(session: SessionState): void {
+    session.snapshot = {
+      sessionId: session.sessionId,
+      messages: session.messages,
+      running: session.running,
+      error: session.error,
+    };
+  }
+
+  private commit(session: SessionState): void {
+    this.refreshSnapshot(session);
+    this.notify();
   }
 
   restore(sessionId: string, messages: BuilderMessage[]): void {
@@ -57,21 +76,24 @@ class BuilderSessionStore {
     s.messages = messages;
     s.running = false; // never restore running=true — stale
     s.error = null;
-    this.notify();
+    s.controller = null;
+    this.commit(s);
   }
 
   getSnapshot(sessionId: string): Snapshot {
-    const s = this.getOrCreate(sessionId);
-    return { sessionId: s.sessionId, messages: s.messages, running: s.running, error: s.error };
+    return this.getOrCreate(sessionId).snapshot;
   }
 
   setMessages(sessionId: string, messages: BuilderMessage[]): void {
-    this.getOrCreate(sessionId).messages = messages;
-    this.notify();
+    const s = this.getOrCreate(sessionId);
+    s.messages = messages;
+    this.commit(s);
   }
 
   abort(sessionId: string): void {
-    generationSessions.abort(`neo-builder:${sessionId}`);
+    const s = this.getOrCreate(sessionId);
+    s.controller?.abort();
+    s.controller = null;
   }
 
   // ── Send message (survives unmount, returns result for component to sync) ──
@@ -96,7 +118,7 @@ class BuilderSessionStore {
     const config = useSettingsStore.getState().modelConfig;
     if (!config) {
       s.error = "请先配置 API";
-      this.notify();
+      this.commit(s);
       return null;
     }
 
@@ -120,9 +142,11 @@ class BuilderSessionStore {
     s.messages = [...s.messages, userMessage, assistantMessage];
     s.running = true;
     s.error = null;
-    this.notify();
+    const controller = new AbortController();
+    s.controller = controller;
+    this.commit(s);
 
-    const signal = generationSessions.start(`neo-builder:${sessionId}`).signal;
+    const { signal } = controller;
 
     try {
       const result = await runNeoCharacterBuilderTurn({
@@ -141,19 +165,19 @@ class BuilderSessionStore {
         onContentDelta: (delta) => {
           if (backgroundCreation) return;
           s.messages = s.messages.map((m) => (m.id === assistantId ? { ...m, content: `${m.content}${delta}` } : m));
-          this.notify();
+          this.commit(s);
         },
         onReasoningDelta: (delta) => {
           s.messages = s.messages.map((m) =>
             m.id === assistantId ? { ...m, reasoningContent: `${m.reasoningContent ?? ""}${delta}` } : m,
           );
-          this.notify();
+          this.commit(s);
         },
         onToolEvent: (event: NeoBuilderToolEvent) => {
           s.messages = s.messages.map((m) =>
             m.id === assistantId ? { ...m, toolEvents: upsertToolEvent(m.toolEvents, event) } : m,
           );
-          this.notify();
+          this.commit(s);
         },
         signal,
       });
@@ -177,7 +201,20 @@ class BuilderSessionStore {
       );
       return result;
     } catch (err) {
-      if (signal.aborted) return null;
+      if (signal.aborted) {
+        s.messages = s.messages.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                content: m.content || "生成已停止。",
+                backgroundCreation: false,
+                pending: false,
+                completedAt: Date.now(),
+              }
+            : m,
+        );
+        return null;
+      }
       const msg = (err as Error).message || "Generation failed";
       s.error = msg;
       s.messages = s.messages.map((m) =>
@@ -188,7 +225,8 @@ class BuilderSessionStore {
       return null;
     } finally {
       s.running = false;
-      this.notify();
+      if (s.controller === controller) s.controller = null;
+      this.commit(s);
     }
   }
 

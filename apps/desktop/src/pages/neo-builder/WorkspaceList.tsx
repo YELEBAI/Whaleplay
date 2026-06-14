@@ -4,6 +4,10 @@ import { cn } from "@neo-tavern/ui";
 import type { BuilderWorkspaceRecord } from "./types";
 import { getWorkspaceRecordStatus, formatCharacterUpdatedAt } from "./utils";
 
+/**
+ * Left sidebar listing saved builder workspace records. Supports creating,
+ * selecting, and deleting workspaces.
+ */
 export function BuilderWorkspaceList({
   records,
   activeWorkspaceId,
