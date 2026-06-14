@@ -1589,43 +1589,9 @@ export function ChatPage() {
             agenticGameState={agenticGameState}
             isGeneratingCurrentChat={isGeneratingCurrentChat}
             lastDiceResult={lastDiceResult}
-            allMessages={messages}
-            forkParentIds={branch.forkParents}
-            activeLeafId={branch.activeLeafId}
+            hasBranches={branch.hasBranches}
+            branchSummaries={branch.branchSummaries}
             onSwitchBranch={branch.switchBranch}
-            onCreateBranch={(parentId) => {
-              void branch.createBranch(parentId);
-            }}
-            onExploreAgenticOption={
-              agenticPlayEnabled
-                ? (option, parentId) => {
-                    // Switch to the parent message branch first, then submit
-                    branch.switchBranch(parentId);
-                    const roll = rollDice({
-                      dice: "1d20",
-                      difficulty: option.difficulty,
-                      success_probability: option.probability,
-                      reason: option.action,
-                    });
-                    useChatStore.getState().setLastDiceResult(roll);
-                    const payload = buildAgenticChoicePayload(option, roll);
-                    void submitContent(payload, {
-                      hiddenUserMessage: true,
-                      label: option.label,
-                      metadata: {
-                        hiddenReason: "agentic_choice",
-                        agenticAction: {
-                          label: option.label,
-                          action: option.action,
-                          success_probability: option.probability,
-                          difficulty: option.difficulty,
-                          dice_result: roll,
-                        },
-                      },
-                    });
-                  }
-                : undefined
-            }
           />
         </div>
       </div>
@@ -1699,9 +1665,9 @@ export function ChatPage() {
       <RegenerateDialog
         open={regenerateDialogOpen}
         onOpenChange={setRegenerateDialogOpen}
-        onConfirm={(mode) => {
+        onConfirm={() => {
           setRegenerateDialogOpen(false);
-          void regenerate(mode);
+          void regenerate();
         }}
       />
 

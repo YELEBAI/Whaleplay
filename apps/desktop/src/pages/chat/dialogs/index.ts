@@ -7,4 +7,3 @@ export type { TokenDialogRow, TokenDialogTotals } from "./TokenDialog";
 export { DeleteMessageDialog } from "./DeleteMessageDialog";
 export { ThinkingDialog } from "./ThinkingDialog";
 export { RegenerateDialog } from "./RegenerateDialog";
-export type { RegenerateMode } from "./RegenerateDialog";
