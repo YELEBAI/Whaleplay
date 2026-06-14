@@ -251,7 +251,7 @@ export function ApiSection({ t }: ApiSectionProps) {
   const selectedProfile = selectedId === "__new__" ? null : (modelConfigs.find((c) => c.id === selectedId) ?? null);
   const selectedProfileName = selectedProfile?.name || selectedProfile?.model || "New profile";
   const displayBaseUrl = baseUrl.trim() || DEEPSEEK_BASE_URL;
-  const temperatureLocked = isDeepSeekProModel(model);
+  const temperatureLocked = isDeepSeekProModel(model) || reasoningEffort !== "";
 
   return (
     <div className="max-w-5xl space-y-4">
@@ -448,7 +448,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                     >
                       <option value="">{t("api.reasoningOff")}</option>
                       <option value="high">{t("api.reasoningHigh")}</option>
-                      <option value="maximum">{t("api.reasoningMax")}</option>
+                      <option value="max">{t("api.reasoningMax")}</option>
                     </select>
                   </div>
                 </div>

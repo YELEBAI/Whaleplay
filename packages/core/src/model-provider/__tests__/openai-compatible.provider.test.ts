@@ -333,4 +333,60 @@ describe("OpenAICompatibleProvider", () => {
     const result = await provider.generate(input);
     expect(result.content).toBe("");
   });
+
+  it("should send thinking enabled + reasoning_effort for V4 models with effort", async () => {
+    const mockResponse = {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "ok" } }], usage: {} }),
+    };
+
+    global.fetch = vi.fn().mockResolvedValue(mockResponse);
+
+    await provider.generate({
+      messages: [{ role: "user", content: "Hi" }],
+      model: "deepseek-v4-flash",
+      reasoningEffort: "max",
+    });
+
+    const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    expect(body.thinking).toEqual({ type: "enabled" });
+    expect(body.reasoning_effort).toBe("max");
+  });
+
+  it("should explicitly disable thinking when reasoningEffort is unset for V4 models", async () => {
+    const mockResponse = {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "ok" } }], usage: {} }),
+    };
+
+    global.fetch = vi.fn().mockResolvedValue(mockResponse);
+
+    await provider.generate({
+      messages: [{ role: "user", content: "Hi" }],
+      model: "deepseek-v4-pro",
+    });
+
+    const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    expect(body.thinking).toEqual({ type: "disabled" });
+    expect(body).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("should not send thinking params for legacy models", async () => {
+    const mockResponse = {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "ok" } }], usage: {} }),
+    };
+
+    global.fetch = vi.fn().mockResolvedValue(mockResponse);
+
+    await provider.generate({
+      messages: [{ role: "user", content: "Hi" }],
+      model: "deepseek-chat",
+      reasoningEffort: "high",
+    });
+
+    const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    expect(body).not.toHaveProperty("thinking");
+    expect(body).not.toHaveProperty("reasoning_effort");
+  });
 });
