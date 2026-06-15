@@ -95,8 +95,14 @@ export function withDeepSeekUsageCost(
   };
 }
 
-export function formatCnyCost(value: number | null | undefined) {
+interface FormatCnyCostOptions {
+  fractionDigits?: number;
+}
+
+export function formatCnyCost(value: number | null | undefined, options: FormatCnyCostOptions = {}) {
   if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  if (typeof options.fractionDigits === "number") return `${value.toFixed(options.fractionDigits)} 元`;
+
   const abs = Math.abs(value);
   if (abs === 0) return "0 元";
   if (abs >= 1) return `${value.toFixed(2)} 元`;
