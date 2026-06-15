@@ -26,7 +26,7 @@ Whale Play 提供打包好的应用，通过[github release](https://github.com/
 
 你也可以通过克隆仓库到本地，体验最新功能。
 
-**环境要求：** Node.js 22+、pnpm
+**环境要求：** Node.js 24+、pnpm
 
 ```bash
 git clone https://github.com/YELEBAI/Whaleplay.git

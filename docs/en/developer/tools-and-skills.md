@@ -161,15 +161,15 @@ Key details:
 
 ---
 
-## Options Parsing (Fallback)
+## Option Cleanup and Repair
 
-If the AI writes options inline in its prose (instead of calling `present_player_options`), `extractAgenticOptions` (`apps/desktop/src/features/agentic-play/agentic-options.ts`) attempts to parse them:
+Agentic Play no longer relies on a separate `agentic-options.ts` fallback parser. Options should enter the UI through the `present_player_options` tool; if the model writes options into prose, `agentic-play.ts` cleans the visible content before rendering:
 
-1. Scans lines for patterns: `选项 1.`, `A.`, `1)`, etc.
-2. Extracts success probability markers like `成功率 65%`
-3. Strips markdown formatting
-4. Filters out "custom action" / free-form options
-5. Requires at least 2 valid options to activate; otherwise falls back to plain text
+1. `stripInlineOptionList` removes numbered options, success-rate lines, and DC lines from prose
+2. `sanitizeAgenticVisibleContent` filters tool-call notes, scratchpad reasoning, and internal state paragraphs
+3. `normalizePlayerOptions` accepts exactly 5 valid structured options, each with success probability and 1d20 DC
+4. When `requirePlayerOptions` is enabled but the model fails to call the tool, `AGENTIC_OPTIONS_REPAIR_PROMPT` forces the next round to call `present_player_options`
+5. If tool calls exceed `AGENTIC_PLAY_MAX_TOOL_ROUNDS = 8`, the final round asks the model to produce visible content directly, or forces the option tool when options are required
 
 ---
 
@@ -182,10 +182,12 @@ Whale Builder uses `WhaleBuilderToolRegistry` (`apps/desktop/src/features/charac
 | `list_skill_references`      | List available skill reference documents (supports query)  |
 | `read_skill_reference`       | Read a specific skill reference document by ID             |
 | `web_search`                 | Online search (requires opt-in)                            |
-| `ask_user_options`           | Present structured follow-up questions (2-5 at once)       |
-| `show_creation_plan`         | Display or update the creation plan                        |
-| `validate_character_draft`   | Validate character card draft against skill rules          |
-| `save_character_draft`       | Save final draft (only this triggers right-panel display)  |
+| `ask_user_options`           | Present structured follow-up questions (2-4 choices, or 2-5 questions at once) |
+| `present_creation_plan`      | Show the character creation plan and personality palette, then wait for confirmation |
+| `record_entry_output`        | Mark a planned entry as done, skipped, or in progress      |
+| `evaluate_character_draft`   | Evaluate the character, worldbook, personality palette, and plan, then return actionable suggestions |
+| `validate_character_draft`   | Validate a draft against skill rules; accepts `pack` or standalone fields |
+| `save_character_draft`       | Save the final draft; supports `pack`, MVU, status bars, and triggers right-panel display |
 
 Each tool has typed parameters, execution logic, and a result format — the same pattern as Agentic Play tools.
 
@@ -207,14 +209,28 @@ interface ToolDefinition {
   }
 }
 
-interface ToolExecution {
-  nextState: State          // Updated state after execution
-  result: Record<string, unknown>  // Result object returned to the model
+interface ToolExecResult {
+  output: unknown           // Result object returned to the model
+  savedDraft?: Draft        // Draft provided to the UI after save_character_draft succeeds
+  creationPlan?: NeoCreationPlan
+  personalityPalette?: NeoPersonalityPalette
+  evaluationReport?: NeoBuilderEvaluationReport
+  mvu?: NeoMvuConfig
+  statusBars?: NeoStatusBarConfig
+  choices?: NeoBuilderChoice[]
+  questions?: NeoBuilderQuestion[]
   stopForUser?: boolean     // If true, pauses generation for user interaction
-  content?: string          // Visible text to show instead of model output
-  agenticOptions?: AgenticActionOption[]  // Options to display in the UI
 }
 ```
+
+### Builder Tool Groups
+
+`WhaleBuilderToolRegistry` maintains two tool sets that can be sent to the model:
+
+| Mode | Tools |
+| ---- | ----- |
+| Chat | `read_skill_reference`, `ask_user_options`, `present_creation_plan`, `web_search`, `validate_character_draft`, `save_character_draft`, `list_skill_references`, `evaluate_character_draft`, `record_entry_output` |
+| One-shot | `read_skill_reference`, `list_skill_references`, `validate_character_draft`, `save_character_draft`, `evaluate_character_draft`, `record_entry_output` |
 
 ---
 
@@ -270,5 +286,5 @@ To add a new tool to Whale Builder:
 
 1. **Add the definition** to `COMMON_TOOLS` or `CHAT_ONLY_TOOLS` in `tool-registry.ts`.
 2. **Implement a private handler** method on `WhaleBuilderToolRegistry`.
-3. **Wire it** in the `constructor`'s tool-to-handler mapping.
+3. **Wire it** in the `execute()` `switch` branch.
 4. **Add specs** to `ONE_SHOT_SPECS` or `CHAT_TOOL_SPECS` for the execution loop.

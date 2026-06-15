@@ -39,7 +39,7 @@ A typical turn plays out like this:
 
 ```
 1. GM describes the current scene
-2. GM presents 2–5 options with difficulty ratings
+2. GM presents exactly 5 options with success probabilities and DCs
 3. You click an option (or type a custom action)
 4. GM calls roll_dice, checks success/failure, narrates the result
 5. GM calls update_game_state to track changes (health, items, flags)
@@ -114,11 +114,11 @@ present_player_options(
   scene_text: "The corridor branches left and right...",
   question: "Which path do you take?",
   options: [
-    { label: "Go left into the darkness", action: "I carefully proceed left", success_probability: 60 },
-    { label: "Go right toward the torchlight", action: "I head toward the light", success_probability: 75 },
-    { label: "Listen first", action: "I press my ear to the wall", success_probability: 90 },
-    { label: "Turn back", action: "I retreat the way I came", success_probability: 100 },
-    { label: "Custom action...", action: "I do something else", success_probability: 50 }
+    { label: "Go left into the darkness", action: "I carefully proceed left", success_probability: 60, difficulty: 9 },
+    { label: "Go right toward the torchlight", action: "I head toward the light", success_probability: 75, difficulty: 6 },
+    { label: "Listen first", action: "I press my ear to the wall and listen", success_probability: 90, difficulty: 3 },
+    { label: "Check the floor", action: "I inspect the floor for tracks or drag marks", success_probability: 70, difficulty: 7 },
+    { label: "Call out", action: "I call into the corridor and listen for a response", success_probability: 45, difficulty: 12 }
   ]
 )
 ```
@@ -128,9 +128,10 @@ Each option includes:
 - **Label** — Short button text
 - **Action** — The full narrative action sent back to the AI when clicked
 - **Success Probability** — The GM's estimate of how likely the action is to succeed
+- **Difficulty** — The 1d20 DC that must be met or beaten
 - **Description** (optional) — Additional flavor text
 
-If the AI outputs options inline in its narration (rather than calling the tool), a fallback parser (`extractAgenticOptions`) attempts to extract them from the text. It matches formats like `Option 1.`, `A.`, `1)`, and looks for success-probability markers (e.g. `success rate 65%`). If fewer than 2 valid options are found, the text is treated as plain narration.
+Options should be produced by the tool, not written into prose. If the model writes options, success rates, or DCs into narration, the app cleans those inline options before display; when the turn must stop for player choice, the app asks the model to call `present_player_options` again.
 
 ---
 
@@ -160,5 +161,5 @@ State patches are **deep-merged** — objects merge recursively, while arrays an
 
 - **Be descriptive** in your actions — the GM uses your input to shape the scene.
 - **Expect the unexpected** — failures push the story forward, not block it.
-- **Try custom actions** — the "Custom action" option lets you do anything the AI can interpret.
+- **Try custom actions** — you can ignore the buttons and type any action the AI can interpret.
 - **State persists per session** — your health, inventory, and quest progress are tracked until you start a new game.

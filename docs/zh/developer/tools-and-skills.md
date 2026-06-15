@@ -162,15 +162,15 @@ buildChatPrompt() → [系统规则、预设、角色、
 
 ---
 
-## 选项解析（回退）
+## 选项清理与修复
 
-如果 AI 在其散文内联中编写了选项（而不是调用 `present_player_options`），`extractAgenticOptions`（`apps/desktop/src/features/agentic-play/agentic-options.ts`）会尝试解析它们：
+Agentic Play 当前不再依赖独立的 `agentic-options.ts` 回退解析文件。选项应通过 `present_player_options` 工具进入 UI；如果模型把选项写进正文，`agentic-play.ts` 会在可见内容输出前做清理：
 
-1. 扫描行中的模式：`选项 1.`、`A.`、`1)` 等
-2. 提取成功概率标记，如 `成功率 65%`
-3. 去除 markdown 格式
-4. 过滤掉"自定义操作"/自由格式的选项
-5. 需要至少 2 个有效选项才能激活；否则回退为纯文本
+1. `stripInlineOptionList` 移除正文中的编号选项、成功率和 DC 行
+2. `sanitizeAgenticVisibleContent` 过滤工具调用说明、草稿式推理和内部状态段落
+3. `normalizePlayerOptions` 只接受恰好 5 个有效结构化选项，并要求每项包含成功率和 1d20 DC
+4. 当 `requirePlayerOptions` 开启但模型没有正确调用工具时，`AGENTIC_OPTIONS_REPAIR_PROMPT` 会强制下一轮调用 `present_player_options`
+5. 如果工具回合超过 `AGENTIC_PLAY_MAX_TOOL_ROUNDS = 8`，最后一轮会要求模型直接产出可见内容，或在需要选项时强制调用选项工具
 
 ---
 
@@ -183,10 +183,12 @@ Whale Builder 使用 `WhaleBuilderToolRegistry`（`apps/desktop/src/features/cha
 | `list_skill_references`    | 列出可用的技能参考文档（支持查询）           |
 | `read_skill_reference`     | 按 ID 读取指定的技能参考文档                 |
 | `web_search`               | 在线搜索（需用户选择启用）                   |
-| `ask_user_options`         | 展示结构化的后续问题（一次 2-5 个）          |
-| `show_creation_plan`       | 显示或更新创建计划                           |
-| `validate_character_draft` | 根据技能规则验证角色卡草稿                   |
-| `save_character_draft`     | 保存最终草稿（只有此操作会触发右侧面板显示） |
+| `ask_user_options`         | 展示结构化的后续问题（单题 2-4 项，或一次 2-5 个问题） |
+| `present_creation_plan`    | 展示角色卡创作规划、性格调色盘并等待用户确认 |
+| `record_entry_output`      | 登记规划条目的完成、跳过或进行中状态         |
+| `evaluate_character_draft` | 评估角色卡、世界书、性格调色盘和创作规划，输出修改建议 |
+| `validate_character_draft` | 根据技能规则验证角色卡草稿，支持 `pack` 或独立字段 |
+| `save_character_draft`     | 保存最终草稿，支持 `pack`、MVU、状态栏配置，并触发右侧面板显示 |
 
 每个工具都有类型化参数、执行逻辑和结果格式——与 Agentic Play 工具的模式相同。
 
@@ -208,14 +210,28 @@ interface ToolDefinition {
   }
 }
 
-interface ToolExecution {
-  nextState: State          // 执行后的更新状态
-  result: Record<string, unknown>  // 返回给模型的结果对象
+interface ToolExecResult {
+  output: unknown           // 返回给模型的结果对象
+  savedDraft?: Draft        // save_character_draft 成功后提供给 UI 的草稿
+  creationPlan?: NeoCreationPlan
+  personalityPalette?: NeoPersonalityPalette
+  evaluationReport?: NeoBuilderEvaluationReport
+  mvu?: NeoMvuConfig
+  statusBars?: NeoStatusBarConfig
+  choices?: NeoBuilderChoice[]
+  questions?: NeoBuilderQuestion[]
   stopForUser?: boolean     // 如果为 true，暂停生成等待用户交互
-  content?: string          // 替代模型输出的可见文本
-  agenticOptions?: AgenticActionOption[]  // 在 UI 中显示的选项
 }
 ```
+
+### Builder 工具分组
+
+`WhaleBuilderToolRegistry` 维护两套发送给模型的工具集合：
+
+| 模式 | 工具 |
+| ---- | ---- |
+| Chat | `read_skill_reference`、`ask_user_options`、`present_creation_plan`、`web_search`、`validate_character_draft`、`save_character_draft`、`list_skill_references`、`evaluate_character_draft`、`record_entry_output` |
+| One-shot | `read_skill_reference`、`list_skill_references`、`validate_character_draft`、`save_character_draft`、`evaluate_character_draft`、`record_entry_output` |
 
 ---
 
@@ -272,5 +288,5 @@ apps/desktop/src/features/character/builder/skill/references/
 
 1. **添加定义**到 `tool-registry.ts` 中的 `COMMON_TOOLS` 或 `CHAT_ONLY_TOOLS`。
 2. **实现私有处理器**方法在 `WhaleBuilderToolRegistry` 上。
-3. **连接**到 `constructor` 中工具到处理器的映射。
+3. **连接**到 `execute()` 的 `switch` 分支。
 4. **添加 spec**到执行循环的 `ONE_SHOT_SPECS` 或 `CHAT_TOOL_SPECS` 中。
