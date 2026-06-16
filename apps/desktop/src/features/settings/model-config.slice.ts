@@ -7,6 +7,18 @@ interface TestConnectionResult {
   message: string;
 }
 
+export function normalizeReasoningEffort(value?: string | null) {
+  if (!value) return undefined;
+  return value === "maximum" ? "max" : value;
+}
+
+function normalizeModelConfig(config: ModelConfig): ModelConfig {
+  return {
+    ...config,
+    reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
+  };
+}
+
 export interface ModelConfigSlice {
   modelConfigs: ModelConfig[];
   modelConfig: ModelConfig | null;
@@ -37,7 +49,7 @@ export const createModelConfigSlice = (set: any, get: any, _api?: any): ModelCon
   loadAllConfigs: async () => {
     set({ loading: true, error: null });
     try {
-      const configs = await settingsRepository.getAllModelConfigs();
+      const configs = (await settingsRepository.getAllModelConfigs()).map(normalizeModelConfig);
       const activeId = await settingsRepository.getActiveConfigId();
       const current = activeId ? (configs.find((c) => c.id === activeId) ?? null) : null;
       set({ modelConfigs: configs, activeConfigId: activeId, modelConfig: current, loading: false });
@@ -66,7 +78,7 @@ export const createModelConfigSlice = (set: any, get: any, _api?: any): ModelCon
         model: input.model,
         temperature: input.temperature ?? 0.8,
         maxTokens: input.maxTokens ?? 800,
-        reasoningEffort: input.reasoningEffort,
+        reasoningEffort: normalizeReasoningEffort(input.reasoningEffort),
         streamingEnabled: input.streamingEnabled ?? true,
         createdAt: now,
         updatedAt: now,
@@ -93,7 +105,7 @@ export const createModelConfigSlice = (set: any, get: any, _api?: any): ModelCon
       if (!existing) throw new Error("Config not found");
 
       const now = new Date().toISOString();
-      const config: ModelConfig = { ...existing, ...input, updatedAt: now };
+      const config: ModelConfig = normalizeModelConfig({ ...existing, ...input, updatedAt: now });
       await settingsRepository.saveModelConfig(config);
       set((state: any) => ({
         modelConfigs: state.modelConfigs.map((c: ModelConfig) => (c.id === id ? config : c)),

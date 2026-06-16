@@ -2,7 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, BookOpen, CheckCircle2, FileText, KeyRound, Plus, Power, Save, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  CheckCircle2,
+  FileText,
+  KeyRound,
+  Plus,
+  Power,
+  Save,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   Button,
   cn,
@@ -34,6 +46,45 @@ function isLongEntry(entry: WorldbookEntry) {
 function entryModeLabel(entry: WorldbookEntry) {
   if (entry.type === "always") return "Always";
   return entry.triggerMode === "and" ? "Trigger AND" : "Trigger OR";
+}
+
+function normalizeSearchText(value: string) {
+  return value.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function isSubsequenceMatch(query: string, target: string) {
+  if (!query) return true;
+  let targetIndex = 0;
+  for (const char of query) {
+    targetIndex = target.indexOf(char, targetIndex);
+    if (targetIndex === -1) return false;
+    targetIndex += char.length;
+  }
+  return true;
+}
+
+function entrySearchText(entry: WorldbookEntry) {
+  return [
+    entry.title,
+    entry.keys,
+    entry.secondaryKeys,
+    entry.content,
+    entry.type,
+    entry.triggerMode,
+    entry.selectiveLogic,
+    entry.position,
+    entry.role,
+    String(entry.priority),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function matchesEntrySearch(entry: WorldbookEntry, query: string) {
+  const terms = normalizeSearchText(query).split(" ").filter(Boolean);
+  if (terms.length === 0) return true;
+  const target = normalizeSearchText(entrySearchText(entry));
+  return terms.every((term) => target.includes(term) || isSubsequenceMatch(term, target));
 }
 
 function CountPill({ label, value }: { label: string; value: number }) {
@@ -113,6 +164,7 @@ export function WorldbookPage() {
   const [entryEnabled, setEntryEnabled] = useState(true);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [expandedEntryIds, setExpandedEntryIds] = useState<Set<string>>(() => new Set());
+  const [entrySearch, setEntrySearch] = useState("");
 
   useEffect(() => {
     loadWorldbooks();
@@ -147,6 +199,7 @@ export function WorldbookPage() {
       setWbDesc(wb.description);
     }
     setExpandedEntryIds(new Set());
+    setEntrySearch("");
     resetEntryForm();
   };
 
@@ -162,6 +215,8 @@ export function WorldbookPage() {
 
   const selected = worldbooks.find((worldbook) => worldbook.id === selectedId) ?? null;
   const entries = selected ? [...selected.entries].sort((a, b) => b.priority - a.priority) : [];
+  const hasEntrySearch = entrySearch.trim().length > 0;
+  const filteredEntries = hasEntrySearch ? entries.filter((entry) => matchesEntrySearch(entry, entrySearch)) : entries;
   const selectedEntry = editingEntryId ? entries.find((entry) => entry.id === editingEntryId) : null;
   const stats = (() => {
     const source = selected?.entries ?? [];
@@ -180,6 +235,7 @@ export function WorldbookPage() {
       setWbName(wb.name);
       setWbDesc("");
       setExpandedEntryIds(new Set());
+      setEntrySearch("");
       resetEntryForm();
     } catch {
       toast("error", "Failed");
@@ -204,6 +260,7 @@ export function WorldbookPage() {
         setSelectedId(null);
         setWbName("");
         setWbDesc("");
+        setEntrySearch("");
         resetEntryForm();
       }
       setDeleteTarget(null);
@@ -448,15 +505,40 @@ export function WorldbookPage() {
 
             <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] overflow-hidden">
               <section className="flex min-w-0 flex-col overflow-hidden">
-                <div className="flex shrink-0 items-center justify-between border-b px-5 py-3">
-                  <div>
+                <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
+                  <div className="min-w-0">
                     <h3 className="text-sm font-semibold">{t("entriesSection.title")}</h3>
-                    <p className="text-muted-foreground text-xs">{t("entriesSection.description")}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {hasEntrySearch
+                        ? t("entriesSection.searchSummary", { count: filteredEntries.length, total: entries.length })
+                        : t("entriesSection.description")}
+                    </p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={resetEntryForm}>
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    {t("entriesSection.newEntry")}
-                  </Button>
+                  <div className="flex min-w-[280px] flex-1 items-center justify-end gap-2">
+                    <div className="relative w-full max-w-sm">
+                      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2" />
+                      <Input
+                        value={entrySearch}
+                        onChange={(event: ChangeEvent<HTMLInputElement>) => setEntrySearch(event.target.value)}
+                        placeholder={t("entriesSection.searchPlaceholder")}
+                        className="h-8 pr-8 pl-8 text-xs"
+                      />
+                      {entrySearch && (
+                        <button
+                          type="button"
+                          onClick={() => setEntrySearch("")}
+                          className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-sm transition-colors"
+                          title={t("entriesSection.clearSearch")}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <Button size="sm" variant="outline" onClick={resetEntryForm} className="shrink-0">
+                      <Plus className="mr-1.5 h-3.5 w-3.5" />
+                      {t("entriesSection.newEntry")}
+                    </Button>
+                  </div>
                 </div>
 
                 <ScrollArea type="always" className="min-h-0 flex-1">
@@ -464,10 +546,16 @@ export function WorldbookPage() {
                     {entries.length === 0 && (
                       <div className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
                         <FileText className="mx-auto mb-2 h-7 w-7 opacity-35" />
-                        No entries yet
+                        {t("entriesSection.noEntries")}
                       </div>
                     )}
-                    {entries.map((entry) => {
+                    {entries.length > 0 && filteredEntries.length === 0 && (
+                      <div className="text-muted-foreground rounded-lg border border-dashed p-6 text-center text-sm">
+                        <Search className="mx-auto mb-2 h-7 w-7 opacity-35" />
+                        {t("entriesSection.noMatches")}
+                      </div>
+                    )}
+                    {filteredEntries.map((entry) => {
                       const keywords = keywordsFrom(entry.keys);
                       const isExpanded = expandedEntryIds.has(entry.id);
                       const isLong = isLongEntry(entry);

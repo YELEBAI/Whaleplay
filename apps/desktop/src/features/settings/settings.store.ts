@@ -4,6 +4,8 @@ import { createModelConfigSlice, type ModelConfigSlice } from "./model-config.sl
 import { createRegexSlice, type RegexSlice } from "./regex.slice";
 import { createPreferencesSlice, type PreferencesSlice } from "./preferences.slice";
 
+export { normalizeReasoningEffort } from "./model-config.slice";
+
 export interface SettingsState extends ModelConfigSlice, RegexSlice, PreferencesSlice {}
 
 export const useSettingsStore = create<SettingsState>()(

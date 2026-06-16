@@ -140,16 +140,11 @@
   },
   "regenerateDialog": {
     "title": "Regenerate",
-    "description": "Choose how to handle the current AI reply.",
-    "fork": {
-      "label": "Create New Branch",
-      "description": "Keep the current reply; the new reply will be mounted as a branch. You can freely switch between branches in the sidebar."
-    },
+    "description": "Delete the current AI reply and regenerate from the previous user message.",
     "replace": {
       "label": "Replace Current Reply",
       "description": "Discard the current reply and regenerate. The old reply will be permanently deleted."
     },
-    "forkAndRegenerate": "Fork & Regenerate",
     "replaceRegenerate": "Replace & Regenerate"
   },
   "oldMessages": {
@@ -157,10 +152,6 @@
     "show": "Show older messages: {{count}} turns / {{messages}} messages"
   },
   "rightPanel": {
-    "tabs": {
-      "stats": "Status",
-      "branches": "Branches"
-    },
     "dice": {
       "criticalSuccess": "Critical Success!",
       "criticalFailure": "Critical Failure!",
@@ -170,14 +161,15 @@
       "dc": "DC {{value}}",
       "successRate": "Success Rate {{rate}}%"
     },
-    "tree": {
-      "thinking": "(Thinking...)",
-      "empty": "(Empty)",
-      "createBranch": "Create branch",
-      "noBranches": "No conversation branches yet",
-      "unexplored": "Unexplored",
-      "unexploredOption": "Unexplored option: {{action}}",
-      "unexploredOptionWithDc": "Unexplored option: {{action}} (DC {{difficulty}})"
+    "branches": {
+      "title": "Conversation Branches",
+      "backToStats": "Back to stats",
+      "empty": "No conversation branches yet",
+      "branchName": "Branch {{index}}",
+      "current": "Current",
+      "messageCount": "{{count}} messages",
+      "forkAfterMessage": "After message {{index}}",
+      "forkPoint": "Fork point: {{preview}}"
     },
     "overview": {
       "title": "Run Overview",
@@ -185,6 +177,7 @@
       "collapse": "Collapse run overview",
       "messages": "Messages",
       "messageCount": "{{count}} messages",
+      "viewBranches": "View branches",
       "tokenUsage": "Token Usage",
       "viewDetails": "View details →",
       "tokenStats": "P:{{prompt}} C:{{completion}} | cache {{rate}}%",

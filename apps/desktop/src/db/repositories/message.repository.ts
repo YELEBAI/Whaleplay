@@ -2,7 +2,7 @@ import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
 import { getBackend } from "@/platform";
 import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
-import { diffTreesByContent } from "@neo-tavern/core";
+import { mergeMessagesByContent } from "@neo-tavern/core/tree";
 
 const STORAGE_KEY = "neotavern_messages";
 
@@ -174,7 +174,8 @@ export const messageRepository = {
   /**
    * Merge savepoint messages into the current tree as a new branch.
    * Unlike replaceByChatId, this does NOT delete existing messages.
-   * Uses content fingerprinting to skip already-present messages.
+   * Uses content merging to skip already-present messages and remap
+   * imported children onto matched current parents when a branch diverges.
    */
   async mergeFromSavepoint(
     chatId: string,
@@ -186,25 +187,25 @@ export const messageRepository = {
   }> {
     const current = await this.listByChatId(chatId);
     const restored = makeRestoredMessages(chatId, savepointMessages);
-    const diff = diffTreesByContent(current, restored);
+    const merged = mergeMessagesByContent(current, restored);
 
-    if (diff.onlyInB.length === 0) {
-      return { imported: 0, skipped: diff.shared.length, divergencePoints: [] };
+    if (merged.imported.length === 0) {
+      return { imported: 0, skipped: merged.shared.length, divergencePoints: [] };
     }
 
     if (await canUseSqliteMessages()) {
-      for (const msg of diff.onlyInB) {
+      for (const msg of merged.imported) {
         await getBackend().db.createMessage(msg);
       }
     } else {
       const all = await loadAll();
-      await saveAll([...all, ...diff.onlyInB]);
+      await saveAll([...all, ...merged.imported]);
     }
 
     return {
-      imported: diff.onlyInB.length,
-      skipped: diff.shared.length,
-      divergencePoints: diff.divergencePoints,
+      imported: merged.imported.length,
+      skipped: merged.shared.length,
+      divergencePoints: merged.divergencePoints,
     };
   },
 

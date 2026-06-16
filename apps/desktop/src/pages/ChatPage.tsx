@@ -64,7 +64,6 @@ import {
   type DiceRollResult,
 } from "@/features/agentic-play/agentic-play";
 import { getAgenticPlayPresetItems } from "@/features/agentic-play/agentic-preset";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChatSidebar,
   ChatRightPanel,
@@ -131,6 +130,9 @@ export function ChatPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const chatScrollFrameRef = useRef<number | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
   const initRef = useRef<string | null>(null);
   const lastOpenedChatRef = useRef<string | null>(null);
   const draftReadyChatRef = useRef<string | null>(null);
@@ -334,6 +336,7 @@ export function ChatPage() {
     wasGeneratingCurrentChatRef.current = false;
     activeStreamingMessageRef.current = null;
     completedScrollMessageRef.current = null;
+    isNearBottomRef.current = true;
   }, [currentChat?.id]);
 
   useEffect(() => {
@@ -1095,25 +1098,35 @@ export function ChatPage() {
       meta: { agenticOption: option },
     })) ?? [];
 
-  const isNearBottomRef = useRef(true);
-
   const handleChatScroll = useCallback(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
     isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 120;
   }, []);
 
-  const chatVirtualizer = useVirtualizer({
-    count: renderedMessages.length,
-    getScrollElement: () => messagesContainerRef.current,
-    estimateSize: () => 260,
-    getItemKey: (index) => renderedMessages[index]?.msg.id ?? `msg-${index}`,
-    overscan: 8,
-  });
+  const scheduleChatScrollToBottom = useCallback(() => {
+    if (chatScrollFrameRef.current !== null) cancelAnimationFrame(chatScrollFrameRef.current);
+    chatScrollFrameRef.current = requestAnimationFrame(() => {
+      chatScrollFrameRef.current = null;
+      const el = messagesContainerRef.current;
+      if (!el) return;
+      chatBottomRef.current?.scrollIntoView?.({ block: "end" });
+      el.scrollTop = el.scrollHeight;
+      isNearBottomRef.current = true;
+    });
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (chatScrollFrameRef.current !== null) cancelAnimationFrame(chatScrollFrameRef.current);
+      chatScrollFrameRef.current = null;
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
-    chatVirtualizer.measure();
-  }, [fontSize, chatVirtualizer]);
+    if (isNearBottomRef.current) scheduleChatScrollToBottom();
+  }, [fontSize, chatListCollapsed, renderedMessages, scheduleChatScrollToBottom]);
 
   useEffect(() => {
     const lastMsg = branch.visibleMessages[branch.visibleMessages.length - 1];
@@ -1142,13 +1155,13 @@ export function ChatPage() {
     ) {
       const completedIndex = renderedMessages.findIndex((m) => m.msg.id === completedMessageId);
       if (completedIndex >= 0 && isNearBottomRef.current) {
-        chatVirtualizer.scrollToIndex(completedIndex, { align: "start" });
+        scheduleChatScrollToBottom();
       }
       completedScrollMessageRef.current = completedMessageId;
       activeStreamingMessageRef.current = null;
     } else if (lastMsg.role === "user") {
       if (isNearBottomRef.current) {
-        chatVirtualizer.scrollToIndex(renderedMessages.length - 1, { align: "end" });
+        scheduleChatScrollToBottom();
       }
     }
 
@@ -1161,18 +1174,26 @@ export function ChatPage() {
     streamingMessageId,
     currentChat?.id,
     renderedMessages,
-    chatVirtualizer,
+    scheduleChatScrollToBottom,
   ]);
 
   useLayoutEffect(() => {
     if (loading || !currentChat?.id || branch.visibleMessages.length === 0) return;
-    if (lastOpenedChatRef.current === currentChat.id) return;
-    lastOpenedChatRef.current = currentChat.id;
+    const listKey = `${currentChat.id}:${branch.activeLeafId ?? "default"}`;
+    if (lastOpenedChatRef.current === listKey) return;
+    lastOpenedChatRef.current = listKey;
     skipNextMessageAutoScrollRef.current = currentChat.id;
-    requestAnimationFrame(() => {
-      chatVirtualizer.scrollToIndex(renderedMessages.length - 1, { align: "end" });
-    });
-  }, [currentChat?.id, loading, branch.visibleMessages.length, renderedMessages.length, chatVirtualizer]);
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    scheduleChatScrollToBottom();
+  }, [
+    currentChat?.id,
+    branch.activeLeafId,
+    loading,
+    branch.visibleMessages.length,
+    renderedMessages.length,
+    scheduleChatScrollToBottom,
+  ]);
 
   const chatLayoutColumns = chatListCollapsed
     ? "lg:grid-cols-[48px_minmax(0,1fr)] xl:grid-cols-[48px_minmax(0,1fr)_320px]"
@@ -1204,6 +1225,7 @@ export function ChatPage() {
             ref={messagesContainerRef}
             onScroll={handleChatScroll}
             className="border-border/40 bg-background/50 mx-3 my-2 flex-1 overflow-y-auto rounded-xl border p-5"
+            style={{ overflowAnchor: "none" }}
           >
             {loading && <p className="text-muted-foreground text-center text-sm">Loading...</p>}
             {!loading && branch.visibleMessages.length === 0 && !isGeneratingCurrentChat && (
@@ -1234,39 +1256,74 @@ export function ChatPage() {
                 )}
               </div>
             )}
-            <div className={cn(chatContentWidthClass, "mx-auto")}>
-              <div
-                style={{
-                  height: `${chatVirtualizer.getTotalSize()}px`,
-                  width: "100%",
-                  position: "relative",
-                }}
-              >
-                {chatVirtualizer.getVirtualItems().map((virtualItem) => {
-                  const { msg, isUser, isFinalAi, split, displayContent, isStreamingAi, hasDisplayContent } =
-                    renderedMessages[virtualItem.index];
-                  const aiName = character?.name ?? "AI";
-                  let imageBlockIndex = 0;
-                  const isMessageImageBusy =
-                    !!imageGenerationBusy[msg.id] || !!msg.images?.some((image) => image.status === "generating");
+            <div className={cn(chatContentWidthClass, "mx-auto")} style={{ overflowAnchor: "none" }}>
+              {renderedMessages.map((item) => {
+                const { msg, isUser, isFinalAi, split, displayContent, isStreamingAi, hasDisplayContent } = item;
+                const aiName = character?.name ?? "AI";
+                let imageBlockIndex = 0;
+                const isMessageImageBusy =
+                  !!imageGenerationBusy[msg.id] || !!msg.images?.some((image) => image.status === "generating");
 
-                  return (
-                    <div
-                      key={virtualItem.key}
-                      data-index={virtualItem.index}
-                      ref={chatVirtualizer.measureElement}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        transform: `translateY(${virtualItem.start}px)`,
-                      }}
-                    >
-                      {isUser ? (
-                        <div className="flex min-w-0 justify-end gap-3 pb-5">
-                          <div className={cn("min-w-0 overflow-hidden", userBubbleWidthClass)}>
-                            <div className="mb-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity hover:opacity-100">
+                return (
+                  <div key={msg.id} style={{ overflowAnchor: "none" }}>
+                    {isUser ? (
+                      <div className="flex min-w-0 justify-end gap-3 pb-5">
+                        <div className={cn("min-w-0 overflow-hidden", userBubbleWidthClass)}>
+                          <div className="mb-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity hover:opacity-100">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground hover:text-foreground h-6 w-6"
+                              title="Copy"
+                              onClick={() => handleCopy(msg.content, msg.id)}
+                            >
+                              {copiedId === msg.id ? (
+                                <CheckCheck className="h-3.5 w-3.5 text-green-500" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground hover:text-destructive h-6 w-6"
+                              title="Delete"
+                              onClick={() => setDeleteMsgTarget(msg)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          <div className="bg-primary text-primary-foreground rounded-lg border p-4">
+                            {editingMsgId === msg.id ? (
+                              <MessageEditBox
+                                initialContent={msg.content}
+                                fontSize={fontSize}
+                                onCancel={cancelEdit}
+                                onSave={saveEdit}
+                              />
+                            ) : (
+                              <p
+                                className="leading-relaxed wrap-break-word whitespace-pre-wrap"
+                                style={{ fontSize: `${fontSize}px` }}
+                              >
+                                {displayContent}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="bg-muted mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+                          <UserIcon className="h-4 w-4" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex min-w-0 justify-start gap-3 pb-5">
+                        <div className="bg-primary text-primary-foreground mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                        <div className={cn("group w-full min-w-0 overflow-hidden py-1", chatContentWidthClass)}>
+                          <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+                            <span className="text-muted-foreground min-w-0 truncate text-xs font-medium">{aiName}</span>
+                            <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1283,6 +1340,64 @@ export function ChatPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="text-muted-foreground hover:text-foreground h-6 w-6"
+                                title="Edit"
+                                onClick={() => startEdit(msg)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground hover:text-foreground h-6 w-6"
+                                title="View full prompt"
+                                onClick={showPromptDialog}
+                              >
+                                <ScrollText className="h-3.5 w-3.5" />
+                              </Button>
+                              {msg.reasoningContent && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-muted-foreground h-6 w-6 hover:text-purple-400"
+                                  title="查看创作过程"
+                                  onClick={() => setThinkingMsg(msg)}
+                                >
+                                  <Brain className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {imageGeneration.enabled &&
+                                imageGeneration.mode === "manual" &&
+                                hasDisplayContent &&
+                                !isStreamingAi && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-muted-foreground hover:text-foreground h-6 w-6"
+                                    title={isMessageImageBusy ? "图片生成中" : "生成图片"}
+                                    onClick={() => void handleGenerateMessageImages(msg)}
+                                    disabled={isMessageImageBusy}
+                                  >
+                                    <ImageIcon className={cn("h-3.5 w-3.5", isMessageImageBusy && "animate-pulse")} />
+                                  </Button>
+                                )}
+                              {isFinalAi && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-muted-foreground hover:text-foreground h-6 w-6"
+                                  title="Regenerate"
+                                  onClick={() => {
+                                    if (!sending) setRegenerateDialogOpen(true);
+                                  }}
+                                  disabled={sending}
+                                >
+                                  <RotateCcw className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="text-muted-foreground hover:text-destructive h-6 w-6"
                                 title="Delete"
                                 onClick={() => setDeleteMsgTarget(msg)}
@@ -1290,217 +1405,99 @@ export function ChatPage() {
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
-                            <div className="bg-primary text-primary-foreground rounded-lg border p-4">
-                              {editingMsgId === msg.id ? (
-                                <MessageEditBox
-                                  initialContent={msg.content}
-                                  fontSize={fontSize}
-                                  onCancel={cancelEdit}
-                                  onSave={saveEdit}
-                                />
-                              ) : (
-                                <p
-                                  className="leading-relaxed wrap-break-word whitespace-pre-wrap"
-                                  style={{ fontSize: `${fontSize}px` }}
-                                >
-                                  {displayContent}
-                                </p>
-                              )}
-                            </div>
                           </div>
-                          <div className="bg-muted mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
-                            <UserIcon className="h-4 w-4" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex min-w-0 justify-start gap-3 pb-5">
-                          <div className="bg-primary text-primary-foreground mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
-                            <Bot className="h-4 w-4" />
-                          </div>
-                          <div className={cn("group w-full min-w-0 overflow-hidden py-1", chatContentWidthClass)}>
-                            <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
-                              <span className="text-muted-foreground min-w-0 truncate text-xs font-medium">
-                                {aiName}
-                              </span>
-                              <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-muted-foreground hover:text-foreground h-6 w-6"
-                                  title="Copy"
-                                  onClick={() => handleCopy(msg.content, msg.id)}
-                                >
-                                  {copiedId === msg.id ? (
-                                    <CheckCheck className="h-3.5 w-3.5 text-green-500" />
-                                  ) : (
-                                    <Copy className="h-3.5 w-3.5" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-muted-foreground hover:text-foreground h-6 w-6"
-                                  title="Edit"
-                                  onClick={() => startEdit(msg)}
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-muted-foreground hover:text-foreground h-6 w-6"
-                                  title="View full prompt"
-                                  onClick={showPromptDialog}
-                                >
-                                  <ScrollText className="h-3.5 w-3.5" />
-                                </Button>
-                                {msg.reasoningContent && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-muted-foreground h-6 w-6 hover:text-purple-400"
-                                    title="查看创作过程"
-                                    onClick={() => setThinkingMsg(msg)}
-                                  >
-                                    <Brain className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
-                                {imageGeneration.enabled &&
-                                  imageGeneration.mode === "manual" &&
-                                  hasDisplayContent &&
-                                  !isStreamingAi && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-muted-foreground hover:text-foreground h-6 w-6"
-                                      title={isMessageImageBusy ? "图片生成中" : "生成图片"}
-                                      onClick={() => void handleGenerateMessageImages(msg)}
-                                      disabled={isMessageImageBusy}
-                                    >
-                                      <ImageIcon className={cn("h-3.5 w-3.5", isMessageImageBusy && "animate-pulse")} />
-                                    </Button>
-                                  )}
-                                {isFinalAi && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-muted-foreground hover:text-foreground h-6 w-6"
-                                    title="Regenerate"
-                                    onClick={() => {
-                                      if (!sending) setRegenerateDialogOpen(true);
-                                    }}
-                                    disabled={sending}
-                                  >
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-muted-foreground hover:text-destructive h-6 w-6"
-                                  title="Delete"
-                                  onClick={() => setDeleteMsgTarget(msg)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </div>
 
-                            <ChatActivityTimeline
-                              message={msg}
-                              active={isStreamingAi}
-                              generationStatus={generationStatus}
+                          <ChatActivityTimeline
+                            message={msg}
+                            active={isStreamingAi}
+                            generationStatus={generationStatus}
+                          />
+
+                          {editingMsgId === msg.id ? (
+                            <MessageEditBox
+                              initialContent={msg.content}
+                              fontSize={fontSize}
+                              onCancel={cancelEdit}
+                              onSave={saveEdit}
                             />
-
-                            {editingMsgId === msg.id ? (
-                              <MessageEditBox
-                                initialContent={msg.content}
-                                fontSize={fontSize}
-                                onCancel={cancelEdit}
-                                onSave={saveEdit}
-                              />
-                            ) : split?.displayBlocks && split.displayBlocks.length > 0 && hasDisplayContent ? (
-                              <div className="space-y-2">
-                                {split.displayBlocks.map((block: DisplayBlock, bi: number) =>
-                                  block.type === "image" ? (
-                                    (() => {
-                                      const currentImageIndex = imageBlockIndex++;
-                                      return (
-                                        <ImageDisplayBlockView
-                                          key={bi}
-                                          prompt={block.content}
-                                          image={msg.images?.[currentImageIndex]}
-                                          fontSize={fontSize}
-                                          onDelete={() =>
-                                            void handleDeleteImage(msg.id, currentImageIndex, block.content)
-                                          }
-                                          onEditPrompt={() =>
-                                            openImagePromptEditor(msg, currentImageIndex, block.content)
-                                          }
-                                          onRegenerate={() =>
-                                            void handleRegenerateImage(msg.id, currentImageIndex, block.content)
-                                          }
-                                        />
-                                      );
-                                    })()
-                                  ) : block.type === "template" ? (
-                                    <TemplateDisplayBlockView key={bi} block={block} fontSize={fontSize} />
-                                  ) : block.type === "dialogue" ? (
-                                    <div
-                                      key={bi}
-                                      className="bg-accent/40 relative mt-3 rounded-md border p-3 first:mt-0"
-                                    >
-                                      <span className="bg-primary text-primary-foreground absolute -top-2.5 left-3 rounded px-2 py-0.5 text-[10px] font-semibold">
-                                        {block.speaker}
-                                      </span>
-                                      <p
-                                        className="pt-0.5 wrap-break-word whitespace-pre-wrap"
-                                        style={{ fontSize: `${fontSize}px` }}
-                                      >
-                                        {block.content}
-                                      </p>
-                                    </div>
-                                  ) : (
+                          ) : split?.displayBlocks && split.displayBlocks.length > 0 && hasDisplayContent ? (
+                            <div className="space-y-2">
+                              {split.displayBlocks.map((block: DisplayBlock, bi: number) =>
+                                block.type === "image" ? (
+                                  (() => {
+                                    const currentImageIndex = imageBlockIndex++;
+                                    return (
+                                      <ImageDisplayBlockView
+                                        key={bi}
+                                        prompt={block.content}
+                                        image={msg.images?.[currentImageIndex]}
+                                        fontSize={fontSize}
+                                        onDelete={() =>
+                                          void handleDeleteImage(msg.id, currentImageIndex, block.content)
+                                        }
+                                        onEditPrompt={() =>
+                                          openImagePromptEditor(msg, currentImageIndex, block.content)
+                                        }
+                                        onRegenerate={() =>
+                                          void handleRegenerateImage(msg.id, currentImageIndex, block.content)
+                                        }
+                                      />
+                                    );
+                                  })()
+                                ) : block.type === "template" ? (
+                                  <TemplateDisplayBlockView key={bi} block={block} fontSize={fontSize} />
+                                ) : block.type === "dialogue" ? (
+                                  <div key={bi} className="bg-accent/40 relative mt-3 rounded-md border p-3 first:mt-0">
+                                    <span className="bg-primary text-primary-foreground absolute -top-2.5 left-3 rounded px-2 py-0.5 text-[10px] font-semibold">
+                                      {block.speaker}
+                                    </span>
                                     <p
-                                      key={bi}
-                                      className="leading-relaxed wrap-break-word whitespace-pre-wrap"
+                                      className="pt-0.5 wrap-break-word whitespace-pre-wrap"
                                       style={{ fontSize: `${fontSize}px` }}
                                     >
                                       {block.content}
                                     </p>
-                                  ),
-                                )}
+                                  </div>
+                                ) : (
+                                  <p
+                                    key={bi}
+                                    className="leading-relaxed wrap-break-word whitespace-pre-wrap"
+                                    style={{ fontSize: `${fontSize}px` }}
+                                  >
+                                    {block.content}
+                                  </p>
+                                ),
+                              )}
+                            </div>
+                          ) : isStreamingAi && !hasDisplayContent ? (
+                            <div className="space-y-2">
+                              <p className="text-muted-foreground text-sm">{generationStatus.detail}</p>
+                              <div className="flex gap-1" aria-label={generationStatus.label}>
+                                <span className="bg-primary/50 h-2 w-2 animate-bounce rounded-full [animation-delay:0ms]" />
+                                <span className="bg-primary/50 h-2 w-2 animate-bounce rounded-full [animation-delay:150ms]" />
+                                <span className="bg-primary/50 h-2 w-2 animate-bounce rounded-full [animation-delay:300ms]" />
                               </div>
-                            ) : isStreamingAi && !hasDisplayContent ? (
-                              <div className="space-y-2">
-                                <p className="text-muted-foreground text-sm">{generationStatus.detail}</p>
-                                <div className="flex gap-1" aria-label={generationStatus.label}>
-                                  <span className="bg-primary/50 h-2 w-2 animate-bounce rounded-full [animation-delay:0ms]" />
-                                  <span className="bg-primary/50 h-2 w-2 animate-bounce rounded-full [animation-delay:150ms]" />
-                                  <span className="bg-primary/50 h-2 w-2 animate-bounce rounded-full [animation-delay:300ms]" />
-                                </div>
-                              </div>
-                            ) : (
-                              <p
-                                className="leading-relaxed wrap-break-word whitespace-pre-wrap"
-                                style={{ fontSize: `${fontSize}px` }}
-                              >
-                                {displayContent}
-                              </p>
-                            )}
+                            </div>
+                          ) : (
+                            <p
+                              className="leading-relaxed wrap-break-word whitespace-pre-wrap"
+                              style={{ fontSize: `${fontSize}px` }}
+                            >
+                              {displayContent}
+                            </p>
+                          )}
 
-                            {split?.sideBlocks.map((side, si) => (
-                              <div key={si} style={{ fontSize: `${fontSize}px` }}>
-                                <SideBlockView side={side} fontSize={fontSize} onAction={setInput} />
-                              </div>
-                            ))}
-                          </div>
+                          {split?.sideBlocks.map((side, si) => (
+                            <div key={si} style={{ fontSize: `${fontSize}px` }}>
+                              <SideBlockView side={side} fontSize={fontSize} onAction={setInput} />
+                            </div>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {isGeneratingCurrentChat && !hasStreamingMessage && (
                 <div className="flex min-w-0 justify-start gap-3 pb-5">
                   <div className="bg-primary text-primary-foreground mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
@@ -1528,6 +1525,7 @@ export function ChatPage() {
                   </div>
                 </div>
               )}
+              <div ref={chatBottomRef} aria-hidden="true" />
             </div>
           </div>
 
@@ -1605,43 +1603,9 @@ export function ChatPage() {
             agenticGameState={agenticGameState}
             isGeneratingCurrentChat={isGeneratingCurrentChat}
             lastDiceResult={lastDiceResult}
-            allMessages={messages}
-            forkParentIds={branch.forkParents}
-            activeLeafId={branch.activeLeafId}
+            hasBranches={branch.hasBranches}
+            branchSummaries={branch.branchSummaries}
             onSwitchBranch={branch.switchBranch}
-            onCreateBranch={(parentId) => {
-              void branch.createBranch(parentId);
-            }}
-            onExploreAgenticOption={
-              agenticPlayEnabled
-                ? (option, parentId) => {
-                    // Switch to the parent message branch first, then submit
-                    branch.switchBranch(parentId);
-                    const roll = rollDice({
-                      dice: "1d20",
-                      difficulty: option.difficulty,
-                      success_probability: option.probability,
-                      reason: option.action,
-                    });
-                    useChatStore.getState().setLastDiceResult(roll);
-                    const payload = buildAgenticChoicePayload(option, roll);
-                    void submitContent(payload, {
-                      hiddenUserMessage: true,
-                      label: option.label,
-                      metadata: {
-                        hiddenReason: "agentic_choice",
-                        agenticAction: {
-                          label: option.label,
-                          action: option.action,
-                          success_probability: option.probability,
-                          difficulty: option.difficulty,
-                          dice_result: roll,
-                        },
-                      },
-                    });
-                  }
-                : undefined
-            }
           />
         </div>
       </div>
@@ -1715,9 +1679,9 @@ export function ChatPage() {
       <RegenerateDialog
         open={regenerateDialogOpen}
         onOpenChange={setRegenerateDialogOpen}
-        onConfirm={(mode) => {
+        onConfirm={() => {
           setRegenerateDialogOpen(false);
-          void regenerate(mode);
+          void regenerate();
         }}
       />
 

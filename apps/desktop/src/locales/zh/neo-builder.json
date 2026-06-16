@@ -42,6 +42,13 @@
       }
     }
   },
+  "background": {
+    "started": "已转入后台创作",
+    "completed": "后台创作已完成",
+    "hint": "条目正文不在聊天区刷屏；请看右侧创作规划条目实时进度。",
+    "currentEntry": "当前条目",
+    "lastEntry": "最后状态"
+  },
   "activity": {
     "elapsed": "任务耗时 {{time}}",
     "thinking": "正在思考",

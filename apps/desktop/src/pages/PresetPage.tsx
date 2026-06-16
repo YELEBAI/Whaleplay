@@ -57,6 +57,16 @@ function downloadPresetJson(json: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+function getPresetItemContentPreview(content: string) {
+  const preview = content
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ");
+  return preview.length > 240 ? `${preview.slice(0, 240).trimEnd()}...` : preview;
+}
+
 // ---------- local sub-components ----------
 
 const EmptyPresetState = ({ t, onNew }: { t: (key: string) => string; onNew: () => void }) => (
@@ -106,6 +116,7 @@ const PresetItemCard = forwardRef<
   } = props;
 
   const isDragging = draggedItemId === item.id;
+  const contentPreview = getPresetItemContentPreview(item.content);
 
   return (
     <>
@@ -124,7 +135,7 @@ const PresetItemCard = forwardRef<
           <GripVertical className="h-4 w-4" />
         </button>
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pr-2">
           <div className="flex items-center gap-2">
             <span className={cn("text-sm font-medium", !item.enabled && "text-muted-foreground line-through")}>
               {item.name}
@@ -143,6 +154,17 @@ const PresetItemCard = forwardRef<
               </span>
             )}
           </div>
+          {contentPreview && (
+            <p
+              className={cn(
+                "text-muted-foreground/90 bg-muted/20 mt-1 line-clamp-1 max-w-4xl rounded px-2 py-0.5 text-xs leading-5 break-words",
+                !item.enabled && "opacity-70",
+              )}
+              title={contentPreview}
+            >
+              {contentPreview}
+            </p>
+          )}
         </div>
 
         <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => onToggle(item)}>

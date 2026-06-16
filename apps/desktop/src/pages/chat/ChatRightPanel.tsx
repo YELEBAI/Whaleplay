@@ -2,32 +2,27 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
+  ArrowLeft,
   BarChart3,
   Brain,
   BrainCircuit,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   Dice5,
   GitBranch,
   HeartPulse,
-  MessageCircle,
-  Plus,
   ShieldCheck,
   Skull,
   SmilePlus,
   Sparkles,
   Star,
   Trophy,
-  User,
   Zap,
 } from "lucide-react";
 import { cn, StatusMeter } from "@neo-tavern/ui";
 import type { AgenticGameState, DiceRollResult } from "@/features/agentic-play/agentic-play";
 import { resolveAgenticStatusMeters, type ResolvedAgenticStatusMeter } from "@/features/agentic-play/status-assets";
-import type { Message, MessageAgenticOption } from "@neo-tavern/shared";
-
-// ── Component ─────────────────────────────────────────
+import type { BranchSummary } from "./hooks/useBranchNavigation";
 
 export interface ChatRightPanelProps {
   messagesCount: number;
@@ -43,20 +38,12 @@ export interface ChatRightPanelProps {
   agenticGameState?: AgenticGameState | null;
   isGeneratingCurrentChat?: boolean;
   lastDiceResult?: DiceRollResult | null;
-  // Branch tree props
-  allMessages?: Message[];
-  forkParentIds?: Set<string>;
-  activeLeafId?: string | null;
+  hasBranches?: boolean;
+  branchSummaries?: BranchSummary[];
   onSwitchBranch?: (leafId: string) => void;
-  onCreateBranch?: (parentId: string) => void;
-  onExploreAgenticOption?: (option: MessageAgenticOption, parentMessageId: string) => void;
 }
 
-// ── Shared classNames ────────────────────────────────
-
 const labelClass = "text-xs text-muted-foreground";
-
-// ── Dice Slot Machine ───────────────────────────────
 
 const OUTCOME_ICONS: Record<string, { Icon: typeof Dice5; color: string; labelKey: string }> = {
   critical_success: { Icon: Trophy, color: "text-amber-400", labelKey: "rightPanel.dice.criticalSuccess" },
@@ -97,14 +84,12 @@ function DiceSlotMachine({ result, isGenerating }: { result: DiceRollResult; isG
 
   return (
     <div className="space-y-3">
-      {/* Dice reels */}
       <div className="flex items-center justify-center gap-2">
         {Array.from({ length: count }, (_, i) => (
           <DiceFace key={i} value={result.rolls[i] ?? 0} sides={sides} rolling={isGenerating && !result.rolls[i]} />
         ))}
       </div>
 
-      {/* Total */}
       <div className="text-center">
         <div className="text-2xl font-bold tracking-tight tabular-nums">
           {result.roll}
@@ -126,13 +111,11 @@ function DiceSlotMachine({ result, isGenerating }: { result: DiceRollResult; isG
         )}
       </div>
 
-      {/* Outcome */}
-      <div className={`bg-muted/50 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5`}>
+      <div className="bg-muted/50 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5">
         <OutcomeIcon className={cn("h-4 w-4", outcomeColor)} />
         <span className={cn("text-sm font-semibold", outcomeColor)}>{outcomeLabel}</span>
       </div>
 
-      {/* Reason */}
       <p className="text-muted-foreground text-center text-xs leading-relaxed">{result.reason}</p>
     </div>
   );
@@ -167,228 +150,83 @@ export function ChatRightPanel({
   agenticGameState,
   isGeneratingCurrentChat = false,
   lastDiceResult,
-  allMessages,
-  forkParentIds,
-  activeLeafId,
+  hasBranches = false,
+  branchSummaries = [],
   onSwitchBranch,
-  onCreateBranch,
-  onExploreAgenticOption,
 }: ChatRightPanelProps) {
   const { t } = useTranslation("chat");
   const hasUsage = usageMessagesCount > 0;
   const statusMeters = agenticPlayEnabled ? resolveAgenticStatusMeters(agenticGameState) : [];
   const [overviewCollapsed, setOverviewCollapsed] = useState(false);
-  const [activeView, setActiveView] = useState<"stats" | "tree">("stats");
-  const hasBranchTree = allMessages && allMessages.length > 0 && forkParentIds && forkParentIds.size > 0;
-  // If branches disappear (chat switched), fall back to stats
-  const effectiveView = hasBranchTree ? activeView : "stats";
-
-  // ── Tree data ──
-  const childrenMap = (() => {
-    if (!allMessages) return new Map<string | null, Message[]>();
-    const map = new Map<string | null, Message[]>();
-    for (const m of allMessages) {
-      const key = m.parentId;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(m);
-    }
-    return map;
-  })();
-
-  const activePathIds = (() => {
-    const ids = new Set<string>();
-    if (!allMessages || !activeLeafId) return ids;
-    const idMap = new Map(allMessages.map((m: Message) => [m.id, m]));
-    let current: Message | undefined = idMap.get(activeLeafId);
-    while (current) {
-      ids.add(current.id);
-      current = current.parentId ? idMap.get(current.parentId) : undefined;
-    }
-    return ids;
-  })();
-
-  const rootMessages = allMessages ? (childrenMap.get(null) ?? []) : [];
-
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => new Set());
-
-  const toggleExpand = (id: string) => {
-    setExpandedNodes((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  // ── Tree node renderer ──
-  const renderTreeNode = (message: Message, depth: number): React.ReactNode => {
-    const children = childrenMap.get(message.id) ?? [];
-    const hasChildren = children.length > 0;
-    const isFork = children.length >= 2;
-    const isExpanded = expandedNodes.has(message.id) || depth < 1; // auto-expand only root
-    const isOnActivePath = activePathIds.has(message.id);
-    const preview =
-      message.content.slice(0, 60).replace(/\n/g, " ") ||
-      (message.role === "assistant" ? t("rightPanel.tree.thinking") : t("rightPanel.tree.empty"));
-
-    // Find untaken agentic options (available but never chosen)
-    const untakenOptions: MessageAgenticOption[] = [];
-    if (agenticPlayEnabled && message.agenticOptions && message.agenticOptions.length > 0 && onExploreAgenticOption) {
-      const takenLabels = new Set(
-        children
-          .filter((c) => c.role === "user" && c.hidden)
-          .map((c) =>
-            typeof c.metadata?.agenticAction === "object" && c.metadata.agenticAction
-              ? (c.metadata.agenticAction as Record<string, unknown>).label
-              : undefined,
-          )
-          .filter(Boolean) as string[],
-      );
-      for (const opt of message.agenticOptions) {
-        if (!takenLabels.has(opt.label)) {
-          untakenOptions.push(opt);
-        }
-      }
-    }
-
-    return (
-      <div key={message.id}>
-        <div
-          className={`hover:bg-accent/50 flex items-center gap-1 rounded py-0.5 text-xs ${
-            isOnActivePath ? "bg-accent/30" : ""
-          }`}
-          style={{ paddingLeft: `${4 + depth * 10}px`, paddingRight: 4 }}
-        >
-          {/* Expand chevron */}
-          {hasChildren ? (
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded"
-              onClick={() => toggleExpand(message.id)}
-            >
-              {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            </button>
-          ) : (
-            <span className="w-4 shrink-0" />
-          )}
-
-          {/* Role icon */}
-          {message.role === "user" ? (
-            <User className="h-3 w-3 shrink-0 text-blue-400" />
-          ) : (
-            <MessageCircle className="h-3 w-3 shrink-0 text-emerald-400" />
-          )}
-
-          {/* Content preview + switch action */}
-          <button
-            type="button"
-            className={cn(
-              "min-w-0 truncate text-left",
-              isOnActivePath ? "text-primary font-medium" : "text-foreground",
-            )}
-            title={message.content.slice(0, 200)}
-            onClick={() => onSwitchBranch?.(message.id)}
-          >
-            {preview}
-          </button>
-
-          {/* Fork badge */}
-          {isFork && (
-            <span className="flex shrink-0 items-center gap-0.5 rounded bg-amber-400/15 px-1 py-0.5 text-[10px] text-amber-400">
-              <GitBranch className="h-2.5 w-2.5" />
-              {children.length}
-            </span>
-          )}
-
-          {/* Create branch button (on any non-leaf node) */}
-          {hasChildren && onCreateBranch && (
-            <button
-              type="button"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-4 w-4 shrink-0 items-center justify-center rounded opacity-0 group-hover:opacity-100"
-              style={{ opacity: isFork ? undefined : 0 }}
-              title={t("rightPanel.tree.createBranch")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onCreateBranch(message.id);
-              }}
-            >
-              <Plus className="h-3 w-3" />
-            </button>
-          )}
-        </div>
-
-        {/* Children */}
-        {hasChildren && isExpanded && children.map((child) => renderTreeNode(child, depth + 1))}
-
-        {/* Untaken agentic options (potential branches) */}
-        {isExpanded &&
-          untakenOptions.length > 0 &&
-          untakenOptions.map((opt) => (
-            <div
-              key={`untaken-${message.id}-${opt.id}`}
-              className="hover:bg-accent/50 text-muted-foreground flex cursor-pointer items-center gap-1 rounded py-0.5 text-xs"
-              style={{ paddingLeft: `${8 + (depth + 1) * 14}px`, paddingRight: 4 }}
-              title={
-                opt.difficulty !== undefined
-                  ? t("rightPanel.tree.unexploredOptionWithDc", { action: opt.action, difficulty: opt.difficulty })
-                  : t("rightPanel.tree.unexploredOption", { action: opt.action })
-              }
-              onClick={() => onExploreAgenticOption?.(opt, message.id)}
-            >
-              <span className="w-4 shrink-0" />
-              <Dice5 className="h-3 w-3 shrink-0 text-amber-400/60" />
-              <span className="min-w-0 truncate italic">{opt.label}</span>
-              {opt.difficulty !== undefined && (
-                <span className="text-muted-foreground/50 shrink-0 text-[10px]">DC{opt.difficulty}</span>
-              )}
-              <span className="shrink-0 rounded bg-amber-400/10 px-1 py-0.5 text-[10px] text-amber-400/70">
-                {t("rightPanel.tree.unexplored")}
-              </span>
-            </div>
-          ))}
-      </div>
-    );
-  };
+  const [view, setView] = useState<"stats" | "branches">("stats");
+  const effectiveView = hasBranches ? view : "stats";
 
   return (
     <aside className="bg-card flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border">
-      {/* Header with toggle */}
-      <div className="shrink-0 border-b p-3">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              effectiveView === "stats" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveView("stats")}
-          >
-            <BarChart3 className="h-3.5 w-3.5" />
-            {t("rightPanel.tabs.stats")}
-          </button>
-          <button
-            type="button"
-            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-              effectiveView === "tree" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-            onClick={() => setActiveView("tree")}
-            disabled={!hasBranchTree}
-          >
-            <GitBranch className="h-3.5 w-3.5" />
-            {t("rightPanel.tabs.branches")}
-          </button>
-        </div>
-      </div>
-
-      {/* Body */}
       <div className="min-h-0 min-w-0 flex-1 overflow-auto p-4">
-        {effectiveView === "tree" ? (
-          <div className="space-y-0.5">
-            {rootMessages.length === 0 ? (
-              <p className="text-muted-foreground text-xs">{t("rightPanel.tree.noBranches")}</p>
+        {effectiveView === "branches" ? (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                <GitBranch className="h-4 w-4 shrink-0" />
+                <span className="truncate">{t("rightPanel.branches.title")}</span>
+              </div>
+              <button
+                type="button"
+                className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
+                onClick={() => setView("stats")}
+                title={t("rightPanel.branches.backToStats")}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            </div>
+
+            {branchSummaries.length === 0 ? (
+              <p className="text-muted-foreground text-xs">{t("rightPanel.branches.empty")}</p>
             ) : (
-              rootMessages.map((msg) => renderTreeNode(msg, 0))
+              <div className="space-y-2">
+                {branchSummaries.map((branch, index) => (
+                  <button
+                    key={branch.leafId}
+                    type="button"
+                    className={cn(
+                      "bg-background/45 hover:bg-accent/70 w-full rounded-lg border p-3 text-left transition-colors",
+                      branch.isActive && "border-primary bg-primary/5",
+                    )}
+                    onClick={() => onSwitchBranch?.(branch.leafId)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <GitBranch className="text-primary h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate text-sm font-medium">
+                          {t("rightPanel.branches.branchName", { index: index + 1 })}
+                        </span>
+                      </div>
+                      {branch.isActive && (
+                        <span className="bg-primary/10 text-primary shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium">
+                          {t("rightPanel.branches.current")}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-muted-foreground mt-2 text-xs">
+                      <span>{t("rightPanel.branches.messageCount", { count: branch.messageCount })}</span>
+                      {branch.forkMessageIndex && (
+                        <span className="bg-muted ml-2 inline-flex rounded px-1.5 py-0.5">
+                          {t("rightPanel.branches.forkAfterMessage", { index: branch.forkMessageIndex })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      <p className="line-clamp-2 text-xs leading-relaxed">{branch.lastMessagePreview}</p>
+                      <p className="text-muted-foreground line-clamp-1 text-[11px]">
+                        {t("rightPanel.branches.forkPoint", { preview: branch.forkPreview })}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
-          </div>
+          </section>
         ) : (
           <>
             <section className="bg-background/45 rounded-lg border p-3">
@@ -410,12 +248,31 @@ export function ChatRightPanel({
 
               {!overviewCollapsed && (
                 <div className="mt-3 space-y-2">
-                  <div className="bg-card/60 rounded-md border p-3">
-                    <div className={labelClass}>{t("rightPanel.overview.messages")}</div>
-                    <div className="mt-1 text-sm font-medium">
-                      {t("rightPanel.overview.messageCount", { count: messagesCount })}
+                  {hasBranches ? (
+                    <button
+                      type="button"
+                      className="bg-card/60 hover:bg-accent group relative w-full rounded-md border p-3 text-left transition-colors"
+                      onClick={() => setView("branches")}
+                    >
+                      <div className="pr-24">
+                        <div className={labelClass}>{t("rightPanel.overview.messages")}</div>
+                        <div className="mt-1 text-sm font-medium">
+                          {t("rightPanel.overview.messageCount", { count: messagesCount })}
+                        </div>
+                      </div>
+                      <div className="text-primary absolute top-3 right-3 flex items-center gap-1 text-xs">
+                        <GitBranch className="h-3 w-3" />
+                        {t("rightPanel.overview.viewBranches")}
+                      </div>
+                    </button>
+                  ) : (
+                    <div className="bg-card/60 rounded-md border p-3">
+                      <div className={labelClass}>{t("rightPanel.overview.messages")}</div>
+                      <div className="mt-1 text-sm font-medium">
+                        {t("rightPanel.overview.messageCount", { count: messagesCount })}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <button
                     type="button"
                     onClick={onTokenDialogOpen}

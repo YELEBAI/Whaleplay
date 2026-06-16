@@ -66,7 +66,7 @@ interface SendMessageOptions {
 
 interface UseSendMessageReturn {
   sendMessage: (content: string, options?: SendMessageOptions) => Promise<void>;
-  regenerate: (mode?: "replace" | "fork") => Promise<void>;
+  regenerate: () => Promise<void>;
   abort: () => void;
   sending: boolean;
   sendingChatId: string | null;
@@ -474,6 +474,17 @@ export function useSendMessage({
     finishSending(chatId);
   }, [chatId, finishSending]);
 
+  useEffect(
+    () => () => {
+      for (const [targetChatId, controller] of controllersRef.current) {
+        controller.abort();
+        finishSending(targetChatId);
+      }
+      controllersRef.current.clear();
+    },
+    [finishSending],
+  );
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const isGenerationActive = (controller: AbortController) => !controller.signal.aborted;
 
@@ -488,10 +499,6 @@ export function useSendMessage({
     if (!draftId) return;
     const draft = useChatStore.getState().messages.find((m) => m.id === draftId);
     if (draft && !draft.content.trim() && !draft.reasoningContent?.trim()) {
-      await deleteMessage(draftId);
-      return;
-    }
-    if (!draft) {
       await deleteMessage(draftId);
     }
   };
@@ -1328,30 +1335,47 @@ export function useSendMessage({
       setChatError(chatId, null);
       let assistantId: string | null = null;
 
-      try {
-        const allMessages = await ensureMessagesHydrated(chatId);
+    try {
+      const allMessages = await ensureMessagesHydrated(chatId);
 
-        let lastAssistantIdx = -1;
-        for (let i = allMessages.length - 1; i >= 0; i--) {
-          if (allMessages[i].role === "assistant") {
-            lastAssistantIdx = i;
-            break;
-          }
+      let lastAssistantIdx = -1;
+      for (let i = allMessages.length - 1; i >= 0; i--) {
+        if (allMessages[i].role === "assistant") {
+          lastAssistantIdx = i;
+          break;
         }
-        if (lastAssistantIdx < 0) {
-          setChatError(chatId, "No AI response to regenerate");
-          return;
-        }
+      }
+      if (lastAssistantIdx < 0) {
+        setChatError(chatId, "No AI response to regenerate");
+        return;
+      }
 
-        const lastAssistantMsg = allMessages[lastAssistantIdx];
+      const lastAssistantMsg = allMessages[lastAssistantIdx];
 
-        let lastUserIdx = lastAssistantIdx - 1;
-        while (lastUserIdx >= 0 && allMessages[lastUserIdx].role !== "user") lastUserIdx--;
-        if (lastUserIdx < 0) {
-          setChatError(chatId, "No user message found to regenerate from");
-          return;
+      let lastUserIdx = lastAssistantIdx - 1;
+      while (lastUserIdx >= 0 && allMessages[lastUserIdx].role !== "user") lastUserIdx--;
+      if (lastUserIdx < 0) {
+        setChatError(chatId, "No user message found to regenerate from");
+        return;
+      }
+      const userContent = allMessages[lastUserIdx].content;
+
+      cancelImageGeneration(lastAssistantMsg.id);
+      await deleteMessage(lastAssistantMsg.id);
+
+      const messagesForPrompt = allMessages.filter((message) => message.id !== lastAssistantMsg.id);
+      const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
+
+      const activePresetId = await presetRepository.getActivePresetId();
+      let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
+      if (activePresetId) {
+        const preset = await presetRepository.getById(activePresetId);
+        if (preset) {
+          presetItems = preset.items
+            .filter((i) => i.enabled)
+            .map((i) => ({ role: i.role, content: i.content, injectionOrder: i.injectionOrder }));
         }
-        const userContent = allMessages[lastUserIdx].content;
+      }
 
         cancelImageGeneration(lastAssistantMsg.id);
         await deleteMessage(lastAssistantMsg.id);
@@ -1359,14 +1383,25 @@ export function useSendMessage({
         const messagesForPrompt = allMessages.filter((message) => message.id !== lastAssistantMsg.id);
         const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
 
-        const activePresetId = await presetRepository.getActivePresetId();
-        let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
-        if (activePresetId) {
-          const preset = await presetRepository.getById(activePresetId);
-          if (preset) {
-            presetItems = preset.items
-              .filter((i) => i.enabled)
-              .map((i) => ({ role: i.role, content: i.content, injectionOrder: i.injectionOrder }));
+      const assistant = await addMessage({
+        chatId,
+        parentId: allMessages[lastUserIdx].id,
+        role: "assistant",
+        content: "",
+      });
+      assistantId = assistant.id;
+      setStreamingMessageId(chatId, assistant.id);
+      const promptMessages = messagesForPrompt;
+      const debugContext: DebugPromptContext | undefined = useSettingsStore.getState().debugMode
+        ? {
+            chatId,
+            characterId: character.id,
+            characterName: character.name,
+            contextTokens,
+            round: getNextDebugRound(promptMessages),
+            assistantMessageId: assistant.id,
+            baseTrigger: "regenerate",
+            hiddenUserMessage: false,
           }
         }
 

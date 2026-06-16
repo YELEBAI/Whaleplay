@@ -21,6 +21,7 @@ export { NEW_TARGET };
 
 // ── Message helpers ──────────────────────────────────
 
+/** Sanitize and normalize messages restored from localStorage, clearing stale pending flags. */
 export function normalizeRestoredMessages(messages: unknown): BuilderMessage[] {
   if (!Array.isArray(messages) || messages.length === 0) return initialMessages();
   return messages
@@ -38,6 +39,7 @@ export function normalizeRestoredMessages(messages: unknown): BuilderMessage[] {
     }));
 }
 
+/** Read the current builder workspace snapshot from localStorage. */
 export function readBuilderWorkspaceSnapshot(): BuilderWorkspaceSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
@@ -65,6 +67,7 @@ export function readBuilderWorkspaceSnapshot(): BuilderWorkspaceSnapshot | null 
   }
 }
 
+/** Persist a builder workspace snapshot to localStorage (best-effort). */
 export function writeBuilderWorkspaceSnapshot(snapshot: BuilderWorkspaceSnapshot) {
   if (typeof window === "undefined") return;
   try {
@@ -74,6 +77,7 @@ export function writeBuilderWorkspaceSnapshot(snapshot: BuilderWorkspaceSnapshot
   }
 }
 
+/** Find the most recent non-hidden user message content in a message list. */
 export function getLatestUserMessage(messages: BuilderMessage[]) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
@@ -84,6 +88,7 @@ export function getLatestUserMessage(messages: BuilderMessage[]) {
 
 // ── Workspace snapshot helpers ───────────────────────
 
+/** Check whether a workspace snapshot contains any meaningful progress. */
 export function hasWorkspaceProgress(snapshot: BuilderWorkspaceSnapshot) {
   return !!(
     snapshot.input.trim() ||
@@ -98,6 +103,7 @@ export function hasWorkspaceProgress(snapshot: BuilderWorkspaceSnapshot) {
   );
 }
 
+/** Derive a human-readable title from a workspace snapshot (draft name > plan name > user message > fallback). */
 export function buildWorkspaceTitle(snapshot: BuilderWorkspaceSnapshot) {
   const draftName = snapshot.draft?.name?.trim();
   if (draftName) return draftName;
@@ -111,6 +117,7 @@ export function buildWorkspaceTitle(snapshot: BuilderWorkspaceSnapshot) {
 
 // ── Workspace record helpers ─────────────────────────
 
+/** Create a workspace history record from a snapshot. */
 export function createWorkspaceRecord(
   snapshot: BuilderWorkspaceSnapshot,
   updatedAt = new Date().toISOString(),
@@ -123,6 +130,7 @@ export function createWorkspaceRecord(
   };
 }
 
+/** Sanitize a raw workspace record from storage, returning null if it has no progress. */
 export function normalizeWorkspaceRecord(record: Partial<BuilderWorkspaceRecord>): BuilderWorkspaceRecord | null {
   const builderSessionId =
     typeof record.builderSessionId === "string"
@@ -155,6 +163,7 @@ export function normalizeWorkspaceRecord(record: Partial<BuilderWorkspaceRecord>
   };
 }
 
+/** Read all workspace history records from localStorage, sorted most-recent-first. */
 export function readBuilderWorkspaceRecords(): BuilderWorkspaceRecord[] {
   if (typeof window === "undefined") return [];
   try {
@@ -170,6 +179,7 @@ export function readBuilderWorkspaceRecords(): BuilderWorkspaceRecord[] {
   }
 }
 
+/** Persist workspace records to localStorage, capped at 80 entries. */
 export function writeBuilderWorkspaceRecords(records: BuilderWorkspaceRecord[]) {
   if (typeof window === "undefined") return;
   try {
@@ -179,6 +189,7 @@ export function writeBuilderWorkspaceRecords(records: BuilderWorkspaceRecord[]) 
   }
 }
 
+/** Insert or update a record at the front of the list, deduplicating by id, capped at 80. */
 export function upsertWorkspaceRecord(records: BuilderWorkspaceRecord[], record: BuilderWorkspaceRecord) {
   const next = [record, ...records.filter((item) => item.id !== record.id)]
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -186,12 +197,14 @@ export function upsertWorkspaceRecord(records: BuilderWorkspaceRecord[], record:
   return next;
 }
 
+/** Get a human-readable status label for a workspace record. */
 export function getWorkspaceRecordStatus(record: BuilderWorkspaceRecord) {
   if (record.savedCharacterId) return "已保存";
   if (record.draft?.name?.trim()) return "待保存";
   return "构思中";
 }
 
+/** Read the initial builder state: latest snapshot, or first record if no snapshot exists. */
 export function readInitialBuilderSnapshot() {
   const snapshot = readBuilderWorkspaceSnapshot();
   if (snapshot) return snapshot;
@@ -199,6 +212,7 @@ export function readInitialBuilderSnapshot() {
   return records[0] ?? null;
 }
 
+/** Read workspace records and upsert the initial snapshot if it has progress. */
 export function readInitialBuilderRecords(initialSnapshot: BuilderWorkspaceSnapshot | null) {
   const records = readBuilderWorkspaceRecords();
   if (initialSnapshot && hasWorkspaceProgress(initialSnapshot)) {
@@ -209,6 +223,8 @@ export function readInitialBuilderRecords(initialSnapshot: BuilderWorkspaceSnaps
 
 // ── Initial state / conversation ─────────────────────
 
+/** Return the initial welcome message with starter choices for a new builder session.
+ * @deprecated Hardcoded content should be migrated to locale; i18n is handled at the call site. */
 export function initialMessages(): BuilderMessage[] {
   return [
     {
@@ -225,6 +241,7 @@ export function initialMessages(): BuilderMessage[] {
   ];
 }
 
+/** Convert BuilderMessages to the flat conversation format expected by the LLM. */
 export function toConversation(messages: BuilderMessage[]): NeoBuilderConversationMessage[] {
   return messages
     .filter((message) => !message.pending && message.content.trim())
@@ -236,6 +253,7 @@ export function toConversation(messages: BuilderMessage[]): NeoBuilderConversati
 
 // ── Tool event helpers ───────────────────────────────
 
+/** Insert or update a tool event in an event list by id. */
 export function upsertToolEvent(events: NeoBuilderToolEvent[] | undefined, event: NeoBuilderToolEvent) {
   const next = [...(events ?? [])];
   const index = next.findIndex((item) => item.id === event.id);
@@ -244,6 +262,7 @@ export function upsertToolEvent(events: NeoBuilderToolEvent[] | undefined, event
   return next;
 }
 
+/** Format a millisecond duration as a human-readable elapsed time string. */
 export function formatElapsed(ms: number) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -254,6 +273,7 @@ export function formatElapsed(ms: number) {
   return `${seconds}s`;
 }
 
+/** Build a summary string describing the current state of tool events. */
 export function formatToolSummary(events: NeoBuilderToolEvent[]) {
   const running = events.filter((event) => event.status === "running");
   const failed = events.filter((event) => event.status === "error");
@@ -273,16 +293,19 @@ export function formatToolSummary(events: NeoBuilderToolEvent[]) {
 
 // ── Generic record readers ───────────────────────────
 
+/** Coerce a value into a Record<string, unknown>, defaulting to an empty object. */
 export function readRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+/** Coerce a value into a trimmed string, defaulting to an empty string. */
 export function readString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
 // ── Plan helpers ─────────────────────────────────────
 
+/** Coerce a raw status value into a valid plan entry status. */
 export function normalizePlanStatus(
   value: unknown,
   fallback: NeoCreationPlanEntry["status"],
@@ -290,6 +313,7 @@ export function normalizePlanStatus(
   return value === "done" || value === "in_progress" || value === "skipped" || value === "planned" ? value : fallback;
 }
 
+/** Map a plan entry status to a display label. */
 export function getPlanStatusLabel(status: NeoCreationPlanEntry["status"]) {
   switch (status) {
     case "done":
@@ -303,6 +327,7 @@ export function getPlanStatusLabel(status: NeoCreationPlanEntry["status"]) {
   }
 }
 
+/** Update a creation plan's entry status based on a tool event, returning a new plan if changed. */
 export function applyEntryProgressEvent(
   plan: NeoCreationPlan | null,
   event: NeoBuilderToolEvent,
@@ -335,6 +360,7 @@ export function applyEntryProgressEvent(
 
 // ── Background run helpers ───────────────────────────
 
+/** Determine whether the current builder turn should run in background mode. */
 export function shouldRunBuilderTurnInBackground(
   content: string,
   plan: NeoCreationPlan | null,
@@ -347,6 +373,7 @@ export function shouldRunBuilderTurnInBackground(
   return /确认|按规划|开始|继续|逐条|生成|创作|本阶段选项汇总|选项回答/.test(content);
 }
 
+/** Extract a human-readable summary from a background builder turn result. */
 export function getBackgroundResultContent(result: NeoBuilderTurnResult) {
   if (result.draft?.character?.name)
     return `后台创作已完成：${result.draft.character.name}。右侧可以查看角色卡与世界书。`;
@@ -402,6 +429,7 @@ export function formatCharacterUpdatedAt(value: string) {
   }).format(date);
 }
 
+/** Parse the first line of a builder message as a choice panel title. */
 export function getChoicePanelTitle(content: string): string {
   const lines = content
     .split(/\r?\n/)

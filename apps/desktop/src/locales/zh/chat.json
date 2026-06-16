@@ -148,16 +148,11 @@
   },
   "regenerateDialog": {
     "title": "重新生成",
-    "description": "选择如何处理当前 AI 回复。",
-    "fork": {
-      "label": "创建新分支",
-      "description": "保留当前回复，新回复作为分支挂载。可在侧边栏分支视图自由切换。"
-    },
+    "description": "将删除当前 AI 回复，并根据上一条用户消息重新生成。",
     "replace": {
       "label": "替换当前回复",
       "description": "丢弃当前回复并重新生成。旧的回复将被永久删除。"
     },
-    "forkAndRegenerate": "分叉并重新生成",
     "replaceRegenerate": "替换重新生成"
   },
   "oldMessages": {
@@ -165,10 +160,6 @@
     "show": "显示较早消息：{{count}} 轮 / {{messages}} 条"
   },
   "rightPanel": {
-    "tabs": {
-      "stats": "状态",
-      "branches": "分支"
-    },
     "dice": {
       "criticalSuccess": "大成功!",
       "criticalFailure": "大失败!",
@@ -178,14 +169,15 @@
       "dc": "DC {{value}}",
       "successRate": "成功率 {{rate}}%"
     },
-    "tree": {
-      "thinking": "(思考中...)",
-      "empty": "(空)",
-      "createBranch": "创建分支",
-      "noBranches": "暂无对话分支",
-      "unexplored": "未探索",
-      "unexploredOption": "未探索选项: {{action}}",
-      "unexploredOptionWithDc": "未探索选项: {{action}} (DC {{difficulty}})"
+    "branches": {
+      "title": "对话分支",
+      "backToStats": "返回统计",
+      "empty": "暂无对话分支",
+      "branchName": "分支 {{index}}",
+      "current": "当前",
+      "messageCount": "{{count}} 条消息",
+      "forkAfterMessage": "第 {{index}} 条后分叉",
+      "forkPoint": "分叉点：{{preview}}"
     },
     "overview": {
       "title": "运行概览",
@@ -193,6 +185,7 @@
       "collapse": "收纳运行概览",
       "messages": "消息",
       "messageCount": "{{count}} messages",
+      "viewBranches": "点击查看分支",
       "tokenUsage": "Token 用量",
       "viewDetails": "查看详细 →",
       "tokenStats": "P:{{prompt}} C:{{completion}} | cache {{rate}}%",

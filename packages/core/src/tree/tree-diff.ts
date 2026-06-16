@@ -16,6 +16,19 @@ export interface TreeDiffResult {
   divergencePoints: string[];
 }
 
+export interface ContentMergeResult {
+  /** Existing messages matched by content and therefore skipped during import. */
+  shared: Message[];
+  /** Current messages that did not match any incoming message. */
+  onlyInCurrent: Message[];
+  /** Incoming messages that should be persisted after parent remapping. */
+  imported: Message[];
+  /** Existing parent ids where imported messages attach as new branches. */
+  divergencePoints: string[];
+  /** Incoming message id -> final persisted/matched message id. */
+  idMap: Record<string, string>;
+}
+
 // ── ID-based diff (sync) ──────────────────────────────
 
 /**
@@ -46,6 +59,66 @@ export function fingerprintMessage(m: Message): string {
   // Normalize: chatId + role + first 300 chars of trimmed content
   const body = m.content.trim().slice(0, 300);
   return `${m.chatId}:${m.role}:${body}`;
+}
+
+export function normalizeMessageContentForMerge(content: string): string {
+  return content.trim().replace(/\s+/g, " ");
+}
+
+export function fingerprintMessageForContentMerge(m: Pick<Message, "role" | "content">): string {
+  return `${m.role}:${normalizeMessageContentForMerge(m.content)}`;
+}
+
+/**
+ * Merge imported/exported messages by role + normalized content.
+ *
+ * This keeps the message tree model intact while allowing savepoint/import
+ * flows to skip existing messages and attach new divergent messages under the
+ * matching current parent instead of a temporary imported parent id.
+ */
+export function mergeMessagesByContent(current: Message[], incoming: Message[]): ContentMergeResult {
+  const currentPools = new Map<string, Message[]>();
+  for (const message of current) {
+    const fingerprint = fingerprintMessageForContentMerge(message);
+    currentPools.set(fingerprint, [...(currentPools.get(fingerprint) ?? []), message]);
+  }
+
+  const shared: Message[] = [];
+  const imported: Message[] = [];
+  const matchedCurrentIds = new Set<string>();
+  const idMap = new Map<string, string>();
+  const currentIds = new Set(current.map((message) => message.id));
+  const divergencePoints = new Set<string>();
+
+  for (const message of incoming) {
+    const fingerprint = fingerprintMessageForContentMerge(message);
+    const candidates = currentPools.get(fingerprint);
+    const match = candidates?.shift();
+
+    if (match) {
+      shared.push(match);
+      matchedCurrentIds.add(match.id);
+      idMap.set(message.id, match.id);
+      continue;
+    }
+
+    const mappedParentId = message.parentId ? (idMap.get(message.parentId) ?? message.parentId) : null;
+    const remapped = { ...message, parentId: mappedParentId };
+    imported.push(remapped);
+    idMap.set(message.id, message.id);
+
+    if (mappedParentId && currentIds.has(mappedParentId)) {
+      divergencePoints.add(mappedParentId);
+    }
+  }
+
+  return {
+    shared,
+    onlyInCurrent: current.filter((message) => !matchedCurrentIds.has(message.id)),
+    imported,
+    divergencePoints: [...divergencePoints],
+    idMap: Object.fromEntries(idMap),
+  };
 }
 
 /**

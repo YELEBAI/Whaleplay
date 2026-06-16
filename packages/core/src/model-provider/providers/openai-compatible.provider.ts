@@ -1,5 +1,10 @@
 import type { ModelProvider, GenerateInput, GenerateMessage, GenerateResult, GenerateChunk } from "@neo-tavern/shared";
 
+function normalizeReasoningEffort(value?: string | null) {
+  if (!value) return undefined;
+  return value === "maximum" ? "max" : value;
+}
+
 export interface OpenAICompatibleProviderOptions {
   id: string;
   name: string;
@@ -51,6 +56,27 @@ export class OpenAICompatibleProvider implements ModelProvider {
     };
   }
 
+  /**
+   * Build DeepSeek-native thinking parameters.
+   *
+   * DeepSeek V4 models default to thinking ENABLED, so we must explicitly
+   * send {"thinking":{"type":"disabled"}} when the user turns thinking off.
+   * Legacy models (deepseek-chat, deepseek-reasoner) do not accept these
+   * parameters and are left untouched.
+   *
+   * @see https://api-docs.deepseek.com/guides/thinking_mode
+   */
+  private buildThinkingParams(model: string, reasoningEffort: string | undefined): Record<string, unknown> {
+    const normalizedModel = (model || "").trim().toLowerCase();
+    if (!normalizedModel.includes("v4")) return {};
+
+    const normalizedEffort = normalizeReasoningEffort(reasoningEffort);
+    if (normalizedEffort) {
+      return { thinking: { type: "enabled" }, reasoning_effort: normalizedEffort };
+    }
+    return { thinking: { type: "disabled" } };
+  }
+
   private mapMessages(messages: GenerateMessage[]) {
     return messages.map((message) => {
       if (message.role === "assistant") {
@@ -77,7 +103,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       model: input.model,
       messages: this.mapMessages(input.messages),
       max_tokens: input.maxTokens ?? 800,
-      ...(input.reasoningEffort ? { reasoning_effort: input.reasoningEffort } : {}),
+      ...this.buildThinkingParams(input.model, input.reasoningEffort),
       ...(input.tools?.length ? { tools: input.tools } : {}),
       ...(input.toolChoice ? { tool_choice: input.toolChoice } : {}),
       ...(input.userId ? { user_id: input.userId } : {}),
@@ -121,7 +147,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
       model: input.model,
       messages: this.mapMessages(input.messages),
       max_tokens: input.maxTokens ?? 800,
-      ...(input.reasoningEffort ? { reasoning_effort: input.reasoningEffort } : {}),
+      ...this.buildThinkingParams(input.model, input.reasoningEffort),
       ...(input.tools?.length ? { tools: input.tools } : {}),
       ...(input.toolChoice ? { tool_choice: input.toolChoice } : {}),
       ...(input.userId ? { user_id: input.userId } : {}),

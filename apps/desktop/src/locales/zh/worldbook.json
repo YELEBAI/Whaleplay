@@ -27,7 +27,11 @@
     "title": "条目",
     "description": "按优先级排序，优先级高的条目优先考虑。",
     "newEntry": "新建条目",
-    "noEntries": "暂无条目"
+    "noEntries": "暂无条目",
+    "searchPlaceholder": "搜索标题、关键词或内容",
+    "searchSummary": "已匹配 {{count}} / {{total}} 个条目",
+    "noMatches": "没有匹配的条目",
+    "clearSearch": "清空搜索"
   },
   "entryForm": {
     "title": "标题",

@@ -1,24 +1,76 @@
 /**
- * App storage — Tauri plugin-store → REST → localStorage fallback.
+ * App storage — Tauri backend store → REST → localStorage fallback.
  * All key-value persistence goes through getStorageItem / setStorageItem.
  */
 
-import { Store } from "@tauri-apps/plugin-store";
+import { getBackend } from "@/platform";
 
 const MIGRATION_KEY = "neotavern_app_store_migrated_v1";
 const STORAGE_PREFIX = "neotavern";
+const LEGACY_LOCAL_CACHE_KEYS = ["neotavern-characters"];
+const STORAGE_TIMEOUT_MS = 4000;
 
-let storeInstance: Store | null = null;
+type StorageAttemptResult = { ok: true } | { ok: false; reason: string };
 
-async function getStore(): Promise<Store | null> {
-  if (!storeInstance) {
-    try {
-      storeInstance = await Store.load("store.json");
-    } catch {
-      return null;
-    }
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error || "Unknown error");
+}
+
+function getByteSize(value: string) {
+  try {
+    return new TextEncoder().encode(value).byteLength;
+  } catch {
+    return value.length;
   }
-  return storeInstance;
+}
+
+function formatBytes(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes < 0) return "unknown";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function getLocalStorageDiagnostics(writeKey?: string, writeValue?: string) {
+  if (!canUseLocalStorage()) return "localStorage unavailable";
+  try {
+    const entries: Array<{ key: string; bytes: number }> = [];
+    let totalBytes = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const value = localStorage.getItem(key) ?? "";
+      // localStorage quota is usually counted as UTF-16 code units.
+      const bytes = (key.length + value.length) * 2;
+      totalBytes += bytes;
+      if (key.startsWith(STORAGE_PREFIX) || key.startsWith("neotavern-")) entries.push({ key, bytes });
+    }
+    const largest = entries
+      .sort((a, b) => b.bytes - a.bytes)
+      .slice(0, 5)
+      .map((entry) => `${entry.key}=${formatBytes(entry.bytes)}`)
+      .join(", ");
+    const writeInfo = writeKey && writeValue ? `write ${writeKey}=${formatBytes(writeValue.length * 2)}` : "";
+    return [`localStorage total~${formatBytes(totalBytes)}`, writeInfo, largest ? `largest: ${largest}` : ""]
+      .filter(Boolean)
+      .join("; ");
+  } catch (error) {
+    return `localStorage diagnostics failed: ${getErrorMessage(error)}`;
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = STORAGE_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function canUseLocalStorage() {
@@ -38,21 +90,26 @@ function localGetItem(key: string): string | null {
   }
 }
 
-function localSetItem(key: string, value: string) {
-  if (!canUseLocalStorage()) return;
+function localSetItem(key: string, value: string): StorageAttemptResult {
+  if (!canUseLocalStorage()) return { ok: false, reason: "localStorage unavailable" };
   try {
     localStorage.setItem(key, value);
-  } catch {
-    /* storage unavailable */
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `${getErrorMessage(error)}; ${getLocalStorageDiagnostics(key, value)}`,
+    };
   }
 }
 
-function localRemoveItem(key: string) {
-  if (!canUseLocalStorage()) return;
+function localRemoveItem(key: string): boolean {
+  if (!canUseLocalStorage()) return false;
   try {
     localStorage.removeItem(key);
+    return true;
   } catch {
-    /* storage unavailable */
+    return false;
   }
 }
 
@@ -71,11 +128,15 @@ function localEntries(prefix = STORAGE_PREFIX): Record<string, string> {
   return result;
 }
 
+function cleanupLegacyLocalCaches() {
+  for (const key of LEGACY_LOCAL_CACHE_KEYS) {
+    localRemoveItem(key);
+  }
+}
+
 async function appStoreGet(key: string): Promise<string | null> {
   try {
-    const store = await getStore();
-    if (!store) return null;
-    return (await store.get<string>(key)) ?? null;
+    return (await withTimeout(getBackend().store.get(key), `app store get ${key}`)) ?? null;
   } catch {
     return null;
   }
@@ -97,7 +158,7 @@ async function restGet(key: string): Promise<string | null> {
   }
 }
 
-async function restSet(key: string, value: string): Promise<boolean> {
+async function restSet(key: string, value: string): Promise<StorageAttemptResult> {
   try {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const token = sessionStorage.getItem("neo_token");
@@ -107,9 +168,16 @@ async function restSet(key: string, value: string): Promise<boolean> {
       headers,
       body: JSON.stringify({ value }),
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (res.ok) return { ok: true };
+    let body = "";
+    try {
+      body = (await res.text()).slice(0, 240);
+    } catch {
+      /* ignore body read errors */
+    }
+    return { ok: false, reason: `HTTP ${res.status}${body ? `: ${body}` : ""}` };
+  } catch (error) {
+    return { ok: false, reason: getErrorMessage(error) };
   }
 }
 
@@ -143,24 +211,18 @@ async function restEntries(prefix: string): Promise<Record<string, string> | nul
   }
 }
 
-async function appStoreSet(key: string, value: string): Promise<boolean> {
+async function appStoreSet(key: string, value: string): Promise<StorageAttemptResult> {
   try {
-    const store = await getStore();
-    if (!store) return false;
-    await store.set(key, value);
-    await store.save();
-    return true;
-  } catch {
-    return false;
+    await withTimeout(getBackend().store.set(key, value), `app store set ${key}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, reason: getErrorMessage(error) };
   }
 }
 
 async function appStoreRemove(key: string): Promise<boolean> {
   try {
-    const store = await getStore();
-    if (!store) return false;
-    await store.delete(key);
-    await store.save();
+    await withTimeout(getBackend().store.remove(key), `app store remove ${key}`);
     return true;
   } catch {
     return false;
@@ -169,14 +231,7 @@ async function appStoreRemove(key: string): Promise<boolean> {
 
 async function appStoreEntries(): Promise<Record<string, string> | null> {
   try {
-    const store = await getStore();
-    if (!store) return null;
-    const entries = await store.entries();
-    const result: Record<string, string> = {};
-    for (const [key, value] of entries) {
-      result[key] = String(value ?? "");
-    }
-    return result;
+    return await withTimeout(getBackend().store.entries(), "app store entries");
   } catch {
     return null;
   }
@@ -184,23 +239,24 @@ async function appStoreEntries(): Promise<Record<string, string> | null> {
 
 export async function migrateLocalStorageToAppStore(prefix = STORAGE_PREFIX) {
   if (!canUseLocalStorage()) return;
+  cleanupLegacyLocalCaches();
 
   try {
-    const store = await getStore();
-    if (!store) return;
+    const store = getBackend().store;
 
-    const migrated = await store.get<string>(MIGRATION_KEY);
-    if (migrated === "1") return;
+    const migrated = await withTimeout(store.get(MIGRATION_KEY), "app store migration check");
+    if (migrated === "1") {
+      return;
+    }
 
     for (const [key, value] of Object.entries(localEntries(prefix))) {
-      const existing = await store.get<string>(key);
+      const existing = await withTimeout(store.get(key), `app store migration get ${key}`);
       if (existing == null) {
-        await store.set(key, value);
+        await withTimeout(store.set(key, value), `app store migration set ${key}`);
       }
     }
 
-    await store.set(MIGRATION_KEY, "1");
-    await store.save();
+    await withTimeout(store.set(MIGRATION_KEY, "1"), "app store migration complete");
   } catch {
     /* store unavailable */
   }
@@ -220,15 +276,33 @@ export async function getStorageItem(key: string): Promise<string | null> {
 }
 
 export async function setStorageItem(key: string, value: string): Promise<void> {
-  if (await appStoreSet(key, value)) return;
-  if (await restSet(key, value)) return;
-  localSetItem(key, value);
+  const reasons: string[] = [`value size ${formatBytes(getByteSize(value))}`];
+
+  const appStoreResult = await appStoreSet(key, value);
+  if (appStoreResult.ok) return;
+  reasons.push(`appStore failed: ${appStoreResult.reason}`);
+
+  const restResult = await restSet(key, value);
+  if (restResult.ok) return;
+  reasons.push(`REST failed: ${restResult.reason}`);
+
+  const localResult = localSetItem(key, value);
+  if (localResult.ok) return;
+  reasons.push(`localStorage failed: ${localResult.reason}`);
+
+  cleanupLegacyLocalCaches();
+  const retryLocalResult = localSetItem(key, value);
+  if (retryLocalResult.ok) return;
+  reasons.push(`localStorage retry failed after cleanup: ${retryLocalResult.reason}`);
+
+  throw new Error(`Failed to persist storage key: ${key}. ${reasons.join(" | ")}`);
 }
 
 export async function removeStorageItem(key: string): Promise<void> {
   if (await appStoreRemove(key)) return;
   if (await restRemove(key)) return;
-  localRemoveItem(key);
+  if (localRemoveItem(key)) return;
+  throw new Error(`Failed to remove storage key: ${key}`);
 }
 
 export async function getStorageEntries(prefix = STORAGE_PREFIX): Promise<Record<string, string>> {

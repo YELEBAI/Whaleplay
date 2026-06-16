@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Save, Plug, Trash2, KeyRound, Server, Zap, Wallet } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label, cn } from "@neo-tavern/ui";
-import { useSettingsStore } from "@/features/settings/settings.store";
+import { normalizeReasoningEffort, useSettingsStore } from "@/features/settings/settings.store";
 import { toast } from "@/utils/toast";
 import { fetchDeepSeekBalance, formatCnyCost, type DeepSeekBalanceResult } from "@/features/billing/deepseek-billing";
 import { isDeepSeekProModel } from "@/features/settings/model-capabilities";
@@ -85,7 +85,7 @@ export function ApiSection({ t }: ApiSectionProps) {
     setModel(cfg.model);
     setTemperature(String(cfg.temperature));
     setMaxTokens(String(cfg.maxTokens));
-    setReasoningEffort(cfg.reasoningEffort || "");
+    setReasoningEffort(normalizeReasoningEffort(cfg.reasoningEffort) || "");
     setStreamingEnabled(cfg.streamingEnabled !== false);
   };
 
@@ -119,7 +119,7 @@ export function ApiSection({ t }: ApiSectionProps) {
     try {
       const temp = parseFloat(temperature) || 0.8;
       const tokens = parseInt(maxTokens) || 4096;
-      const re = reasoningEffort || undefined;
+      const re = normalizeReasoningEffort(reasoningEffort);
       const nextName = name.trim() || DEFAULT_DEEPSEEK_CONFIG_NAME;
       const nextBaseUrl = baseUrl.trim() || DEEPSEEK_BASE_URL;
       const nextApiKey = apiKey.trim();
@@ -251,7 +251,7 @@ export function ApiSection({ t }: ApiSectionProps) {
   const selectedProfile = selectedId === "__new__" ? null : (modelConfigs.find((c) => c.id === selectedId) ?? null);
   const selectedProfileName = selectedProfile?.name || selectedProfile?.model || "New profile";
   const displayBaseUrl = baseUrl.trim() || DEEPSEEK_BASE_URL;
-  const temperatureLocked = isDeepSeekProModel(model);
+  const temperatureLocked = isDeepSeekProModel(model) || reasoningEffort !== "";
 
   return (
     <div className="max-w-5xl space-y-4">
@@ -448,7 +448,7 @@ export function ApiSection({ t }: ApiSectionProps) {
                     >
                       <option value="">{t("api.reasoningOff")}</option>
                       <option value="high">{t("api.reasoningHigh")}</option>
-                      <option value="maximum">{t("api.reasoningMax")}</option>
+                      <option value="max">{t("api.reasoningMax")}</option>
                     </select>
                   </div>
                 </div>

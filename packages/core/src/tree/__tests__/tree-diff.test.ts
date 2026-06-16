@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fingerprintMessage, diffTreesById, diffTreesByContent } from "../tree-diff";
+import { fingerprintMessage, diffTreesById, diffTreesByContent, mergeMessagesByContent } from "../tree-diff";
 import type { Message } from "@neo-tavern/shared";
 
 function makeMsg(overrides: Partial<Message> & { id: string }): Message {
@@ -226,5 +226,66 @@ describe("diffTreesByContent", () => {
     expect(result.onlyInA).toHaveLength(1);
     expect(result.onlyInA[0].id).toBe("2");
     expect(result.onlyInB).toHaveLength(0);
+  });
+});
+
+describe("mergeMessagesByContent", () => {
+  it("skips imported messages that already exist by role and normalized content", () => {
+    const current = [makeMsg({ id: "current-1", content: "  Hello   world  " })];
+    const incoming = [makeMsg({ id: "incoming-1", chatId: "other-chat", content: "Hello world" })];
+
+    const result = mergeMessagesByContent(current, incoming);
+
+    expect(result.shared.map((m) => m.id)).toEqual(["current-1"]);
+    expect(result.imported).toHaveLength(0);
+    expect(result.idMap["incoming-1"]).toBe("current-1");
+  });
+
+  it("attaches an imported branch message to the matched current parent", () => {
+    const current = [
+      makeMsg({ id: "root", content: "Shared root" }),
+      makeMsg({ id: "a1", content: "Existing child", parentId: "root" }),
+    ];
+    const incoming = [
+      makeMsg({ id: "import-root", content: "Shared root" }),
+      makeMsg({ id: "import-b1", content: "Imported child", parentId: "import-root" }),
+    ];
+
+    const result = mergeMessagesByContent(current, incoming);
+
+    expect(result.imported).toHaveLength(1);
+    expect(result.imported[0]).toMatchObject({ id: "import-b1", parentId: "root" });
+    expect(result.divergencePoints).toEqual(["root"]);
+  });
+
+  it("keeps parent links inside a fully imported subtree", () => {
+    const current = [makeMsg({ id: "root", content: "Shared root" })];
+    const incoming = [
+      makeMsg({ id: "import-root", content: "Shared root" }),
+      makeMsg({ id: "import-child", content: "New child", parentId: "import-root" }),
+      makeMsg({ id: "import-grandchild", content: "New grandchild", parentId: "import-child" }),
+    ];
+
+    const result = mergeMessagesByContent(current, incoming);
+
+    expect(result.imported.map((m) => [m.id, m.parentId])).toEqual([
+      ["import-child", "root"],
+      ["import-grandchild", "import-child"],
+    ]);
+  });
+
+  it("consumes duplicate content matches in order", () => {
+    const current = [makeMsg({ id: "current-1", content: "Repeat" }), makeMsg({ id: "current-2", content: "Repeat" })];
+    const incoming = [
+      makeMsg({ id: "incoming-1", content: "Repeat" }),
+      makeMsg({ id: "incoming-2", content: "Repeat" }),
+      makeMsg({ id: "incoming-3", content: "Repeat" }),
+    ];
+
+    const result = mergeMessagesByContent(current, incoming);
+
+    expect(result.idMap["incoming-1"]).toBe("current-1");
+    expect(result.idMap["incoming-2"]).toBe("current-2");
+    expect(result.imported.map((m) => m.id)).toEqual(["incoming-3"]);
   });
 });

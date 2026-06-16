@@ -39,6 +39,11 @@ type CharacterMenu = {
   character: Character;
 };
 
+const IMPORT_AVATAR_MAX_EDGE = 384;
+const IMPORT_AVATAR_WEBP_QUALITY = 0.72;
+const IMPORT_AVATAR_JPEG_QUALITY = 0.78;
+const MAX_ORIGINAL_AVATAR_DATA_URL_CHARS = 256_000;
+
 function arrayBufferToBase64(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
   const chunkSize = 0x8000;
@@ -54,8 +59,159 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   return btoa(binary);
 }
 
-function pngAvatarDataUrl(buffer: ArrayBuffer) {
+function originalPngAvatarDataUrl(buffer: ArrayBuffer) {
   return `data:image/png;base64,${arrayBufferToBase64(buffer)}`;
+}
+
+function readBlobAsDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read avatar blob"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, type, quality);
+  });
+}
+
+function loadImageElement(blob: Blob) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to decode avatar image"));
+    };
+    image.src = url;
+  });
+}
+
+async function loadAvatarImageSource(
+  blob: Blob,
+): Promise<CanvasImageSource & { width: number; height: number; close?: () => void }> {
+  if (typeof createImageBitmap === "function") {
+    return createImageBitmap(blob);
+  }
+  return loadImageElement(blob);
+}
+
+async function pngAvatarDataUrl(buffer: ArrayBuffer): Promise<string | undefined> {
+  const original = originalPngAvatarDataUrl(buffer);
+  try {
+    const blob = new Blob([buffer], { type: "image/png" });
+    const source = await loadAvatarImageSource(blob);
+    const width = source.width;
+    const height = source.height;
+    const scale = Math.min(1, IMPORT_AVATAR_MAX_EDGE / Math.max(width, height));
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas is unavailable");
+    ctx.drawImage(source, 0, 0, targetWidth, targetHeight);
+    source.close?.();
+
+    const webp = await canvasToBlob(canvas, "image/webp", IMPORT_AVATAR_WEBP_QUALITY);
+    if (webp && webp.size > 0) return readBlobAsDataUrl(webp);
+
+    const jpeg = await canvasToBlob(canvas, "image/jpeg", IMPORT_AVATAR_JPEG_QUALITY);
+    if (jpeg && jpeg.size > 0) return readBlobAsDataUrl(jpeg);
+  } catch {
+    // Fall back below. Some browser contexts can disable canvas/image decoding.
+  }
+
+  return original.length <= MAX_ORIGINAL_AVATAR_DATA_URL_CHARS ? original : undefined;
+}
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error || "Unknown error");
+}
+
+function buildImportedRegexPreset(card: ParsedCharacterCard, charName: string, now: string): RegexPreset | null {
+  const regexRules: RegexRule[] = [];
+  for (const script of card.regexScripts) {
+    if (script.disabled || !script.findRegex) continue;
+    const match = script.findRegex.match(/^\/(.+)\/([a-z]*)$/);
+    if (!match) continue;
+    const isDisplayRule = script.markdownOnly && !script.promptOnly;
+    if (!isDisplayRule) continue;
+    regexRules.push({
+      id: generateId(),
+      presetId: "",
+      name: script.scriptName || "Imported Rule",
+      pattern: match[1],
+      displayTemplate: script.replaceString || "",
+      stripFromPrompt: true,
+      enabled: true,
+      createdAt: now,
+    });
+  }
+
+  if (regexRules.length === 0) return null;
+
+  const presetId = generateId();
+  for (const rule of regexRules) rule.presetId = presetId;
+  return {
+    id: presetId,
+    name: charName + " Regex",
+    description: "Auto-imported with " + charName,
+    rules: regexRules,
+    isGlobal: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function buildImportedWorldbook(card: ParsedCharacterCard, charName: string, now: string): Worldbook | null {
+  if (card.worldbookEntries.length === 0) return null;
+
+  const worldbookId = generateId();
+  return {
+    id: worldbookId,
+    name: card.worldbookName || charName + " Lorebook",
+    description: "Imported with " + charName,
+    entries: card.worldbookEntries.map((entry) => ({
+      id: generateId(),
+      worldbookId,
+      title: entry.title,
+      keys: entry.keys,
+      content: entry.content,
+      priority: entry.priority,
+      type: entry.always ? ("always" as const) : ("trigger" as const),
+      triggerMode: entry.triggerMode,
+      enabled: entry.enabled,
+      createdAt: now,
+      updatedAt: now,
+    })),
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+async function rollbackImportedResources(resources: { regexPresetId?: string; worldbookId?: string }) {
+  if (resources.regexPresetId) {
+    const presets = useSettingsStore.getState().regexPresets.filter((preset) => preset.id !== resources.regexPresetId);
+    await settingsRepository.saveRegexRules(presets);
+    await useSettingsStore.getState().loadRegexRules();
+  }
+
+  if (resources.worldbookId) {
+    const worldbooks = useWorldbookStore
+      .getState()
+      .worldbooks.filter((worldbook) => worldbook.id !== resources.worldbookId);
+    await worldbookRepository.save(worldbooks);
+    await useWorldbookStore.getState().loadWorldbooks();
+  }
 }
 
 export function CharacterPage() {
@@ -150,6 +306,7 @@ export function CharacterPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
+    const rollback: { regexPresetId?: string; worldbookId?: string } = {};
     try {
       const isPng = file.name.toLowerCase().endsWith(".png");
       let card: ParsedCharacterCard | null;
@@ -158,7 +315,7 @@ export function CharacterPage() {
       if (isPng) {
         const buf = await file.arrayBuffer();
         card = parsePngCharacterCard(buf);
-        if (card) avatar = pngAvatarDataUrl(buf);
+        if (card) avatar = await pngAvatarDataUrl(buf);
       } else {
         const text = await file.text();
         card = parseJsonCharacterCard(text);
@@ -171,6 +328,20 @@ export function CharacterPage() {
 
       const charName = card.name || file.name.replace(/\.(json|png)$/i, "");
       const now = new Date().toISOString();
+      const regexPreset = buildImportedRegexPreset(card, charName, now);
+      const worldbook = buildImportedWorldbook(card, charName, now);
+
+      if (regexPreset) {
+        const existingPresets = useSettingsStore.getState().regexPresets;
+        await settingsRepository.saveRegexRules([...existingPresets, regexPreset]);
+        rollback.regexPresetId = regexPreset.id;
+      }
+
+      if (worldbook) {
+        const existingWorldbooks = useWorldbookStore.getState().worldbooks;
+        await worldbookRepository.save([...existingWorldbooks, worldbook]);
+        rollback.worldbookId = worldbook.id;
+      }
 
       const char = await createCharacter({
         name: charName,
@@ -180,81 +351,28 @@ export function CharacterPage() {
         scenario: card.scenario,
         firstMessage: card.firstMessage,
         exampleDialogues: card.exampleDialogues,
+        tags: card.tags,
+        regexPresetId: regexPreset?.id,
+        worldbookId: worldbook?.id,
       });
 
       const importedParts: string[] = ["Character"];
       if (avatar) importedParts.push("avatar");
-
-      if (card.regexScripts.length > 0) {
-        const regexRules: RegexRule[] = [];
-        for (const s of card.regexScripts) {
-          if (s.disabled) continue;
-          if (!s.findRegex) continue;
-          const m = s.findRegex.match(/^\/(.+)\/([a-z]*)$/);
-          if (!m) continue;
-          const isDisplay = s.markdownOnly && !s.promptOnly;
-          if (!isDisplay) continue;
-          regexRules.push({
-            id: generateId(),
-            presetId: "",
-            name: s.scriptName || "Imported Rule",
-            pattern: m[1],
-            displayTemplate: "",
-            stripFromPrompt: true,
-            enabled: true,
-            createdAt: now,
-          });
-        }
-        if (regexRules.length > 0) {
-          const presetId = generateId();
-          for (const r of regexRules) r.presetId = presetId;
-          const preset: RegexPreset = {
-            id: presetId,
-            name: charName + " Regex",
-            description: "Auto-imported with " + charName,
-            rules: regexRules,
-            isGlobal: false,
-            createdAt: now,
-            updatedAt: now,
-          };
-          const existingPresets = useSettingsStore.getState().regexPresets;
-          await settingsRepository.saveRegexRules([...existingPresets, preset]);
-          useSettingsStore.getState().loadRegexRules();
-          await updateCharacter(char.id, { regexPresetId: presetId });
-          useSettingsStore.getState().setActiveRegexPreset(presetId);
-          importedParts.push(regexRules.length + " regex rules");
-        }
+      if (regexPreset) {
+        await useSettingsStore.getState().loadRegexRules();
+        void useSettingsStore
+          .getState()
+          .setActiveRegexPreset(regexPreset.id)
+          .catch(() => undefined);
+        importedParts.push(regexPreset.rules.length + " regex rules");
       }
-
-      if (card.worldbookEntries.length > 0) {
-        const wbName = card.worldbookName || charName + " Lorebook";
-        const wb: Worldbook = {
-          id: generateId(),
-          name: wbName,
-          description: "Imported with " + charName,
-          entries: card.worldbookEntries.map((e) => ({
-            id: generateId(),
-            worldbookId: "",
-            title: e.title,
-            keys: e.keys,
-            content: e.content,
-            priority: e.priority,
-            type: e.always ? ("always" as const) : ("trigger" as const),
-            triggerMode: e.triggerMode,
-            enabled: e.enabled,
-            createdAt: now,
-            updatedAt: now,
-          })),
-          createdAt: now,
-          updatedAt: now,
-        };
-        for (const entry of wb.entries) entry.worldbookId = wb.id;
-        const existingWbs = useWorldbookStore.getState().worldbooks;
-        await worldbookRepository.save([...existingWbs, wb]);
-        useWorldbookStore.getState().loadWorldbooks();
-        await updateCharacter(char.id, { worldbookId: wb.id });
-        useWorldbookStore.getState().setActiveWorldbook(wb.id);
-        importedParts.push(wb.entries.length + " worldbook entries");
+      if (worldbook) {
+        await useWorldbookStore.getState().loadWorldbooks();
+        void useWorldbookStore
+          .getState()
+          .setActiveWorldbook(worldbook.id)
+          .catch(() => undefined);
+        importedParts.push(worldbook.entries.length + " worldbook entries");
       }
 
       toast("success", tt("characterImported", { name: charName, parts: importedParts.join(", ") }));
@@ -262,8 +380,13 @@ export function CharacterPage() {
       setEditingId(null);
       setSelectedId(char.id);
       setDetailOpen(true);
-    } catch {
-      toast("error", tt("importFailed"));
+    } catch (err) {
+      try {
+        await rollbackImportedResources(rollback);
+      } catch {
+        // Keep the original import error visible; stale resources can still be deleted from their own pages.
+      }
+      toast("error", `${tt("importFailed")}：${getErrorMessage(err)}`);
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -330,29 +453,45 @@ export function CharacterPage() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    const target = deleteTarget;
     try {
-      if (deleteTarget.regexPresetId) {
-        const presets = useSettingsStore.getState().regexPresets.filter((p) => p.id !== deleteTarget.regexPresetId);
-        await settingsRepository.saveRegexRules(presets);
-        useSettingsStore.getState().loadRegexRules();
+      await deleteCharacter(target.id);
+
+      let cleanupError: string | null = null;
+      if (target.regexPresetId) {
+        const presets = useSettingsStore.getState().regexPresets.filter((p) => p.id !== target.regexPresetId);
+        try {
+          await settingsRepository.saveRegexRules(presets);
+          await useSettingsStore.getState().loadRegexRules();
+        } catch (err) {
+          cleanupError = getErrorMessage(err);
+        }
       }
-      if (deleteTarget.worldbookId) {
-        const wbs = useWorldbookStore.getState().worldbooks.filter((w) => w.id !== deleteTarget.worldbookId);
-        await worldbookRepository.save(wbs);
-        useWorldbookStore.getState().loadWorldbooks();
+      if (target.worldbookId) {
+        const wbs = useWorldbookStore.getState().worldbooks.filter((w) => w.id !== target.worldbookId);
+        try {
+          await worldbookRepository.save(wbs);
+          await useWorldbookStore.getState().loadWorldbooks();
+        } catch (err) {
+          cleanupError = getErrorMessage(err);
+        }
       }
-      await deleteCharacter(deleteTarget.id);
       setDeleteTarget(null);
-      if (selectedId === deleteTarget.id) setSelectedId(null);
-      if (selected?.id === deleteTarget.id || creating || editingId === deleteTarget.id) closeDetail();
-      if (editingId === deleteTarget.id) {
+      if (selectedId === target.id) setSelectedId(null);
+      if (selected?.id === target.id || creating || editingId === target.id) closeDetail();
+      if (editingId === target.id) {
         setEditingId(null);
         setCreating(false);
         setForm(emptyForm);
       }
-      toast("info", tt("characterDeleted", { name: deleteTarget.name }));
-    } catch {
-      // ignored
+      toast(
+        "info",
+        cleanupError
+          ? `${tt("characterDeleted", { name: target.name })}，但关联资源清理失败：${cleanupError}`
+          : tt("characterDeleted", { name: target.name }),
+      );
+    } catch (err) {
+      toast("error", `删除角色失败：${getErrorMessage(err)}`);
     }
   };
 
@@ -405,7 +544,7 @@ export function CharacterPage() {
         )}
 
         <div className="flex flex-wrap gap-x-6 gap-y-8">
-          {loading && <p className="text-muted-foreground p-2 text-sm">{t("loading")}</p>}
+          {loading && characters.length === 0 && <p className="text-muted-foreground p-2 text-sm">{t("loading")}</p>}
           {!loading && characters.length === 0 && (
             <div className="text-muted-foreground text-sm">
               <p className="mb-3">{t("noCharacters")}</p>

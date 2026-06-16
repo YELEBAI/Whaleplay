@@ -1,50 +1,92 @@
 import { useChatStore } from "@/features/chat/chat.store";
+import { buildMessagePath } from "@/db/repositories";
 import type { Message } from "@neo-tavern/shared";
 
+export interface BranchSummary {
+  leafId: string;
+  isActive: boolean;
+  messageCount: number;
+  forkMessageIndex: number | null;
+  lastMessagePreview: string;
+  forkPreview: string;
+}
+
+function sortMessages(messages: Message[]) {
+  return [...messages].sort((a, b) => {
+    const byTime = a.createdAt.localeCompare(b.createdAt);
+    return byTime === 0 ? a.id.localeCompare(b.id) : byTime;
+  });
+}
+
+function previewMessage(message: Message | undefined, fallback: string) {
+  const content = message?.content.trim().replace(/\s+/g, " ");
+  return content || fallback;
+}
+
+function getDefaultLeafId(messages: Message[]) {
+  return sortMessages(messages).at(-1)?.id ?? null;
+}
+
+function getChildCounts(messages: Message[]) {
+  const counts = new Map<string, number>();
+  for (const message of messages) {
+    if (message.parentId) counts.set(message.parentId, (counts.get(message.parentId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function getLeafMessages(messages: Message[]) {
+  const parents = new Set(messages.map((message) => message.parentId).filter(Boolean));
+  return sortMessages(messages).filter((message) => !parents.has(message.id));
+}
+
+export function buildBranchSummaries(messages: Message[], activeLeafId: string | null): BranchSummary[] {
+  const childCounts = getChildCounts(messages);
+  const hasBranches = [...childCounts.values()].some((count) => count >= 2);
+  if (!hasBranches) return [];
+
+  const effectiveActiveLeafId =
+    activeLeafId && messages.some((message) => message.id === activeLeafId) ? activeLeafId : getDefaultLeafId(messages);
+
+  return getLeafMessages(messages).map((leaf, index) => {
+    const path = buildMessagePath(messages, leaf.id);
+    const visiblePath = path.filter((message) => !message.hidden);
+    const forkMessage = [...path].reverse().find((message) => (childCounts.get(message.id) ?? 0) >= 2);
+    const forkMessageIndex = forkMessage ? visiblePath.findIndex((message) => message.id === forkMessage.id) + 1 : 0;
+    const lastVisibleMessage = visiblePath.at(-1);
+
+    return {
+      leafId: leaf.id,
+      isActive: leaf.id === effectiveActiveLeafId,
+      messageCount: visiblePath.length,
+      forkMessageIndex: forkMessageIndex || null,
+      lastMessagePreview: previewMessage(lastVisibleMessage, `Branch ${index + 1}`),
+      forkPreview: previewMessage(forkMessage, "Conversation split"),
+    };
+  });
+}
+
 /**
- * Unified hook for conversation branch navigation.
- *
- * Wraps chat store branching methods and provides derived state
- * (visible message path, fork point detection) consumed by ChatPage
- * and ChatRightPanel.
+ * Conversation branch navigation state for ChatPage and the right panel.
+ * The UI consumes compact branch summaries instead of traversing the tree.
  */
-export function useBranchNavigation(_chatId: string | undefined) {
+export function useBranchNavigation(chatId: string | undefined) {
   const messages = useChatStore((s) => s.messages);
-  const messagesHydrated = useChatStore((s) => s.messagesHydrated);
-  const chatId = useChatStore((s) => s.currentChat?.id);
   const activeLeafId = useChatStore((s) => s.activeLeafId);
   const getActivePath = useChatStore((s) => s.getActivePath);
   const switchBranch = useChatStore((s) => s.switchBranch);
-  const createBranch = useChatStore((s) => s.createBranch);
-  const getBranchName = useChatStore((s) => s.getBranchName);
-  const setBranchName = useChatStore((s) => s.setBranchName);
 
-  /** Messages along the active branch path, excluding hidden user messages */
-  const visibleMessages = (() => {
-    if (!chatId) return [];
-    const path = getActivePath(chatId);
-    return path.filter((m: Message) => !m.hidden);
-  })();
-
-  /** Message ids that have 2+ children — displayed as fork points in the tree panel */
-  const forkParents = (() => {
-    if (!messagesHydrated || !chatId) return new Set<string>();
-    const childCounts = new Map<string, number>();
-    for (const m of messages) {
-      if (m.parentId && m.chatId === chatId) {
-        childCounts.set(m.parentId, (childCounts.get(m.parentId) ?? 0) + 1);
-      }
-    }
-    return new Set([...childCounts].filter(([, c]) => c >= 2).map(([id]) => id));
-  })();
+  const chatMessages = chatId ? messages.filter((message) => message.chatId === chatId) : [];
+  const visibleMessages = chatId ? getActivePath(chatId).filter((message: Message) => !message.hidden) : [];
+  const branchSummaries = buildBranchSummaries(chatMessages, activeLeafId);
+  const effectiveActiveLeafId =
+    branchSummaries.find((summary) => summary.isActive)?.leafId ?? activeLeafId ?? visibleMessages.at(-1)?.id ?? null;
 
   return {
-    activeLeafId,
+    activeLeafId: effectiveActiveLeafId,
     visibleMessages,
-    forkParents,
+    hasBranches: branchSummaries.length > 1,
+    branchSummaries,
     switchBranch,
-    createBranch,
-    getBranchName,
-    setBranchName,
   };
 }

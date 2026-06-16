@@ -4,8 +4,11 @@ export function isDeepSeekProModel(model: string | null | undefined) {
   return (model || "").trim().toLowerCase().includes("deepseek-v4-pro");
 }
 
-export function shouldOmitTemperatureForModel(config: Pick<ModelConfig, "model"> | null | undefined) {
-  return isDeepSeekProModel(config?.model);
+export function shouldOmitTemperatureForModel(
+  config: Pick<ModelConfig, "model" | "reasoningEffort"> | null | undefined,
+) {
+  // Thinking mode ignores temperature entirely (DeepSeek docs). V4 Pro always omits it.
+  return isDeepSeekProModel(config?.model) || !!config?.reasoningEffort;
 }
 
 function isDeepSeekConfig(config: Pick<ModelConfig, "baseUrl" | "model"> | null | undefined) {

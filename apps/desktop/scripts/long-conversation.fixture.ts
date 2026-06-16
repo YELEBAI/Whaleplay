@@ -8,7 +8,7 @@
  */
 
 import { characterRepository, chatRepository, messageRepository } from "../src/db/repositories";
-import type { CreateMessageInput } from "@neo-tavern/shared";
+import type { CreateMessageInput, Message } from "@neo-tavern/shared";
 
 // ============================================================================
 // Character Definition
@@ -70,6 +70,21 @@ interface MessageDef {
   reasoningContent?: string;
   generateDuration?: number;
   thinkingDuration?: number;
+}
+
+export interface LongConversationFixtureMessages {
+  messages: Message[];
+  trunkLeafId: string;
+  branchLeafIds: {
+    waterMagic: string;
+    librarySecrets: string;
+    personalQuestions: string;
+  };
+  forkMessageNumbers: {
+    waterMagic: number;
+    librarySecrets: number;
+    personalQuestions: number;
+  };
 }
 
 // -- Main trunk (indices 1-24, total 24 messages) --
@@ -399,6 +414,66 @@ const branch3Messages: MessageDef[] = [
 // ============================================================================
 // Main seed function
 // ============================================================================
+
+export function buildLongConversationFixtureMessages(
+  chatId = "fixture-long-conversation",
+): LongConversationFixtureMessages {
+  const messages: Message[] = [];
+  const trunkIds: string[] = [];
+  const baseTime = new Date("2024-01-01T00:00:00.000Z").getTime();
+
+  function addMessage(id: string, def: MessageDef, parentId: string | null): string {
+    messages.push({
+      id,
+      chatId,
+      parentId,
+      role: def.role,
+      content: def.content,
+      reasoningContent: def.reasoningContent,
+      generateDuration: def.generateDuration,
+      thinkingDuration: def.thinkingDuration,
+      createdAt: new Date(baseTime + messages.length * 1000).toISOString(),
+    });
+    return id;
+  }
+
+  let lastId: string | null = null;
+  for (let i = 0; i < trunkMessages.length; i++) {
+    const id = addMessage(`fixture-trunk-${i + 1}`, trunkMessages[i], lastId);
+    trunkIds.push(id);
+    lastId = id;
+  }
+
+  let waterMagicLeafId = trunkIds[18];
+  for (let i = 0; i < branch1Messages.length; i++) {
+    waterMagicLeafId = addMessage(`fixture-water-${i + 1}`, branch1Messages[i], waterMagicLeafId);
+  }
+
+  let librarySecretsLeafId = trunkIds[12];
+  for (let i = 0; i < branch2Messages.length; i++) {
+    librarySecretsLeafId = addMessage(`fixture-library-${i + 1}`, branch2Messages[i], librarySecretsLeafId);
+  }
+
+  let personalQuestionsLeafId = trunkIds[5];
+  for (let i = 0; i < branch3Messages.length; i++) {
+    personalQuestionsLeafId = addMessage(`fixture-personal-${i + 1}`, branch3Messages[i], personalQuestionsLeafId);
+  }
+
+  return {
+    messages,
+    trunkLeafId: trunkIds.at(-1)!,
+    branchLeafIds: {
+      waterMagic: waterMagicLeafId,
+      librarySecrets: librarySecretsLeafId,
+      personalQuestions: personalQuestionsLeafId,
+    },
+    forkMessageNumbers: {
+      waterMagic: 19,
+      librarySecrets: 13,
+      personalQuestions: 6,
+    },
+  };
+}
 
 export async function seedLongConversation() {
   console.log("🌌 Seeding long conversation fixture...");

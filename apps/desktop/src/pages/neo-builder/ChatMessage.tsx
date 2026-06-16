@@ -7,10 +7,12 @@ import type { NeoCreationPlan } from "@/features/character/neo-character-builder
 import { formatCnyCost } from "@/features/billing/deepseek-billing";
 import { formatElapsed, getPlanStatusLabel, ToolTimeline } from "./utils";
 
+/** Renders the generation activity timeline (elapsed time, thinking process, tool events) for a single builder message. */
 export function BuilderActivityTimeline({ message }: { message: BuilderMessage }) {
   const active = !!message.pending;
   const [now, setNow] = useState(() => Date.now());
   const [thinkingOpen, setThinkingOpen] = useState(false);
+  const { t } = useTranslation("neo-builder");
 
   useEffect(() => {
     if (!active || !message.startedAt) return;
@@ -35,7 +37,7 @@ export function BuilderActivityTimeline({ message }: { message: BuilderMessage }
       {elapsed && (
         <div className="text-muted-foreground mb-3 grid grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,1fr)] items-center gap-3 text-xs">
           <div className="bg-border h-px flex-1" />
-          <span className="shrink-0 text-center tabular-nums">任务耗时 {elapsed}</span>
+          <span className="shrink-0 text-center tabular-nums">{t("activity.elapsed", { time: elapsed })}</span>
           <div className="bg-border h-px flex-1" />
         </div>
       )}
@@ -61,7 +63,7 @@ export function BuilderActivityTimeline({ message }: { message: BuilderMessage }
               disabled={!message.reasoningContent}
             >
               <Brain className="h-3.5 w-3.5 shrink-0" />
-              <span className="shrink-0">{active ? "正在思考" : "已完成思考"}</span>
+              <span className="shrink-0">{active ? t("activity.thinking") : t("activity.thinkingDone")}</span>
               {active && !thinkingOpen && reasoningPreview ? (
                 <span className="text-muted-foreground min-w-0 truncate">· {reasoningPreview}</span>
               ) : null}
@@ -85,8 +87,10 @@ export function BuilderActivityTimeline({ message }: { message: BuilderMessage }
   );
 }
 
+/** Shows progress of background entry generation when the LLM is generating plan entries without streaming to chat. */
 export function BuilderBackgroundMonitor({ plan, running }: { plan: NeoCreationPlan | null; running: boolean }) {
   const entries = plan?.entries ?? [];
+  const { t } = useTranslation("neo-builder");
   const completed = entries.filter((entry) => entry.status === "done" || entry.status === "skipped").length;
   const currentEntry =
     entries.find((entry) => entry.status === "in_progress") ?? entries.find((entry) => entry.status === "planned");
@@ -102,11 +106,9 @@ export function BuilderBackgroundMonitor({ plan, running }: { plan: NeoCreationP
             ) : (
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
             )}
-            <span>{running ? "已转入后台创作" : "后台创作已完成"}</span>
+            <span>{running ? t("background.started") : t("background.completed")}</span>
           </div>
-          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-            条目正文不在聊天区刷屏；请看右侧创作规划条目实时进度。
-          </p>
+          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{t("background.hint")}</p>
         </div>
         <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
           {completed}/{entries.length || 0}
@@ -119,7 +121,9 @@ export function BuilderBackgroundMonitor({ plan, running }: { plan: NeoCreationP
 
       {currentEntry ? (
         <div className="bg-background/70 mt-3 rounded-md border p-3 text-xs">
-          <div className="text-muted-foreground">{running ? "当前条目" : "最后状态"}</div>
+          <div className="text-muted-foreground">
+            {running ? t("background.currentEntry") : t("background.lastEntry")}
+          </div>
           <div className="mt-1 flex min-w-0 items-center gap-2">
             <span
               className={`h-2 w-2 shrink-0 rounded-full ${
@@ -141,6 +145,7 @@ export function BuilderBackgroundMonitor({ plan, running }: { plan: NeoCreationP
   );
 }
 
+/** Renders a single message in the NeoBuilder conversation, delegating assistant messages to BuilderActivityTimeline for detailed display. */
 export function BuilderChatMessage({
   message,
   creationPlan,

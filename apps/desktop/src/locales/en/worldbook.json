@@ -27,7 +27,11 @@
     "title": "Entries",
     "description": "Sorted by priority. Higher entries are considered first.",
     "newEntry": "New Entry",
-    "noEntries": "No entries yet"
+    "noEntries": "No entries yet",
+    "searchPlaceholder": "Search title, keywords, or content",
+    "searchSummary": "{{count}} / {{total}} entries matched",
+    "noMatches": "No matching entries",
+    "clearSearch": "Clear search"
   },
   "entryForm": {
     "title": "Title",

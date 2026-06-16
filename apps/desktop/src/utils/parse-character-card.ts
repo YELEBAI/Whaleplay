@@ -42,6 +42,10 @@ function readPngTextChunks(buf: ArrayBuffer): { keyword: string; value: string }
     if (type === "tEXt") {
       const data = new Uint8Array(buf.slice(offset + 8, offset + 8 + len));
       const nullIdx = data.indexOf(0);
+      if (nullIdx < 0) {
+        offset += 12 + len;
+        continue;
+      }
       const keyword = new TextDecoder().decode(data.slice(0, nullIdx));
       const value = new TextDecoder().decode(data.slice(nullIdx + 1));
       chunks.push({ keyword, value });
@@ -80,7 +84,7 @@ export function parseJsonCharacterCard(text: string): ParsedCharacterCard | null
 
 export function parsePngCharacterCard(buf: ArrayBuffer): ParsedCharacterCard | null {
   const chunks = readPngTextChunks(buf);
-  const charaChunk = chunks.find((c) => c.keyword === "chara" || c.keyword === "ccv3");
+  const charaChunk = chunks.find((c) => c.keyword === "ccv3") ?? chunks.find((c) => c.keyword === "chara");
   if (!charaChunk) return null;
 
   let json: unknown;
@@ -92,35 +96,53 @@ export function parsePngCharacterCard(buf: ArrayBuffer): ParsedCharacterCard | n
   return extractCardData(json as Record<string, unknown>);
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function asString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string");
+}
+
 function extractCardData(json: Record<string, unknown>): ParsedCharacterCard {
-  const data = (json.data || json) as Record<string, unknown>;
-  const extensions = (data.extensions || {}) as Record<string, unknown>;
-  const book = (data.character_book || {}) as Record<string, unknown>;
+  const data = json.data && typeof json.data === "object" && !Array.isArray(json.data) ? asRecord(json.data) : json;
+  const extensions = asRecord(data.extensions);
+  const book = asRecord(data.character_book);
 
-  const charName = (data.name || json.name || "Untitled") as string;
-  const personality = (data.personality || json.personality || "") as string;
+  const charName = asString(data.name || json.name, "Untitled");
+  const personality = asString(data.personality || json.personality);
 
-  const wbEntries = ((book.entries || []) as Record<string, unknown>[]).map((e) => ({
-    title: (e.comment || (e.key as unknown[] | undefined)?.[0] || "Entry") as string,
-    keys: ((e.keys as string[] | undefined) || []).join(","),
-    content: (e.content || "") as string,
-    always: e.constant === true && !e.selective,
-    triggerMode: (e.selectiveLogic === 0 ? "or" : "and") as "and" | "or",
-    priority: 100 - (Number(e.insertion_order) || 0),
-    enabled: e.enabled !== false,
-  }));
+  const wbEntries = (Array.isArray(book.entries) ? (book.entries as Record<string, unknown>[]) : []).map((e) => {
+    const keys = asStringArray(e.keys).length > 0 ? asStringArray(e.keys) : asStringArray(e.key);
+    return {
+      title: asString(e.comment || keys[0], "Entry"),
+      keys: keys.join(","),
+      content: asString(e.content),
+      always: e.constant === true,
+      triggerMode: (e.selectiveLogic === 0 ? "or" : "and") as "and" | "or",
+      priority: 100 - (Number(e.insertion_order) || 0),
+      enabled: e.enabled !== false,
+    };
+  });
 
   return {
     name: charName,
-    description: (data.description || json.description || "") as string,
+    description: asString(data.description || json.description),
     personality,
-    scenario: (data.scenario || json.scenario || "") as string,
-    firstMessage: (data.first_mes || json.first_mes || data.firstMessage || "Hello") as string,
-    exampleDialogues: (data.mes_example || json.mes_example || data.exampleDialogues || "") as string,
-    creatorNotes: (data.creator_notes || json.creator_notes || "") as string,
-    tags: (data.tags || json.tags || []) as string[],
-    regexScripts: (extensions.regex_scripts || data.regex_scripts || []) as ParsedCharacterCard["regexScripts"],
-    worldbookName: ((typeof extensions.world === "string" ? extensions.world : "") || book.name || "") as string,
+    scenario: asString(data.scenario || json.scenario),
+    firstMessage: asString(data.first_mes || json.first_mes || data.firstMessage, "Hello"),
+    exampleDialogues: asString(data.mes_example || json.mes_example || data.exampleDialogues),
+    creatorNotes: asString(data.creator_notes || json.creator_notes),
+    tags: asStringArray(data.tags || json.tags),
+    regexScripts: (Array.isArray(extensions.regex_scripts)
+      ? extensions.regex_scripts
+      : data.regex_scripts || []) as ParsedCharacterCard["regexScripts"],
+    worldbookName: asString(extensions.world || book.name),
     worldbookEntries: wbEntries,
   };
 }

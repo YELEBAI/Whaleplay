@@ -163,7 +163,9 @@ export function HomePage() {
         </div>
 
         <div className="mt-3 flex min-h-[128px] gap-4 overflow-x-auto pb-2">
-          {charsLoading && <p className="text-muted-foreground shrink-0 p-2 text-sm">{t("loading")}</p>}
+          {charsLoading && characters.length === 0 && (
+            <p className="text-muted-foreground shrink-0 p-2 text-sm">{t("loading")}</p>
+          )}
           {!charsLoading && characters.length === 0 && (
             <p className="text-muted-foreground shrink-0 text-sm">{t("noCharacters")}</p>
           )}

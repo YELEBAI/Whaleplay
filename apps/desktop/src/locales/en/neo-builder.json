@@ -41,6 +41,13 @@
       }
     }
   },
+  "background": {
+    "started": "Background generation started",
+    "completed": "Background generation completed",
+    "hint": "Entry content won't flood the chat. Check the plan panel on the right for real-time progress.",
+    "currentEntry": "Current entry",
+    "lastEntry": "Last status"
+  },
   "activity": {
     "elapsed": "Elapsed {{time}}",
     "thinking": "Thinking",
