@@ -128,6 +128,19 @@ docs/             # 文档（zh/en 双语）
 - Zustand 状态管理
 - Tailwind CSS 样式（优先用 `@layer components` 工具类）
 
+## 测试
+
+测试使用 Vitest，约定按包类型区分放置方式：
+
+- **`apps/desktop`（React 应用）**：测试与源文件同目录、同名 `*.test.{ts,tsx}`
+  （例：`pages/chat/ChatRightPanel.tsx` + `pages/chat/ChatRightPanel.test.tsx`）。
+- **`packages/core`（纯逻辑包）**：测试集中到
+  `<module>/__tests__/*.test.ts`。
+
+两种方式都被 `vite.config.ts` 的 `test.include` 收录，不要混用：
+在 desktop 里新增 `__tests__/` 目录、或在 core/sync 里散放 `*.test.ts`
+都会破坏上面的一致性。运行测试用 `pnpm test`。
+
 ## 文档
 
 项目文档位于 `docs/` 目录，中英文各一份。贡献文档时请同步更新双语版本。

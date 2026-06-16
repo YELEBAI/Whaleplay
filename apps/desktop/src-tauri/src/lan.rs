@@ -91,6 +91,15 @@ pub async fn start(
                     .route("/store", web::get().to(list_store))
                     .route("/store/batch", web::post().to(store_batch)),
             )
+            // ── Sync routes (501 stub; dev-sync fills in) ─
+            .service(
+                web::scope("/api/sync")
+                    .route("/manifest", web::get().to(sync_manifest))
+                    .route("/snapshot", web::get().to(sync_snapshot))
+                    .route("/changes", web::get().to(sync_changes))
+                    .route("/push", web::post().to(sync_push))
+                    .route("/pair", web::post().to(sync_pair)),
+            )
             // ── SPA (no auth — LoginGate handles it) ─
             .service(Files::new("/", &web).index_file("index.html"))
     })
@@ -276,6 +285,28 @@ async fn store_batch(state: web::Data<ServerState>, body: web::Json<Vec<StoreOp>
         Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "ok": true })),
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e })),
     }
+}
+
+// ── Sync handlers (501 scaffold) ───────────────────────
+
+fn not_implemented() -> HttpResponse {
+    HttpResponse::NotImplemented().json(serde_json::json!({ "error": "sync not implemented" }))
+}
+
+async fn sync_manifest() -> HttpResponse {
+    not_implemented()
+}
+async fn sync_snapshot() -> HttpResponse {
+    not_implemented()
+}
+async fn sync_changes() -> HttpResponse {
+    not_implemented()
+}
+async fn sync_push() -> HttpResponse {
+    not_implemented()
+}
+async fn sync_pair() -> HttpResponse {
+    not_implemented()
 }
 
 // ── LAN server commands ────────────────────────────────

@@ -18,6 +18,9 @@ export interface Preset {
   items: PresetItem[];
   createdAt: string;
   updatedAt: string;
+  // ── sync metadata (optional; populated when the entity enters the sync pipeline) ──
+  revision?: string;
+  deletedAt?: string | null;
 }
 
 export interface CreatePresetInput {

@@ -7,3 +7,4 @@ export * from "./prompt";
 export * from "./preset";
 export * from "./regex-rule";
 export * from "./worldbook";
+export * from "./sync";

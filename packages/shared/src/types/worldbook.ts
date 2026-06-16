@@ -38,6 +38,9 @@ export interface Worldbook {
   entries: WorldbookEntry[];
   createdAt: string;
   updatedAt: string;
+  // ── sync metadata (optional; populated when the entity enters the sync pipeline) ──
+  revision?: string;
+  deletedAt?: string | null;
 }
 
 export interface CreateWorldbookInput {

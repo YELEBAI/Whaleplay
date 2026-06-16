@@ -61,6 +61,9 @@ export interface Message {
   hidden?: boolean;
   metadata?: MessageMetadata;
   createdAt: string;
+  // ── sync metadata (optional; populated when the entity enters the sync pipeline) ──
+  revision?: string;
+  deletedAt?: string | null;
 }
 
 export interface CreateMessageInput {
