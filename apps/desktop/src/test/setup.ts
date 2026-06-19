@@ -13,6 +13,7 @@ vi.mock("@/platform", () => ({
       set: vi.fn().mockResolvedValue(undefined),
       remove: vi.fn().mockResolvedValue(undefined),
       entries: vi.fn().mockResolvedValue({}),
+      batch: vi.fn().mockResolvedValue(undefined),
     },
     db: {
       initMessages: vi.fn().mockResolvedValue(undefined),

@@ -70,10 +70,10 @@ describe("decodeReadResult", () => {
     expect(decodeReadResult(missing).status).toBe("missing");
   });
 
-  it("returns corrupt for an error ReadResult", () => {
+  it("preserves a backend error ReadResult", () => {
     const result = decodeReadResult(error);
-    expect(result.status).toBe("corrupt");
-    if (result.status === "corrupt") expect(result.error).toBe("backend down");
+    expect(result.status).toBe("error");
+    if (result.status === "error") expect(result.error).toBe("backend down");
   });
 });
 
@@ -114,30 +114,28 @@ describe("decodeArray", () => {
     if (result.ok) expect(result.value).toEqual([]);
   });
 
-  it("returns corrupt when driver error", () => {
+  it("preserves a driver error", () => {
     const result = decodeArray({ status: "error", reason: "fail" });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.corrupt).toBe(true);
+    if (!result.ok) expect(result.status).toBe("error");
   });
 
-  it("returns empty array when the value is not an array", () => {
+  it("returns corrupt when the value is not an array", () => {
     const result = decodeArray({ status: "found", value: "999" });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toEqual([]);
+    expect(result.ok).toBe(false);
   });
 
-  it("returns empty array when the value is a JSON object", () => {
+  it("returns corrupt when the value is a JSON object", () => {
     const result = decodeArray({ status: "found", value: '{"a":1}' });
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.value).toEqual([]);
+    expect(result.ok).toBe(false);
   });
 
   it("returns corrupt for unparseable JSON", () => {
     const result = decodeArray({ status: "found", value: "::::" });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.corrupt).toBe(true);
-      expect(result.raw).toBe("::::");
+      expect(result.status).toBe("corrupt");
+      if (result.status === "corrupt") expect(result.raw).toBe("::::");
     }
   });
 });

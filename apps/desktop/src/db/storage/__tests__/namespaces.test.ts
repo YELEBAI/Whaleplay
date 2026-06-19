@@ -98,7 +98,7 @@ describe("createPrefixedKV", () => {
     await driver.set("test:broken", "{{");
     const r = await kv.getArray("broken");
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.corrupt).toBe(true);
+    if (!r.ok) expect(r.status).toBe("corrupt");
   });
 
   it("getOr returns parsed value", async () => {

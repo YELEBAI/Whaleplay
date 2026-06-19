@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useNavigate, type NavLinkRenderProps } from "react-router";
 import { check } from "@tauri-apps/plugin-updater";
-import { session } from "@/db/kv";
+import { device } from "@/db/kv";
 import {
   User,
   Settings,
@@ -83,7 +83,13 @@ export function Layout() {
   const [lastChatId, setLastChatId] = useState<string | null>(null);
 
   useEffect(() => {
-    session.get("last-chat-id").then((r) => setLastChatId(r.status === "found" ? r.value : null));
+    device.get("last-chat-id").then((r) => {
+      if (r.status === "found") {
+        setLastChatId(r.value);
+        return;
+      }
+      setLastChatId(typeof localStorage === "undefined" ? null : localStorage.getItem("neo:last-chat-id"));
+    });
   }, []);
 
   // Check for updates on mount — show red dot if available

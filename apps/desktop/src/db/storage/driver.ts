@@ -22,7 +22,7 @@ export interface StorageDriver {
   remove(key: string): Promise<void>;
   /** All entries whose key starts with `prefix`. */
   entries(prefix: string): Promise<Record<string, string>>;
-  /** Atomically apply a batch of operations. */
+  /** Apply a batch; production shared drivers must implement this atomically. */
   batch(operations: StorageOperation[]): Promise<void>;
 }
 
@@ -51,6 +51,15 @@ export const legacyFallbackDriver: StorageDriver = {
   remove: (key) => removeStorageItem(key),
   entries: (prefix) => getStorageEntries(prefix),
   batch: async (ops) => {
+    // Prefer the atomic Tauri/REST backend when available.
+    try {
+      const { getBackend } = await import("@/platform");
+      await getBackend().store.batch(ops);
+      return;
+    } catch {
+      // Fall through to legacy one-by-one path.
+    }
+    // Legacy non-atomic fallback for browser-only sessions.
     for (const op of ops) {
       if (op.type === "set") await setStorageItem(op.key, op.value);
       else await removeStorageItem(op.key);

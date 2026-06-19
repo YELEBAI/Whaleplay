@@ -13,6 +13,7 @@ help:
 	@echo " make dev        Start browser dev server (http://localhost:1420)"
 	@echo " make tauri      Start Tauri native window (requires Rust)"
 	@echo " make lint       Use eslint to check TS code"
+	@echo " make test       Run ALL test in ALL code"
 	@echo ""
 	@echo "Build & Install:"
 	@echo " make            Build JS dist + TS check (no Rust)"
@@ -33,6 +34,19 @@ lint:
 
 lint-tauri:
 	cd apps/desktop/src-tauri && cargo fmt
+
+test: test-core test-desktop
+
+test-core:
+	pnpm --filter @neo-tavern/core test
+
+test-destkop: test-react test-tauri
+
+test-react:
+	pnpm --filter @neo-tavern/desktop test
+
+test-tauri:
+	cd apps/desktop/src-tauri && cargo test
 
 dev:
 	pnpm dev

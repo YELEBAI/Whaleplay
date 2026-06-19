@@ -200,7 +200,8 @@ async function restEntries(prefix: string): Promise<Record<string, string> | nul
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const res = await fetch("/api/store", { headers });
     if (!res.ok) return null;
-    const entries = (await res.json()) as [string, string][];
+    const payload = (await res.json()) as Record<string, string> | [string, string][];
+    const entries = Array.isArray(payload) ? payload : Object.entries(payload);
     const result: Record<string, string> = {};
     for (const [k, v] of entries) {
       if (k.startsWith(prefix)) result[k] = v;

@@ -7,7 +7,7 @@
  */
 import type { StorageDriver, StorageOperation } from "./driver";
 import type { ReadResult } from "./driver";
-import { decode, decodeArray, decodeOr, decodeReadResult } from "./codecs";
+import { decodeArray, decodeOr, decodeReadResult } from "./codecs";
 import type { DecodeResult } from "./codecs";
 
 export interface PrefixedKV {
@@ -24,7 +24,13 @@ export interface PrefixedKV {
   setJson(key: string, value: unknown): Promise<void>;
 
   /** Read expected-JSON-array, with corrupt detection. */
-  getArray<T = unknown>(key: string): Promise<{ ok: true; value: T[] } | { ok: false; corrupt: true; raw: string }>;
+  getArray<T = unknown>(
+    key: string,
+  ): Promise<
+    | { ok: true; value: T[] }
+    | { ok: false; status: "corrupt"; raw: string }
+    | { ok: false; status: "error"; error: string }
+  >;
 
   /**
    * Legacy-compatible read: returns `fallback` when key is missing or corrupt.
@@ -88,9 +94,8 @@ export function createPrefixedKV(prefix: string, driver: StorageDriver): Prefixe
 
 // ── Pre-built instances ──────────────────────────────────────────────────
 //
-// Every namespace uses the SHARED driver today.  When `getDeviceDriver()` and
-// `getSessionDriver()` return real isolated backends, `device` and `session`
-// will swap to those.  The public API surface remains identical.
+// Shared namespaces use the transitional shared driver. Device and session
+// namespaces are isolated in localStorage and sessionStorage.
 
 import { getSharedDriver, getDeviceDriver, getSessionDriver } from "./runtime";
 

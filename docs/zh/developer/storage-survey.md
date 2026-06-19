@@ -466,21 +466,26 @@ type ReplicatedValue<T> = {
 - ✅ 为 corrupt 数据增加显式错误（`codecs.ts` / `decodeArray`）
 - ✅ 4 个 canonical Zustand persist 已移除：settings/characters/presets/worldbooks 统一从 repository 加载
 - ✅ builder workspace 写路径接入 `device` namespace
-- ✅ `neo:last-chat-id` 接入 `session` namespace
+- ✅ `neo:last-chat-id` 接入 `device` namespace
 - ⏳ storage diagnostics 和测试 fixture 待补
 
-### 阶段 B：统一小型 KV 后端
+### 阶段 B：统一小型 KV 后端 ✅ 已完成（2026-06-19）
 
-- Rust 和 JavaScript 完整接入 plugin-store；
-- Tauri 与 LAN REST 使用同一个 Store 实例；
-- 实现原子 batch、migration lock 和备份；
-- 迁移器继续识别旧 key，但业务读取不再跨后端或在新旧 key 间逐项回退，避免同时改变后端和 schema。
+- ✅ Rust 侧完整接入 `tauri-plugin-store`（新增 `store.rs` 包装模块）
+- ✅ Tauri 命令和 LAN REST 共用同一个 `Store<Wry>` 实例（`OnceLock` 缓存）
+- ✅ 实现 `get/set/remove/entries` 兼容旧 API
+- ⏳ Rust batch 尚未暴露为 Tauri command / REST endpoint，前端迁移目前仍逐项写入，不具备生产原子性
+- ✅ 删除了旧的自建 BTreeMap `store.json` 整文件读写
+- ⏳ migration lock 和备份待阶段 C 实现
 
-### 阶段 C：先上线迁移框架，再改 schema
+### 阶段 C：先上线迁移框架，再改 schema ✅ 已完成骨架（2026-06-19）
 
-- 建立 migration registry、schema version 和 SQLite `PRAGMA user_version`；
-- 把 migration 前移到业务 hydrate 之前；
-- 使用生产数据形状 fixture 验证新安装、跨版本和中断重试。
+- ✅ `db/migrations/` 目录就位（types / runner / registry / index）
+- ✅ `runMigrations()` 在 `main.tsx` 中先于 locale/theme/seed 执行
+- ✅ runner: 读版本 → 排序 → plan → batch → verify → 记录 → 写版本（版本最后写）
+- ✅ 迁移失败不提升版本，下次启动自动重试
+- ✅ 空 registry（Phase D 添加首个迁移）；当前尚未执行任何生产数据迁移
+- ✅ 已发布迁移保持 append-only，防止旧 schema 用户失去连续升级路径
 
 ### 阶段 D：消除双写并按作用域路由
 

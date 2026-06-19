@@ -9,6 +9,7 @@ import type {
 } from "@/features/character/neo-character-builder";
 import { CheckCircle2, ChevronRight, Loader2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@neo-tavern/ui";
+import { device } from "@/db/kv";
 import {
   BUILDER_WORKSPACE_RECORDS_STORAGE_KEY,
   BUILDER_WORKSPACE_STORAGE_KEY,
@@ -17,7 +18,9 @@ import {
   type BuilderWorkspaceRecord,
   type BuilderWorkspaceSnapshot,
 } from "./types";
-import { device } from "@/db/kv";
+
+const DEVICE_WORKSPACE_KEY = "device:builder-workspace";
+const DEVICE_WORKSPACE_RECORDS_KEY = "device:builder-records";
 export { NEW_TARGET };
 
 // ── Message helpers ──────────────────────────────────
@@ -40,11 +43,12 @@ export function normalizeRestoredMessages(messages: unknown): BuilderMessage[] {
     }));
 }
 
-/** Read the current builder workspace snapshot from localStorage. */
+/** Read the current device-scoped workspace, falling back to the legacy key. */
 export function readBuilderWorkspaceSnapshot(): BuilderWorkspaceSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(BUILDER_WORKSPACE_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(DEVICE_WORKSPACE_KEY) ?? window.localStorage.getItem(BUILDER_WORKSPACE_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<BuilderWorkspaceSnapshot>;
     return {
@@ -163,11 +167,13 @@ export function normalizeWorkspaceRecord(record: Partial<BuilderWorkspaceRecord>
   };
 }
 
-/** Read all workspace history records from localStorage, sorted most-recent-first. */
+/** Read device-scoped workspace history, falling back to the legacy key. */
 export function readBuilderWorkspaceRecords(): BuilderWorkspaceRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(BUILDER_WORKSPACE_RECORDS_STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(DEVICE_WORKSPACE_RECORDS_KEY) ??
+      window.localStorage.getItem(BUILDER_WORKSPACE_RECORDS_STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
     return parsed

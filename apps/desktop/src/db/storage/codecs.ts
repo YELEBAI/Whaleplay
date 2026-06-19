@@ -2,14 +2,12 @@
  * JSON codec helpers.
  *
  * Every consumer that deserializes stored JSON should use these helpers so
- * that "key absent" and "corrupt payload" are visibly different from each
- * other and from a legitimate `null` value.  The legacy behaviour of silently
+ * that "key absent", "backend unavailable", and "corrupt payload" remain
+ * visibly different. The legacy behaviour of silently
  * returning `null` (or `[]`) for corrupt data is kept only as opt-in
  * fallbacks; new code should use the tri-state API.
  */
 import type { ReadResult } from "./driver";
-
-const CACHE = {};
 
 /**
  * Result of decoding a stored value.
@@ -17,11 +15,13 @@ const CACHE = {};
  * - `valid`   — the value exists and was successfully decoded.
  * - `missing` — the key does not exist in the backing store.
  * - `corrupt` — the raw string exists but could not be parsed / validated.
+ * - `error`   — the backing driver could not complete the read.
  */
 export type DecodeResult<T> =
   | { status: "valid"; value: T }
   | { status: "missing" }
-  | { status: "corrupt"; raw: string; error: string };
+  | { status: "corrupt"; raw: string; error: string }
+  | { status: "error"; error: string };
 
 /** Parse raw JSON, distinguishing the three states. */
 export function decode<T = unknown>(raw: string | null | undefined): DecodeResult<T> {
@@ -44,7 +44,7 @@ export function decode<T = unknown>(raw: string | null | undefined): DecodeResul
  */
 export function decodeReadResult<T = unknown>(result: ReadResult): DecodeResult<T> {
   if (result.status === "missing") return { status: "missing" };
-  if (result.status === "error") return { status: "corrupt", raw: "", error: result.reason };
+  if (result.status === "error") return { status: "error", error: result.reason };
   return decode<T>(result.value);
 }
 
@@ -67,14 +67,17 @@ export function decodeOr<T>(result: ReadResult, fallback: T): T {
  */
 export function decodeArray<T = unknown>(
   result: ReadResult,
-): { ok: true; value: T[] } | { ok: false; corrupt: true; raw: string } {
+):
+  | { ok: true; value: T[] }
+  | { ok: false; status: "corrupt"; raw: string }
+  | { ok: false; status: "error"; error: string } {
   if (result.status === "missing") return { ok: true, value: [] };
-  if (result.status === "error") return { ok: false, corrupt: true, raw: "" };
+  if (result.status === "error") return { ok: false, status: "error", error: result.reason };
   try {
     const parsed = JSON.parse(result.value);
-    if (!Array.isArray(parsed)) return { ok: true, value: [] };
+    if (!Array.isArray(parsed)) return { ok: false, status: "corrupt", raw: result.value };
     return { ok: true, value: parsed as T[] };
   } catch {
-    return { ok: false, corrupt: true, raw: result.value };
+    return { ok: false, status: "corrupt", raw: result.value };
   }
 }

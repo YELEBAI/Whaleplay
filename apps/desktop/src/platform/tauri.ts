@@ -13,6 +13,7 @@ export const tauriBackend: Backend = {
     set: (key, value) => invoke("app_store_set", { key, value }),
     remove: (key) => invoke("app_store_remove", { key }),
     entries: () => invoke<Record<string, string>>("app_store_entries"),
+    batch: (ops) => invoke("app_store_batch", { operations: ops }),
   },
 
   db: {

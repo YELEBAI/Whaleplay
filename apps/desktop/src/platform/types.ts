@@ -19,6 +19,9 @@ export interface Backend {
     set(key: string, value: string): Promise<void>;
     remove(key: string): Promise<void>;
     entries(): Promise<Record<string, string>>;
+    batch(
+      operations: Array<{ type: "set"; key: string; value: string } | { type: "remove"; key: string }>,
+    ): Promise<void>;
   };
 
   // ── Messages + chat persistence (sqlite_* Tauri commands → db.rs) ──

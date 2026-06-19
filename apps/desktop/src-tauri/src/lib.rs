@@ -3,46 +3,9 @@ pub mod db;
 pub mod file;
 pub mod lan;
 pub mod search;
+pub mod store;
 
-use std::{collections::BTreeMap, fs, path::PathBuf};
 use tauri::Listener;
-use tauri::Manager;
-
-pub type AppStore = BTreeMap<String, String>;
-
-pub(crate) fn app_store_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|err| format!("Failed to resolve app data directory: {err}"))?;
-    fs::create_dir_all(&dir)
-        .map_err(|err| format!("Failed to create app data directory: {err}"))?;
-    Ok(dir.join("store.json"))
-}
-
-pub(crate) fn read_app_store(app: &tauri::AppHandle) -> Result<AppStore, String> {
-    let path = app_store_path(app)?;
-    if !path.exists() {
-        return Ok(AppStore::new());
-    }
-    let raw =
-        fs::read_to_string(&path).map_err(|err| format!("Failed to read app store: {err}"))?;
-    if raw.trim().is_empty() {
-        return Ok(AppStore::new());
-    }
-    serde_json::from_str(&raw).map_err(|err| format!("Failed to parse app store: {err}"))
-}
-
-fn write_app_store(app: &tauri::AppHandle, store: &AppStore) -> Result<(), String> {
-    let path = app_store_path(app)?;
-    write_store_to_path(store, &path)
-}
-
-pub(crate) fn write_store_to_path(store: &AppStore, path: &PathBuf) -> Result<(), String> {
-    let raw = serde_json::to_string_pretty(store)
-        .map_err(|err| format!("Failed to serialize app store: {err}"))?;
-    fs::write(path, raw).map_err(|err| format!("Failed to write app store: {err}"))
-}
 
 // ── Tauri commands ─────────────────────────────────────
 #[tauri::command]
@@ -52,27 +15,29 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn app_store_get(app: tauri::AppHandle, key: String) -> Result<Option<String>, String> {
-    let store = read_app_store(&app)?;
-    Ok(store.get(&key).cloned())
+    store::get(&app, &key)
 }
 
 #[tauri::command]
 fn app_store_set(app: tauri::AppHandle, key: String, value: String) -> Result<(), String> {
-    let mut store = read_app_store(&app)?;
-    store.insert(key, value);
-    write_app_store(&app, &store)
+    store::set(&app, &key, &value)
 }
 
 #[tauri::command]
 fn app_store_remove(app: tauri::AppHandle, key: String) -> Result<(), String> {
-    let mut store = read_app_store(&app)?;
-    store.remove(&key);
-    write_app_store(&app, &store)
+    store::remove(&app, &key)
 }
 
 #[tauri::command]
-fn app_store_entries(app: tauri::AppHandle) -> Result<AppStore, String> {
-    read_app_store(&app)
+fn app_store_entries(
+    app: tauri::AppHandle,
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    store::entries(&app)
+}
+
+#[tauri::command]
+fn app_store_batch(app: tauri::AppHandle, operations: Vec<store::StoreOp>) -> Result<(), String> {
+    store::batch_ops(&app, &operations)
 }
 
 pub fn run() {
@@ -81,12 +46,14 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             greet,
             app_store_get,
             app_store_set,
             app_store_remove,
             app_store_entries,
+            app_store_batch,
             lan::lan_server_status,
             file::pick_folder,
             file::save_workspace_dir,

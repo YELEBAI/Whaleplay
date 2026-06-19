@@ -1,9 +1,8 @@
 /**
  * Storage runtime — selects the canonical driver for each namespace scope.
  *
- * Today there is only one implementation (the legacy 3-layer fallback). When
- * plugin-store and a dedicated REST driver are available they will be wired
- * here and the appropriate instance returned per scope.
+ * Shared data still uses the transitional legacy driver. Device and session
+ * scopes are isolated in localStorage and sessionStorage respectively.
  *
  * Key principle: the same logical data scope gets ONE driver.  We do NOT
  * fall back per-operation when the primary driver returns "missing" — that
@@ -13,6 +12,75 @@
 import { legacyFallbackDriver } from "./driver";
 import type { StorageDriver } from "./driver";
 
+type BrowserStorageName = "localStorage" | "sessionStorage";
+
+function browserStorage(name: BrowserStorageName): Storage | null {
+  try {
+    if (typeof window === "undefined") return null;
+    return window[name];
+  } catch {
+    return null;
+  }
+}
+
+/** Build an isolated driver for browser-owned device/session state. */
+export function createBrowserStorageDriver(name: BrowserStorageName): StorageDriver {
+  const requireStorage = () => {
+    const storage = browserStorage(name);
+    if (!storage) throw new Error(`${name} is unavailable`);
+    return storage;
+  };
+
+  return {
+    get: async (key) => {
+      try {
+        const value = requireStorage().getItem(key);
+        return value === null ? { status: "missing" } : { status: "found", value };
+      } catch (error) {
+        return { status: "error", reason: error instanceof Error ? error.message : String(error) };
+      }
+    },
+    set: async (key, value) => {
+      requireStorage().setItem(key, value);
+    },
+    remove: async (key) => {
+      requireStorage().removeItem(key);
+    },
+    entries: async (prefix) => {
+      const storage = requireStorage();
+      const result: Record<string, string> = {};
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (!key?.startsWith(prefix)) continue;
+        result[key] = storage.getItem(key) ?? "";
+      }
+      return result;
+    },
+    batch: async (operations) => {
+      const storage = requireStorage();
+      const previous = new Map<string, string | null>();
+      for (const operation of operations) {
+        if (!previous.has(operation.key)) previous.set(operation.key, storage.getItem(operation.key));
+      }
+      try {
+        for (const operation of operations) {
+          if (operation.type === "set") storage.setItem(operation.key, operation.value);
+          else storage.removeItem(operation.key);
+        }
+      } catch (error) {
+        for (const [key, value] of previous) {
+          if (value === null) storage.removeItem(key);
+          else storage.setItem(key, value);
+        }
+        throw error;
+      }
+    },
+  };
+}
+
+const deviceDriver = createBrowserStorageDriver("localStorage");
+const sessionDriver = createBrowserStorageDriver("sessionStorage");
+
 /** Shared canonical driver (KV — prefs / data / sys / meta). */
 export function getSharedDriver(): StorageDriver {
   return legacyFallbackDriver;
@@ -20,16 +88,10 @@ export function getSharedDriver(): StorageDriver {
 
 /** Device-local driver (persisted per browser / app install). */
 export function getDeviceDriver(): StorageDriver {
-  // For now the device scope also uses the legacy fallback. In the future
-  // this will be a dedicated `deviceStorage` driver backed by the
-  // WebView's localStorage adapter (non-shared, never synced).
-  return legacyFallbackDriver;
+  return deviceDriver;
 }
 
 /** Session driver (cleared when the browsing context ends). */
 export function getSessionDriver(): StorageDriver {
-  // Currently implementation uses the shared driver as the backing store
-  // because Tauri windows share a persistent profile. A real sessionStorage
-  // adapter will replace this for browser/LAN contexts.
-  return legacyFallbackDriver;
+  return sessionDriver;
 }

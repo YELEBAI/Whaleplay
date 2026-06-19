@@ -13,6 +13,7 @@ import {
 } from "./seed";
 import { ToastContainer, useToast } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
+import { useWorldbookStore } from "@/features/settings/worldbook.store";
 import { migrateLocalStorageToAppStore } from "@/db/storage";
 import { messageRepository } from "@/db/repositories";
 import { LoginGate } from "@/components/LoginGate";
@@ -59,27 +60,22 @@ function AppContent() {
         useSettingsStore.getState().loadPersona(),
         useSettingsStore.getState().loadDailyCostWarningSettings(),
         useSettingsStore.getState().loadDailyCostSpent(),
+        useWorldbookStore.getState().loadWorldbooks(),
       ]);
-    })();
-  }, [themeInit]);
 
-  // Auto-update check on startup
-  useEffect(() => {
-    const store = useSettingsStore.getState();
-    if (!store.autoUpdateEnabled) return;
-    void (async () => {
-      try {
-        const update = await check();
-        if (update) {
-          // Download in background
-          await update.downloadAndInstall(() => {});
-          console.warn("[updater] Update downloaded, will install on next restart");
+      if (useSettingsStore.getState().autoUpdateEnabled) {
+        try {
+          const update = await check();
+          if (update) {
+            await update.downloadAndInstall(() => {});
+            console.warn("[updater] Update downloaded, will install on next restart");
+          }
+        } catch {
+          // No update or check failed — silently ignore
         }
-      } catch {
-        // No update or check failed — silently ignore
       }
     })();
-  }, []);
+  }, [themeInit]);
 
   return (
     <>
