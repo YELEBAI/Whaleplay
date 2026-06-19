@@ -3,6 +3,3 @@ packages:
   - "packages/*"
 allowBuilds:
   esbuild: false
-peerDependencyRules:
-  allowAny:
-    - tailwindcss

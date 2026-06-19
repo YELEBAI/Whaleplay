@@ -31,6 +31,7 @@ import {
 } from "@/db/repositories";
 import type { SecondaryApiUsageRecord } from "@/db/repositories";
 import { getStorageItem, removeStorageItem, setStorageItem } from "@/db/storage";
+import { session } from "@/db/kv";
 import {
   buildChatPrompt,
   formatPreview,
@@ -266,7 +267,7 @@ export function ChatPage() {
 
   useEffect(() => {
     if (currentChat?.id) {
-      localStorage.setItem("neo:last-chat-id", currentChat.id);
+      void session.set("last-chat-id", currentChat.id);
     }
   }, [currentChat?.id]);
 

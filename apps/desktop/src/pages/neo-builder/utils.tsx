@@ -17,6 +17,7 @@ import {
   type BuilderWorkspaceRecord,
   type BuilderWorkspaceSnapshot,
 } from "./types";
+import { device } from "@/db/kv";
 export { NEW_TARGET };
 
 // ── Message helpers ──────────────────────────────────
@@ -67,13 +68,12 @@ export function readBuilderWorkspaceSnapshot(): BuilderWorkspaceSnapshot | null 
   }
 }
 
-/** Persist a builder workspace snapshot to localStorage (best-effort). */
-export function writeBuilderWorkspaceSnapshot(snapshot: BuilderWorkspaceSnapshot) {
-  if (typeof window === "undefined") return;
+/** Persist a builder workspace snapshot via the device namespace (best-effort). */
+export async function writeBuilderWorkspaceSnapshot(snapshot: BuilderWorkspaceSnapshot) {
   try {
-    window.localStorage.setItem(BUILDER_WORKSPACE_STORAGE_KEY, JSON.stringify(snapshot));
+    await device.setJson("builder-workspace", snapshot);
   } catch {
-    // Local snapshots are best-effort; the Builder should keep working if storage is full or blocked.
+    /* best-effort */
   }
 }
 
@@ -179,13 +179,12 @@ export function readBuilderWorkspaceRecords(): BuilderWorkspaceRecord[] {
   }
 }
 
-/** Persist workspace records to localStorage, capped at 80 entries. */
-export function writeBuilderWorkspaceRecords(records: BuilderWorkspaceRecord[]) {
-  if (typeof window === "undefined") return;
+/** Persist workspace records via the device namespace, capped at 80 entries. */
+export async function writeBuilderWorkspaceRecords(records: BuilderWorkspaceRecord[]) {
   try {
-    window.localStorage.setItem(BUILDER_WORKSPACE_RECORDS_STORAGE_KEY, JSON.stringify(records.slice(0, 80)));
+    await device.setJson("builder-records", records.slice(0, 80));
   } catch {
-    // Best-effort bookkeeping for Builder workspace history.
+    /* best-effort */
   }
 }
 

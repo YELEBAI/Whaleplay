@@ -50,6 +50,16 @@ function AppContent() {
       await useSettingsStore.getState().loadMemorySettings();
       await useSettingsStore.getState().loadImageGenerationSettings();
       await useSettingsStore.getState().loadRegexRules();
+      // Fields previously hydrated by Zustand persist — load from repository.
+      await Promise.all([
+        useSettingsStore.getState().loadDebugMode(),
+        useSettingsStore.getState().loadAutoUpdateEnabled(),
+        useSettingsStore.getState().loadWebSearchSettings(),
+        useSettingsStore.getState().loadContextTokens(),
+        useSettingsStore.getState().loadPersona(),
+        useSettingsStore.getState().loadDailyCostWarningSettings(),
+        useSettingsStore.getState().loadDailyCostSpent(),
+      ]);
     })();
   }, [themeInit]);
 
