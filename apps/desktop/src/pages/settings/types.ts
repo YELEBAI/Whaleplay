@@ -1,6 +1,6 @@
 import type { Plug } from "lucide-react";
 
-export type Section = "general" | "api" | "appearance" | "regex" | "context" | "image";
+export type Section = "general" | "api" | "appearance" | "regex" | "context" | "image" | "rag";
 
 export type SectionWithLabel = { key: Section; icon: typeof Plug; label: string };
 

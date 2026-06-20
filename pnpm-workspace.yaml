@@ -2,7 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
-  esbuild: false
+  esbuild: true
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true
 peerDependencyRules:
   allowAny:
     - tailwindcss

@@ -8,10 +8,12 @@ import {
   buildMessagePath,
   collectDescendantIds,
   secondaryApiUsageRepository,
+  ragRepository,
 } from "@/db/repositories";
 import type { Chat, Message, CreateChatInput, CreateMessageInput } from "@neo-tavern/shared";
 import type { GenerationPhase } from "./chat.types";
 import type { DiceRollResult } from "@/features/agentic-play/agentic-play";
+import { useRagStatusStore } from "@/features/rag/rag-status.store";
 
 interface ActiveGenerationState {
   streamingMessageId: string | null;
@@ -36,6 +38,7 @@ interface ChatState {
   loadChats: () => Promise<void>;
   loadChat: (id: string) => Promise<void>;
   createOrGetChat: (input: CreateChatInput) => Promise<Chat>;
+  updateChatWorldbookReferences: (id: string, entryIds: string[]) => Promise<Chat>;
   deleteChat: (id: string) => Promise<void>;
   loadMessages: (chatId: string) => Promise<void>;
   ensureMessagesHydrated: (chatId: string) => Promise<Message[]>;
@@ -65,7 +68,7 @@ interface ChatState {
   clearError: () => void;
 }
 
-const CHAT_INITIAL_MESSAGE_LIMIT = 80;
+const CHAT_INITIAL_TURN_LIMIT = 10;
 
 let chatLoadSequence = 0;
 let activeHydration: { chatId: string; promise: Promise<Message[]> } | null = null;
@@ -101,6 +104,33 @@ function mergeHydratedMessages(fullMessages: Message[], currentMessages: Message
   }
 
   return sortMessages(merged);
+}
+
+function replaceMessageById(messages: Message[], id: string, nextMessage: Message): Message[] {
+  const index = messages.findIndex((message) => message.id === id);
+  if (index < 0) return messages;
+  const nextMessages = messages.slice();
+  nextMessages[index] = nextMessage;
+  return nextMessages;
+}
+
+function patchMessageById(messages: Message[], id: string, patch: Partial<Message>): Message[] {
+  const index = messages.findIndex((message) => message.id === id);
+  if (index < 0) return messages;
+
+  const current = messages[index];
+  let changed = false;
+  for (const key of Object.keys(patch) as Array<keyof Message>) {
+    if (!Object.is(current[key], patch[key])) {
+      changed = true;
+      break;
+    }
+  }
+  if (!changed) return messages;
+
+  const nextMessages = messages.slice();
+  nextMessages[index] = { ...current, ...patch };
+  return nextMessages;
 }
 
 function legacyGenerationSnapshot(
@@ -183,7 +213,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const chat = await chatRepository.getById(id);
       if (loadId !== chatLoadSequence) return;
       if (chat) {
-        const messages = await messageRepository.listRecentByChatId(chat.id, CHAT_INITIAL_MESSAGE_LIMIT);
+        const messages = await messageRepository.listRecentTurnsByChatId(chat.id, CHAT_INITIAL_TURN_LIMIT);
         if (loadId !== chatLoadSequence) return;
         set({ currentChat: chat, messages, activeLeafId: null, loading: false, messagesHydrated: false });
         void hydrateMessages(chat.id, set, get);
@@ -203,7 +233,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       const inMemory = get().chats.find((c) => c.characterId === input.characterId);
       if (inMemory) {
-        const messages = await messageRepository.listRecentByChatId(inMemory.id, CHAT_INITIAL_MESSAGE_LIMIT);
+        const messages = await messageRepository.listRecentTurnsByChatId(inMemory.id, CHAT_INITIAL_TURN_LIMIT);
         if (loadId !== chatLoadSequence) return inMemory;
         set({ currentChat: inMemory, messages, activeLeafId: null, loading: false, messagesHydrated: false });
         void hydrateMessages(inMemory.id, set, get);
@@ -215,7 +245,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       if (existing.length > 0) {
         const chat = existing[0];
-        const messages = await messageRepository.listRecentByChatId(chat.id, CHAT_INITIAL_MESSAGE_LIMIT);
+        const messages = await messageRepository.listRecentTurnsByChatId(chat.id, CHAT_INITIAL_TURN_LIMIT);
         if (loadId !== chatLoadSequence) return chat;
         const state = get();
         set({
@@ -246,15 +276,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  updateChatWorldbookReferences: async (id: string, entryIds: string[]) => {
+    try {
+      const chat = await chatRepository.update(id, { worldbookReferenceEntryIds: entryIds });
+      set((state) => {
+        const hasChat = state.chats.some((candidate) => candidate.id === chat.id);
+        return {
+          chats: sortChats(
+            hasChat
+              ? state.chats.map((candidate) => (candidate.id === chat.id ? chat : candidate))
+              : [chat, ...state.chats],
+          ),
+          currentChat: state.currentChat?.id === chat.id ? chat : state.currentChat,
+        };
+      });
+      return chat;
+    } catch (err) {
+      set({ error: (err as Error).message });
+      throw err;
+    }
+  },
+
   deleteChat: async (id: string) => {
     set({ loading: true, error: null });
     try {
-      await chatRepository.delete(id);
       await messageRepository.deleteByChatId(id);
+      await ragRepository.deleteByOwner("chat", id);
       await chatSavepointRepository.deleteByChatId(id);
       await chatMemoryRepository.delete(id);
       await agenticPlayStateRepository.delete(id);
       await secondaryApiUsageRepository.deleteByChatId(id);
+      await chatRepository.delete(id);
+      useRagStatusStore.getState().clear(id);
       set((state) => {
         const activeGenerations = Object.fromEntries(
           Object.entries(state.activeGenerations).filter(([chatId]) => chatId !== id),
@@ -407,7 +460,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const updated = await messageRepository.update(id, content);
       const chat = await chatRepository.update(updated.chatId, {});
       set((state) => ({
-        messages: state.messages.map((m) => (m.id === id ? updated : m)),
+        messages: replaceMessageById(state.messages, id, updated),
         ...applyTouchedChat(state, chat),
       }));
     } catch (err) {
@@ -419,13 +472,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
   patchMessage: async (id, patch, options = {}) => {
     const persist = options.persist ?? true;
     set((state) => ({
-      messages: state.messages.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      messages: patchMessageById(state.messages, id, patch),
     }));
     if (!persist) return;
     try {
       const updated = await messageRepository.patch(id, patch);
       set((state) => ({
-        messages: state.messages.map((m) => (m.id === id ? updated : m)),
+        messages: replaceMessageById(state.messages, id, updated),
       }));
     } catch (err) {
       set({ error: (err as Error).message });
@@ -443,6 +496,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const allIds = [id, ...descendantIds];
 
       await messageRepository.deleteMessages(allIds);
+      await chatMemoryRepository.delete(target.chatId);
       const chat = await chatRepository.update(target.chatId, {});
       const idSet = new Set(allIds);
       set((state) => ({
@@ -495,6 +549,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const targets = get().messages.filter((m) => idSet.has(m.id));
       await messageRepository.deleteMessages(ids);
       const chatId = targets[0]?.chatId;
+      if (chatId) await chatMemoryRepository.delete(chatId);
       const chat = chatId ? await chatRepository.update(chatId, {}) : null;
       set((state) => ({
         messages: state.messages.filter((m) => !idSet.has(m.id)),

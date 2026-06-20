@@ -14,6 +14,10 @@
   "savepointTitle": "Create savepoint",
   "loadTitle": "Load savepoint",
   "stopTitle": "Stop generating",
+  "contextCompression": {
+    "title": "Compress context",
+    "running": "Compressing context"
+  },
   "pendingSend": "Queued ({{count}})",
   "cancelPending": "Cancel queued",
   "noCharSelected": "Select a character to start chatting",

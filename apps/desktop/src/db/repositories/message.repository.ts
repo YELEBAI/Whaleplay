@@ -1,10 +1,13 @@
 import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
 import { getBackend } from "@/platform";
-import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
+import { getStorageItem, setStorageItem } from "../storage";
 import { mergeMessagesByContent } from "@neo-tavern/core/tree";
+import { ragRepository } from "./rag.repository";
 
 const STORAGE_KEY = "neotavern_messages";
+const EMBEDDED_IMAGE_SRC_PREFIX = "data:image/";
+const COMPACTED_EMBEDDED_IMAGE_ERROR = "旧版内嵌图片已清理，请重新生成。";
 
 let sqliteReady: Promise<boolean> | null = null;
 
@@ -17,7 +20,115 @@ async function loadAll(): Promise<Message[]> {
   }
 }
 async function saveAll(msgs: Message[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(msgs));
+  await setStorageItem(STORAGE_KEY, JSON.stringify(compactMessagesForKeyValueStorage(msgs)));
+}
+
+function compactMessagesForKeyValueStorage(messages: Message[]): Message[] {
+  return messages.map((message) => {
+    if (!message.images?.some((image) => image.src?.toLowerCase().startsWith(EMBEDDED_IMAGE_SRC_PREFIX))) {
+      return message;
+    }
+
+    return {
+      ...message,
+      images: message.images.map((image) => {
+        if (!image.src?.toLowerCase().startsWith(EMBEDDED_IMAGE_SRC_PREFIX)) return image;
+        return {
+          ...image,
+          status: "error" as const,
+          src: undefined,
+          error: image.error || COMPACTED_EMBEDDED_IMAGE_ERROR,
+        };
+      }),
+    };
+  });
+}
+
+function sortMessages(messages: Message[]) {
+  return [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+function isPositiveRoundIndex(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function inferMaxRoundIndex(messages: Message[]) {
+  const byTime = [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  let inferred = 0;
+  let max = 0;
+
+  for (const message of byTime) {
+    if (message.role !== "assistant") continue;
+    inferred += 1;
+    max = Math.max(max, isPositiveRoundIndex(message.roundIndex) ? message.roundIndex : inferred);
+  }
+
+  return max;
+}
+
+function ensureAssistantRoundIndexes(messages: Message[]) {
+  const byChat = new Map<string, Message[]>();
+  for (const message of messages) {
+    const list = byChat.get(message.chatId) ?? [];
+    list.push(message);
+    byChat.set(message.chatId, list);
+  }
+
+  const nextByChat = new Map<string, number>();
+  for (const [chatId, chatMessages] of byChat) {
+    nextByChat.set(chatId, 0);
+    chatMessages.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    for (const message of chatMessages) {
+      if (message.role !== "assistant") continue;
+      const current = nextByChat.get(chatId) ?? 0;
+      if (isPositiveRoundIndex(message.roundIndex)) {
+        nextByChat.set(chatId, Math.max(current, message.roundIndex));
+        continue;
+      }
+      const next = current + 1;
+      message.roundIndex = next;
+      nextByChat.set(chatId, next);
+    }
+  }
+
+  return messages;
+}
+
+function getRecentAssistantTurnStartIndex(messages: Message[], turnLimit: number) {
+  const limit = Math.max(1, Math.floor(turnLimit || 1));
+  const indexedAssistantMessages = messages.filter(
+    (message) => message.role === "assistant" && isPositiveRoundIndex(message.roundIndex),
+  );
+
+  if (indexedAssistantMessages.length > 0) {
+    const latestRoundIndex = Math.max(...indexedAssistantMessages.map((message) => message.roundIndex ?? 0));
+    if (latestRoundIndex <= limit) return 0;
+
+    const preserveFromRoundIndex = latestRoundIndex - limit + 1;
+    const firstAssistantToKeep = messages.findIndex(
+      (message) => message.role === "assistant" && (message.roundIndex ?? 0) >= preserveFromRoundIndex,
+    );
+    if (firstAssistantToKeep < 0) return 0;
+
+    let start = firstAssistantToKeep;
+    while (start > 0 && messages[start - 1].role !== "assistant") start -= 1;
+    return start;
+  }
+
+  const assistantIndexes: number[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].role === "assistant") assistantIndexes.push(i);
+  }
+  if (assistantIndexes.length <= limit) return 0;
+
+  let start = assistantIndexes[assistantIndexes.length - limit];
+  while (start > 0 && messages[start - 1].role !== "assistant") start -= 1;
+  return start;
+}
+
+function takeRecentAssistantTurns(messages: Message[], turnLimit: number) {
+  const sorted = sortMessages(messages);
+  return sorted.slice(getRecentAssistantTurnStartIndex(sorted, turnLimit));
 }
 
 function makeMessage(input: CreateMessageInput): Message {
@@ -35,8 +146,27 @@ function makeMessage(input: CreateMessageInput): Message {
     agenticOptions: input.agenticOptions,
     hidden: input.hidden,
     metadata: input.metadata,
+    roundIndex: input.role === "assistant" ? input.roundIndex : undefined,
     createdAt: new Date().toISOString(),
   };
+}
+
+function readLegacyMessagesFromLocalStorage(): string | null {
+  try {
+    return typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+  } catch {
+    return null;
+  }
+}
+
+function removeLegacyMessagesFromLocalStorage() {
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch {
+    /* localStorage unavailable */
+  }
 }
 
 /** Build a linear path from leaf to root via parentId chain */
@@ -81,25 +211,26 @@ function makeRestoredMessages(chatId: string, messages: Message[]): Message[] {
   for (const m of messages) {
     idMap.set(m.id, generateId());
   }
-  return messages.map((message) => ({
-    ...message,
-    id: idMap.get(message.id) ?? message.id,
-    parentId: message.parentId ? (idMap.get(message.parentId) ?? message.parentId) : null,
-    chatId,
-  }));
+  return ensureAssistantRoundIndexes(
+    messages.map((message) => ({
+      ...message,
+      id: idMap.get(message.id) ?? message.id,
+      parentId: message.parentId ? (idMap.get(message.parentId) ?? message.parentId) : null,
+      chatId,
+    })),
+  );
 }
 
 async function canUseSqliteMessages() {
   if (!sqliteReady) {
     sqliteReady = (async () => {
+      const legacyMessagesJson = readLegacyMessagesFromLocalStorage();
       try {
-        const legacyMessagesJson = await getStorageItem(STORAGE_KEY);
         await getBackend().db.initMessages(legacyMessagesJson);
-        if (legacyMessagesJson) {
-          await removeStorageItem(STORAGE_KEY);
-        }
+        if (legacyMessagesJson) removeLegacyMessagesFromLocalStorage();
         return true;
-      } catch {
+      } catch (error) {
+        console.warn("[messages] SQLite message store unavailable; falling back to key-value storage.", error);
         return false;
       }
     })();
@@ -141,8 +272,22 @@ export const messageRepository = {
       .slice(-cappedLimit);
   },
 
+  async listRecentTurnsByChatId(chatId: string, turnLimit: number): Promise<Message[]> {
+    const cappedTurnLimit = Math.max(1, Math.min(100, Math.floor(turnLimit || 1)));
+    if (await canUseSqliteMessages()) {
+      return getBackend().db.listRecentTurnMessages(chatId, cappedTurnLimit);
+    }
+    return takeRecentAssistantTurns(
+      (await loadAll()).filter((m) => m.chatId === chatId),
+      cappedTurnLimit,
+    );
+  },
+
   async create(input: CreateMessageInput): Promise<Message> {
     const msg = makeMessage(input);
+    if (msg.role === "assistant" && !isPositiveRoundIndex(msg.roundIndex)) {
+      msg.roundIndex = inferMaxRoundIndex(await this.listByChatId(input.chatId)) + 1;
+    }
     if (await canUseSqliteMessages()) {
       return getBackend().db.createMessage(msg);
     }
@@ -155,19 +300,23 @@ export const messageRepository = {
   async deleteByChatId(chatId: string): Promise<void> {
     if (await canUseSqliteMessages()) {
       await getBackend().db.deleteByChatId(chatId);
+      await ragRepository.deleteByOwner("chat", chatId);
       return;
     }
     await saveAll((await loadAll()).filter((m) => m.chatId !== chatId));
+    await ragRepository.deleteByOwner("chat", chatId);
   },
 
   async replaceByChatId(chatId: string, messages: Message[]): Promise<Message[]> {
     const restored = makeRestoredMessages(chatId, messages);
     if (await canUseSqliteMessages()) {
       const saved = await getBackend().db.replaceByChatId(chatId, restored);
+      await ragRepository.deleteByOwner("chat", chatId);
       return saved.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     }
     const all = await loadAll();
     await saveAll([...all.filter((m) => m.chatId !== chatId), ...restored]);
+    await ragRepository.deleteByOwner("chat", chatId);
     return restored.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
 
@@ -211,13 +360,16 @@ export const messageRepository = {
 
   async update(id: string, content: string): Promise<Message> {
     if (await canUseSqliteMessages()) {
-      return getBackend().db.updateMessage(id, content);
+      const updated = await getBackend().db.updateMessage(id, content);
+      await ragRepository.deleteBySourceIds([id]);
+      return updated;
     }
     const all = await loadAll();
     const idx = all.findIndex((m) => m.id === id);
     if (idx === -1) throw new Error(`Message not found: ${id}`);
     all[idx].content = content;
     await saveAll(all);
+    await ragRepository.deleteBySourceIds([id]);
     return all[idx];
   },
 
@@ -231,31 +383,38 @@ export const messageRepository = {
     >,
   ): Promise<Message> {
     if (await canUseSqliteMessages()) {
-      return getBackend().db.patchMessage(id, patch);
+      const updated = await getBackend().db.patchMessage(id, patch);
+      if ("content" in patch) await ragRepository.deleteBySourceIds([id]);
+      return updated;
     }
     const all = await loadAll();
     const idx = all.findIndex((m) => m.id === id);
     if (idx === -1) throw new Error(`Message not found: ${id}`);
     all[idx] = { ...all[idx], ...patch };
     await saveAll(all);
+    if ("content" in patch) await ragRepository.deleteBySourceIds([id]);
     return all[idx];
   },
 
   async deleteMessage(id: string): Promise<void> {
     if (await canUseSqliteMessages()) {
       await getBackend().db.deleteMessage(id);
+      await ragRepository.deleteBySourceIds([id]);
       return;
     }
     await saveAll((await loadAll()).filter((m) => m.id !== id));
+    await ragRepository.deleteBySourceIds([id]);
   },
 
   async deleteMessages(ids: string[]): Promise<void> {
     if (await canUseSqliteMessages()) {
       await getBackend().db.deleteMessages(ids);
+      await ragRepository.deleteBySourceIds(ids);
       return;
     }
     const idSet = new Set(ids);
     await saveAll((await loadAll()).filter((m) => !idSet.has(m.id)));
+    await ragRepository.deleteBySourceIds(ids);
   },
 
   async migrateParentIds(): Promise<number> {
@@ -286,6 +445,24 @@ export const messageRepository = {
       }
     }
     if (changed) await saveAll(all);
+    return count;
+  },
+
+  async migrateRoundIndexes(): Promise<number> {
+    if (await canUseSqliteMessages()) {
+      return getBackend().db.migrateRoundIndexes();
+    }
+
+    const all = await loadAll();
+    const before = new Map(all.map((message) => [message.id, message.roundIndex]));
+    ensureAssistantRoundIndexes(all);
+    const count = all.filter(
+      (message) =>
+        message.role === "assistant" &&
+        isPositiveRoundIndex(message.roundIndex) &&
+        !isPositiveRoundIndex(before.get(message.id)),
+    ).length;
+    await saveAll(all);
     return count;
   },
 };

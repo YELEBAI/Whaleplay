@@ -60,6 +60,7 @@ export interface Message {
   agenticOptions?: MessageAgenticOption[];
   hidden?: boolean;
   metadata?: MessageMetadata;
+  roundIndex?: number;
   createdAt: string;
 }
 
@@ -76,4 +77,5 @@ export interface CreateMessageInput {
   agenticOptions?: MessageAgenticOption[];
   hidden?: boolean;
   metadata?: MessageMetadata;
+  roundIndex?: number;
 }

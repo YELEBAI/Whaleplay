@@ -258,7 +258,7 @@ function formatPlannerWorldbookReferences(references: ImagePlannerWorldbookRefer
 
   return [
     "【World Book References】",
-    "These entries matched keywords in the reply. Use only visible facts from them when writing image prompts: character appearance, clothing, species, objects, locations, lighting, symbols, and scene constraints.",
+    "These worldbook entries were selected for this chat. Use only visible facts from them when writing image prompts: character appearance, clothing, species, objects, locations, lighting, symbols, and scene constraints.",
     "Do not quote the references. Do not add invisible lore unless it changes visible appearance.",
     "",
     ...valid.map((reference, index) =>
@@ -283,9 +283,7 @@ export async function planImageMarkersWithModel(options: {
   if (segments.length === 0) return { content };
 
   const provider = createModelProvider(plannerConfig);
-  const worldbookReferenceText = settings.worldbookReferenceEnabled
-    ? formatPlannerWorldbookReferences(worldbookReferences)
-    : "";
+  const worldbookReferenceText = formatPlannerWorldbookReferences(worldbookReferences);
   const result = await provider.generate({
     model: plannerConfig.model,
     omitTemperature: shouldOmitTemperatureForModel(plannerConfig),
@@ -427,15 +425,6 @@ function buildComfyPrompt(workflowJson: string, prompt: string, settings: ImageG
   return replaced;
 }
 
-async function blobToDataUrl(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -474,34 +463,15 @@ function throwIfAborted(signal?: AbortSignal) {
   }
 }
 
-async function fetchComfyImageDataUrlDirect(
+function buildComfyImageViewUrl(
   baseUrl: string,
   image: { filename: string; subfolder?: string; type?: string },
-  signal?: AbortSignal,
 ) {
-  throwIfAborted(signal);
   const url = new URL(`${baseUrl}/view`);
   url.searchParams.set("filename", image.filename);
   if (image.subfolder) url.searchParams.set("subfolder", image.subfolder);
   if (image.type) url.searchParams.set("type", image.type);
-  const response = await fetch(url.toString(), { signal });
-  throwIfAborted(signal);
-  if (!response.ok) throw new Error(`ComfyUI image fetch failed: ${response.status}`);
-  return blobToDataUrl(await response.blob());
-}
-
-async function getComfyImageDataUrl(
-  baseUrl: string,
-  image: { filename: string; subfolder?: string; type?: string },
-  signal?: AbortSignal,
-) {
-  throwIfAborted(signal);
-  const proxied = await invokeComfy(
-    getBackend().comfy.getImageDataUrl(baseUrl, image.filename, image.subfolder || null, image.type || null),
-  );
-  throwIfAborted(signal);
-  if (proxied) return proxied;
-  return fetchComfyImageDataUrlDirect(baseUrl, image, signal);
+  return url.toString();
 }
 
 async function queueComfyPrompt(
@@ -590,9 +560,8 @@ export async function generateComfyImage(prompt: string, settings: ImageGenerati
     for (const output of outputs as Record<string, unknown>[]) {
       const image = (output.images as Array<{ filename: string; subfolder?: string; type?: string }> | undefined)?.[0];
       if (image?.filename) {
-        const dataUrl = await getComfyImageDataUrl(baseUrl, image, signal);
         throwIfAborted(signal);
-        return dataUrl;
+        return buildComfyImageViewUrl(baseUrl, image);
       }
     }
     await sleep(1200, signal);

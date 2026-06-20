@@ -28,6 +28,7 @@ export const useSettingsStore = create<SettingsState>()(
         dailyCostWarningEnabled: state.dailyCostWarningEnabled,
         dailyCostWarningLimitCny: state.dailyCostWarningLimitCny,
         dailyCostSpentCny: state.dailyCostSpentCny,
+        smartStreamingScrollEnabled: state.smartStreamingScrollEnabled,
       }),
     },
   ),

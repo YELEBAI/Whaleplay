@@ -19,6 +19,8 @@ export const tauriBackend: Backend = {
     initMessages: (legacyJson) => invoke("sqlite_init_messages", { legacyMessagesJson: legacyJson }),
     listMessages: (chatId) => invoke("sqlite_list_messages_by_chat_id", { chatId }),
     listRecentMessages: (chatId, limit) => invoke("sqlite_list_recent_messages_by_chat_id", { chatId, limit }),
+    listRecentTurnMessages: (chatId, turnLimit) =>
+      invoke("sqlite_list_recent_turn_messages_by_chat_id", { chatId, turnLimit }),
     listChildMessages: (parentId) => invoke("sqlite_list_child_messages", { parentId }),
     createMessage: (message) => invoke("sqlite_create_message", { message }),
     updateMessage: (id, content) => invoke("sqlite_update_message", { id, content }),
@@ -28,6 +30,7 @@ export const tauriBackend: Backend = {
     deleteByChatId: (chatId) => invoke("sqlite_delete_messages_by_chat_id", { chatId }),
     replaceByChatId: (chatId, messages) => invoke("sqlite_replace_messages_by_chat_id", { chatId, messages }),
     migrateParentIds: () => invoke("sqlite_migrate_parent_ids", {}),
+    migrateRoundIndexes: () => invoke("sqlite_migrate_round_indexes", {}),
     mergeFromSavepoint: (messages) => invoke("sqlite_merge_from_savepoint", { messages }),
   },
 
@@ -37,6 +40,15 @@ export const tauriBackend: Backend = {
     upsert: (record) => invoke("sqlite_upsert_agentic_play_state", { record }),
     delete: (chatId) => invoke("sqlite_delete_agentic_play_state", { chatId }),
     clearAll: () => invoke("sqlite_clear_agentic_play_states"),
+  },
+
+  rag: {
+    upsertChunks: (chunks) => invoke<number>("sqlite_upsert_rag_chunks", { chunks }),
+    listChunksByOwners: (ownerIds, embeddingModel) =>
+      invoke<unknown[]>("sqlite_list_rag_chunks_by_owners", { ownerIds, embeddingModel }),
+    deleteChunksBySourceIds: (sourceIds) => invoke<number>("sqlite_delete_rag_chunks_by_source_ids", { sourceIds }),
+    deleteChunksByOwner: (scope, ownerId) => invoke<number>("sqlite_delete_rag_chunks_by_owner", { scope, ownerId }),
+    countChunksByOwner: (scope, ownerId) => invoke<number>("sqlite_count_rag_chunks_by_owner", { scope, ownerId }),
   },
 
   file: {
@@ -50,6 +62,12 @@ export const tauriBackend: Backend = {
 
   search: {
     webSearch: (query, limit) => invoke("web_search", { query, limit }),
+  },
+
+  ollama: {
+    check: (baseUrl) => invoke("ollama_check", { baseUrl }),
+    pull: (baseUrl, model) => invoke("ollama_pull", { baseUrl, model }),
+    embed: (baseUrl, model, input) => invoke("ollama_embed", { baseUrl, model, input }),
   },
 
   comfy: {

@@ -5,6 +5,7 @@ import { useChatStore } from "../chat.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import {
   agenticPlayStateRepository,
+  chatRepository,
   chatMemoryRepository,
   presetRepository,
   secondaryApiUsageRepository,
@@ -18,6 +19,7 @@ import {
   hashMessages,
   splitMessagesByRecentTurns,
 } from "../memory";
+import { buildStoredContextCompressionPromptPlan } from "../context-compression";
 import {
   createGeneratingImages,
   extractImageMarkers,
@@ -26,6 +28,8 @@ import {
   planImageMarkersWithModel,
   type ImagePlannerWorldbookReference,
 } from "@/features/image-generation/image-generation";
+import { selectWorldbookReferenceEntries } from "@/features/image-generation/worldbook-references";
+import { buildRagContextBlock, updateRagMemoryAfterAssistant } from "@/features/rag/rag-memory";
 import { recordUsageCostAndWarn } from "@/features/billing/usage-cost";
 import { withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
 import { getChatScopedDeepSeekUserId, shouldOmitTemperatureForModel } from "@/features/settings/model-capabilities";
@@ -44,7 +48,7 @@ import {
   stripPromptContent,
   WorldbookContributor,
 } from "@neo-tavern/core";
-import type { Character, BuiltPrompt, ContextBlock, GenerateMessage, Message, ModelConfig } from "@neo-tavern/shared";
+import type { Character, BuiltPrompt, ContextBlock, GenerateMessage, Message, ModelConfig, Worldbook } from "@neo-tavern/shared";
 import type { ChatMemory, ChatMemorySegment } from "@/db/repositories";
 import type { GenerationPhase } from "../chat.types";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
@@ -506,13 +510,20 @@ export function useSendMessage({
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const getWorldbookContextBlocks = async (userInput: string, recentMessages: Message[]) => {
+  const getCurrentWorldbook = useCallback(async (): Promise<Worldbook | null> => {
+    if (!character) return null;
+    const state = useWorldbookStore.getState();
+    if (state.worldbooks.length === 0) {
+      await state.loadWorldbooks();
+    }
     const { worldbooks, activeWorldbookId } = useWorldbookStore.getState();
-    if (!character) return [];
     const worldbookId = character.worldbookId || activeWorldbookId;
-    if (!worldbookId) return [];
-    const wb = worldbooks.find((w) => w.id === worldbookId);
+    return worldbookId ? (worldbooks.find((worldbook) => worldbook.id === worldbookId) ?? null) : null;
+  }, [character]);
+
+  const getWorldbookContextBlocks = async (userInput: string, recentMessages: Message[]) => {
+    if (!character) return [];
+    const wb = await getCurrentWorldbook();
     if (!wb || wb.entries.length === 0) return [];
     const contributor = new WorldbookContributor();
     contributor.setEntries(wb.entries);
@@ -524,27 +535,20 @@ export function useSendMessage({
   };
 
   const getImagePlannerWorldbookReferences = async (content: string): Promise<ImagePlannerWorldbookReference[]> => {
-    const imageSettings = useSettingsStore.getState().imageGeneration;
-    if (!imageSettings.worldbookReferenceEnabled || !character) return [];
+    if (!content.trim() || !chatId) return [];
 
-    const { worldbooks, activeWorldbookId } = useWorldbookStore.getState();
-    const worldbookId = character.worldbookId || activeWorldbookId;
-    if (!worldbookId) return [];
+    const chatState = useChatStore.getState();
+    const chat =
+      chatState.currentChat?.id === chatId
+        ? chatState.currentChat
+        : (chatState.chats.find((candidate) => candidate.id === chatId) ?? (await chatRepository.getById(chatId)));
+    if (!chat?.worldbookReferenceEntryIds?.length) return [];
 
-    const wb = worldbooks.find((w) => w.id === worldbookId);
-    if (!wb || wb.entries.length === 0) return [];
-
-    const contributor = new WorldbookContributor();
-    contributor.setEntries(wb.entries);
-    const blocks = await contributor.contribute({
-      character,
-      recentMessages: [],
-      userInput: content,
-    });
-
-    return blocks.slice(0, 8).map((block) => ({
-      title: block.title,
-      content: capText(block.content, 1200),
+    const { worldbooks } = useWorldbookStore.getState();
+    const entries = selectWorldbookReferenceEntries(worldbooks, chat.worldbookReferenceEntryIds);
+    return entries.map((entry) => ({
+      title: entry.title,
+      content: capText(entry.content, 1200),
     }));
   };
 
@@ -552,109 +556,9 @@ export function useSendMessage({
   const getMemoryPromptPlan = async (
     historyMessages: Message[],
     targetChatId: string,
-    signal?: AbortSignal,
+    _signal?: AbortSignal,
   ): Promise<{ recentMessages: Message[]; memoryBlock: ContextBlock | null }> => {
-    const settings = useSettingsStore.getState();
-    if (!settings.lightweightMemoryEnabled) {
-      return { recentMessages: historyMessages, memoryBlock: null };
-    }
-
-    const { memoryMessages, recentMessages } = splitMessagesByRecentTurns(historyMessages, settings.promptRecentTurns);
-    if (memoryMessages.length === 0) {
-      return { recentMessages, memoryBlock: null };
-    }
-
-    const memorySourceMessages = stripMessages(memoryMessages) as Message[];
-    const compressorConfig = await resolveMemoryCompressorConfig(settings.memoryCompressorConfigId);
-    const compressorKey = getMemoryCompressorKey(compressorConfig);
-    const cached = targetChatId ? await chatMemoryRepository.get(targetChatId) : null;
-    const cachedMessageCount = Math.max(0, Math.min(cached?.sourceMessageCount ?? 0, memorySourceMessages.length));
-    const cachedPrefixMessages = cachedMessageCount > 0 ? memorySourceMessages.slice(0, cachedMessageCount) : [];
-    const cacheReusable =
-      !!cached &&
-      cachedMessageCount > 0 &&
-      cached.sourceHash === hashMessages(cachedPrefixMessages) &&
-      cached.compressorKey === compressorKey &&
-      cached.memorySummaryMaxChars === settings.memorySummaryMaxChars;
-
-    let compressionMode: "local" | "model" | "fallback" = compressorConfig ? "fallback" : "local";
-    let summarizedMessageCount = cacheReusable ? cachedMessageCount : 0;
-    let segments = cacheReusable ? normalizeMemorySegments(cached) : [];
-    let overflowMemoryMessages = cacheReusable ? memorySourceMessages.slice(cachedMessageCount) : ([] as Message[]);
-    let shouldPersistMemory = false;
-
-    if (!cacheReusable || shouldCompactMemoryBuffer(overflowMemoryMessages, settings.memorySummaryMaxChars)) {
-      const messagesToSummarize = cacheReusable ? overflowMemoryMessages : memorySourceMessages;
-      let segmentSummary: string;
-
-      if (compressorConfig) {
-        try {
-          const compressed = await buildModelMemorySummary(
-            messagesToSummarize,
-            settings.memorySummaryMaxChars,
-            compressorConfig,
-            getChatScopedDeepSeekUserId(compressorConfig, targetChatId),
-            signal,
-          );
-          segmentSummary = compressed.summary;
-          const compressedUsage = withDeepSeekUsageCost(compressed.usage, compressorConfig);
-          if (targetChatId) {
-            void secondaryApiUsageRepository.create({
-              chatId: targetChatId,
-              source: "memory-compressor",
-              label: "Memory Compression",
-              modelConfigId: compressorConfig.id,
-              model: compressorConfig.model,
-              usage: compressedUsage,
-            });
-            void recordUsageCostAndWarn(compressedUsage);
-          }
-          compressionMode = "model";
-        } catch (err) {
-          if ((err as Error).name === "AbortError") throw err;
-          segmentSummary = buildLightweightMemorySummary(messagesToSummarize, settings.memorySummaryMaxChars);
-          compressionMode = "fallback";
-        }
-      } else {
-        segmentSummary = buildLightweightMemorySummary(messagesToSummarize, settings.memorySummaryMaxChars);
-        compressionMode = "local";
-      }
-
-      segments = [
-        ...segments,
-        createMemorySegment(segmentSummary, messagesToSummarize, segments.length + 1, {
-          compressorConfigId: compressorConfig?.id ?? null,
-          compressorKey,
-          compressionMode,
-          memorySummaryMaxChars: settings.memorySummaryMaxChars,
-        }),
-      ];
-      summarizedMessageCount = memorySourceMessages.length;
-      overflowMemoryMessages = [];
-      shouldPersistMemory = true;
-    }
-
-    if (targetChatId && shouldPersistMemory) {
-      const summarizedSourceMessages = memorySourceMessages.slice(0, summarizedMessageCount);
-      const summary = formatMemorySegmentsForPrompt(segments);
-      await chatMemoryRepository.upsert({
-        chatId: targetChatId,
-        summary,
-        sourceHash: hashMessages(summarizedSourceMessages),
-        sourceMessageCount: summarizedMessageCount,
-        compressorConfigId: compressorConfig?.id ?? null,
-        compressorKey,
-        compressionMode,
-        memorySummaryMaxChars: settings.memorySummaryMaxChars,
-        segments,
-      });
-    }
-
-    const memorySummary = formatMemorySegmentsForPrompt(segments);
-    return {
-      recentMessages: [...overflowMemoryMessages, ...recentMessages],
-      memoryBlock: createMemoryContextBlock(memorySummary),
-    };
+    return buildStoredContextCompressionPromptPlan(targetChatId, historyMessages);
   };
 
   const hasVisibleAssistantBody = (content: string) => {
@@ -1174,8 +1078,10 @@ export function useSendMessage({
       controllersRef.current.set(chatId, controller);
       beginSending(chatId);
       setChatError(chatId, null);
+      let assistantId: string | null = null;
 
       try {
+        await ensureMessagesHydrated(chatId);
         const activePath = getActivePath(chatId);
         const lastMessageId = activePath.length > 0 ? activePath[activePath.length - 1].id : null;
 
@@ -1190,8 +1096,16 @@ export function useSendMessage({
             (options.hiddenUserMessage ? { hiddenReason: options.hiddenReason ?? "hidden" } : undefined),
         });
 
-        const recentMessages = await ensureMessagesHydrated(chatId);
+        const promptMessages = [...activePath, userMsg];
         const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
+        const assistant = await addMessage({
+          chatId,
+          parentId: userMsg.id,
+          role: "assistant",
+          content: "",
+        });
+        assistantId = assistant.id;
+        setStreamingMessageId(chatId, assistant.id);
 
         const activePresetId = await presetRepository.getActivePresetId();
         let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
@@ -1208,15 +1122,23 @@ export function useSendMessage({
           }
         }
 
-        const historyMessages = recentMessages.slice(0, -1);
+        const historyMessages = promptMessages.slice(0, -1);
         const memoryPlan = await getMemoryPromptPlan(historyMessages, chatId, controller.signal);
-        const worldbookBlocks = await getWorldbookContextBlocks(trimmedContent, stripMessages(recentMessages));
+        const worldbookBlocks = await getWorldbookContextBlocks(trimmedContent, stripMessages(promptMessages));
+        const ragWorldbook = await getCurrentWorldbook();
+        const ragBlock = await buildRagContextBlock({
+          chatId,
+          character,
+          worldbook: ragWorldbook,
+          recentMessages: stripMessages(historyMessages),
+          userInput: trimmedContent,
+        });
         const agenticRecord =
           agenticPlayEnabled && character
             ? await agenticPlayStateRepository.getOrCreate(chatId, character, true)
             : null;
         const agenticBlock = agenticRecord ? createAgenticPlayContextBlock(agenticRecord.gameState) : null;
-        const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
+        const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks, ragBlock].filter(
           Boolean,
         ) as ContextBlock[];
         const effectivePresetItems = agenticRecord ? await getAgenticPlayPresetItems() : presetItems;
@@ -1240,20 +1162,13 @@ export function useSendMessage({
           throw new Error("Model not configured. Please set up API settings first.");
         }
 
-        const assistant = await addMessage({
-          chatId,
-          parentId: userMsg.id,
-          role: "assistant",
-          content: "",
-        });
-        setStreamingMessageId(chatId, assistant.id);
         const debugContext: DebugPromptContext | undefined = useSettingsStore.getState().debugMode
           ? {
               chatId,
               characterId: character.id,
               characterName: character.name,
               contextTokens,
-              round: getNextDebugRound(recentMessages),
+              round: getNextDebugRound(promptMessages),
               assistantMessageId: assistant.id,
               baseTrigger: options.hiddenUserMessage ? "continue" : "send",
               hiddenUserMessage: !!options.hiddenUserMessage,
@@ -1273,6 +1188,14 @@ export function useSendMessage({
             : await generateAssistantWithEmptyRetry(chatId, assistant.id, built, modelConfig, controller, debugContext);
         if (isGenerationActive(controller)) {
           void notifyAssistantOutputComplete(character.name);
+          void updateRagMemoryAfterAssistant({
+            chatId,
+            character,
+            historyBeforeUser: activePath,
+            userMessage: userMsg,
+            assistantId: assistant.id,
+            assistantContent: finalContent,
+          });
         }
         void processImageGeneration(chatId, assistant.id, finalContent);
         await removeEmptyStreamingDraft(assistant.id);
@@ -1282,6 +1205,7 @@ export function useSendMessage({
         } else {
           setChatError(chatId, (err as Error).message || "Failed to send message");
         }
+        await removeEmptyStreamingDraft(assistantId);
       } finally {
         if (controllersRef.current.get(chatId) === controller) {
           controllersRef.current.delete(chatId);
@@ -1300,6 +1224,7 @@ export function useSendMessage({
       beginSending,
       setStreamingMessageId,
       getMemoryPromptPlan,
+      getCurrentWorldbook,
       getWorldbookContextBlocks,
       stripMessages,
       generateAgenticAssistantWithEmptyRetry,
@@ -1325,11 +1250,12 @@ export function useSendMessage({
     let assistantId: string | null = null;
 
     try {
-      const allMessages = await ensureMessagesHydrated(chatId);
+      await ensureMessagesHydrated(chatId);
+      const activePath = getActivePath(chatId);
 
       let lastAssistantIdx = -1;
-      for (let i = allMessages.length - 1; i >= 0; i--) {
-        if (allMessages[i].role === "assistant") {
+      for (let i = activePath.length - 1; i >= 0; i--) {
+        if (activePath[i].role === "assistant") {
           lastAssistantIdx = i;
           break;
         }
@@ -1339,21 +1265,30 @@ export function useSendMessage({
         return;
       }
 
-      const lastAssistantMsg = allMessages[lastAssistantIdx];
+      const lastAssistantMsg = activePath[lastAssistantIdx];
 
       let lastUserIdx = lastAssistantIdx - 1;
-      while (lastUserIdx >= 0 && allMessages[lastUserIdx].role !== "user") lastUserIdx--;
+      while (lastUserIdx >= 0 && activePath[lastUserIdx].role !== "user") lastUserIdx--;
       if (lastUserIdx < 0) {
         setChatError(chatId, "No user message found to regenerate from");
         return;
       }
-      const userContent = allMessages[lastUserIdx].content;
+      const userContent = activePath[lastUserIdx].content;
 
       cancelImageGeneration(lastAssistantMsg.id);
       await deleteMessage(lastAssistantMsg.id);
 
-      const messagesForPrompt = allMessages.filter((message) => message.id !== lastAssistantMsg.id);
+      const messagesForPrompt = activePath.filter((message) => message.id !== lastAssistantMsg.id);
       const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
+      const assistant = await addMessage({
+        chatId,
+        parentId: activePath[lastUserIdx].id,
+        role: "assistant",
+        content: "",
+        roundIndex: lastAssistantMsg.roundIndex,
+      });
+      assistantId = assistant.id;
+      setStreamingMessageId(chatId, assistant.id);
 
       const activePresetId = await presetRepository.getActivePresetId();
       let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
@@ -1369,10 +1304,18 @@ export function useSendMessage({
       const historyMessages = messagesForPrompt.slice(0, -1);
       const memoryPlan = await getMemoryPromptPlan(historyMessages, chatId, controller.signal);
       const worldbookBlocks = await getWorldbookContextBlocks(userContent, stripMessages(messagesForPrompt));
+      const ragWorldbook = await getCurrentWorldbook();
+      const ragBlock = await buildRagContextBlock({
+        chatId,
+        character,
+        worldbook: ragWorldbook,
+        recentMessages: stripMessages(historyMessages),
+        userInput: userContent,
+      });
       const agenticRecord =
         agenticPlayEnabled && character ? await agenticPlayStateRepository.getOrCreate(chatId, character, true) : null;
       const agenticBlock = agenticRecord ? createAgenticPlayContextBlock(agenticRecord.gameState) : null;
-      const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
+      const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks, ragBlock].filter(
         Boolean,
       ) as ContextBlock[];
       const effectivePresetItems = agenticRecord ? await getAgenticPlayPresetItems() : presetItems;
@@ -1392,14 +1335,6 @@ export function useSendMessage({
       const modelConfig = useSettingsStore.getState().modelConfig;
       if (!modelConfig) throw new Error("Model not configured. Please set up API settings first.");
 
-      const assistant = await addMessage({
-        chatId,
-        parentId: allMessages[lastUserIdx].id,
-        role: "assistant",
-        content: "",
-      });
-      assistantId = assistant.id;
-      setStreamingMessageId(chatId, assistant.id);
       const promptMessages = messagesForPrompt;
       const debugContext: DebugPromptContext | undefined = useSettingsStore.getState().debugMode
         ? {
@@ -1427,6 +1362,17 @@ export function useSendMessage({
           : await generateAssistantWithEmptyRetry(chatId, assistant.id, built, modelConfig, controller, debugContext);
       if (isGenerationActive(controller)) {
         void notifyAssistantOutputComplete(character.name);
+        const userMessage = messagesForPrompt[messagesForPrompt.length - 1];
+        if (userMessage) {
+          void updateRagMemoryAfterAssistant({
+            chatId,
+            character,
+            historyBeforeUser: historyMessages,
+            userMessage,
+            assistantId: assistant.id,
+            assistantContent: finalContent,
+          });
+        }
       }
       void processImageGeneration(chatId, assistant.id, finalContent);
     } catch (err) {
@@ -1448,11 +1394,13 @@ export function useSendMessage({
     addMessage,
     deleteMessage,
     ensureMessagesHydrated,
+    getActivePath,
     agenticPlayEnabled,
     onPromptBuilt,
     beginSending,
     setStreamingMessageId,
     getMemoryPromptPlan,
+    getCurrentWorldbook,
     getWorldbookContextBlocks,
     stripMessages,
     generateAgenticAssistantWithEmptyRetry,

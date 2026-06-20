@@ -1,16 +1,68 @@
 import { useState, useEffect } from "react";
-import { Brain, CheckCircle2, ChevronDown, ChevronRight, CircleDashed } from "lucide-react";
+import { AlertCircle, Brain, CheckCircle2, ChevronDown, ChevronRight, CircleDashed, Database, Search } from "lucide-react";
 import type { Message } from "@neo-tavern/shared";
+import type { RagTaskStatus } from "@/features/rag/rag-status.store";
 import { formatDuration, getGenerationStatus } from "./utils";
+
+function formatRagProgress(status: RagTaskStatus) {
+  const total = status.progressTotal ?? 0;
+  if (total <= 0) return "";
+  const current = Math.min(total, Math.max(0, status.progressCurrent ?? 0));
+  return `${current}/${total}`;
+}
+
+function getRagStatusTone(status: RagTaskStatus) {
+  if (status.phase === "error") return "text-destructive";
+  return status.active ? "text-primary" : "text-emerald-500";
+}
+
+function getRagStatusIcon(status: RagTaskStatus) {
+  if (status.phase === "error") return AlertCircle;
+  if (status.phase === "retrieving") return Search;
+  return Database;
+}
+
+export function RagActivityLine({ status }: { status: RagTaskStatus }) {
+  const Icon = getRagStatusIcon(status);
+  const progress = formatRagProgress(status);
+  const detail = [progress, status.detail, status.error].filter(Boolean).join(" · ");
+
+  return (
+    <div className="relative pb-3 pl-5">
+      <span
+        className={`bg-background absolute top-1 left-0 flex h-3 w-3 items-center justify-center rounded-full ${getRagStatusTone(
+          status,
+        )}`}
+      >
+        {status.active ? (
+          <CircleDashed className="h-3.5 w-3.5 animate-spin" />
+        ) : status.phase === "error" ? (
+          <AlertCircle className="h-3.5 w-3.5" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5" />
+        )}
+      </span>
+      <div className="flex w-full max-w-full min-w-0 items-center gap-1 overflow-hidden text-left text-sm font-medium">
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="min-w-0 truncate">
+          {status.label}
+          {detail ? <span className="text-muted-foreground"> · {detail}</span> : null}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function ChatActivityTimeline({
   message,
   active,
   generationStatus,
+  ragStatus,
 }: {
   message: Message;
   active: boolean;
   generationStatus: ReturnType<typeof getGenerationStatus>;
+  ragStatus?: RagTaskStatus | null;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [thinkingOpen, setThinkingOpen] = useState(false);
@@ -78,6 +130,7 @@ export function ChatActivityTimeline({
             </div>
           ) : null}
         </div>
+        {ragStatus ? <RagActivityLine status={ragStatus} /> : null}
       </div>
     </div>
   );

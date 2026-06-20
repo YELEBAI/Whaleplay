@@ -1,4 +1,4 @@
-import { Send, ChevronDown, ChevronUp, Pencil, X, Save, FolderOpen, StopCircle } from "lucide-react";
+import { Send, ChevronDown, ChevronUp, Pencil, X, Save, FolderOpen, StopCircle, Archive } from "lucide-react";
 import { Button, Textarea, cn } from "@neo-tavern/ui";
 import { useTranslation } from "react-i18next";
 import type { PendingSendItem } from "./types";
@@ -34,6 +34,8 @@ export interface ChatInputAreaProps {
   onAbort: () => void;
   onSave: () => void;
   onLoad: () => void;
+  onCompressContext: () => void;
+  isCompressingContext: boolean;
   isGenerating: boolean;
   previewText: string;
   wide?: boolean;
@@ -62,6 +64,8 @@ export function ChatInputArea({
   onAbort,
   onSave,
   onLoad,
+  onCompressContext,
+  isCompressingContext,
   isGenerating,
   previewText,
   wide = false,
@@ -174,6 +178,16 @@ export function ChatInputArea({
                 title={t("loadTitle")}
               >
                 <FolderOpen className={iconCls} />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={onCompressContext}
+                disabled={!hasChat || isGenerating || isCompressingContext || messagesLength === 0}
+                className={btnIconCls}
+                title={t(isCompressingContext ? "contextCompression.running" : "contextCompression.title")}
+              >
+                <Archive className={cn(iconCls, isCompressingContext && "animate-pulse")} />
               </Button>
               {SepBar}
             </div>

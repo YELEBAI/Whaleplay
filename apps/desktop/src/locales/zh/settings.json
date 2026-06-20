@@ -4,6 +4,7 @@
     "api": "DeepSeek API",
     "appearance": "外观",
     "context": "上下文",
+    "rag": "RAG 记忆",
     "regex": "正则规则",
     "general": "通用",
     "image": "图片生成"
@@ -108,6 +109,9 @@
     "dailyCostLimitYuan": "每日费用限额 (元)",
     "toggleDebug": "切换调试模式",
     "toggleDailyCost": "切换每日费用预警",
+    "smartStreamingScroll": "智能流式滚动",
+    "smartStreamingScrollHint": "手动向上滚动时暂停自动贴底；AI 回复完成后跳到本轮消息开头，方便从头阅读。",
+    "toggleSmartStreamingScroll": "切换智能流式滚动",
     "autoUpdate": "自动更新",
     "autoUpdateToggle": "自动更新",
     "autoUpdateHint": "应用启动时自动检查并下载更新。手动安装需前往关于页面。",
@@ -158,6 +162,12 @@
       "medium": "~8k 词",
       "full": "无限制"
     }
+  },
+  "rag": {
+    "title": "RAG 记忆系统",
+    "description": "使用内置本地模型或 Ollama embedding 管理角色卡、世界书和剧情长期记忆。",
+    "enable": "启用 RAG 记忆",
+    "enableHint": "召回结果会作为本轮底部参考资料插入，模型会被提示忽略不相关内容。"
   },
   "regex": {
     "title": "正则规则",

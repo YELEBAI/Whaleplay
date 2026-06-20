@@ -8,6 +8,7 @@ import { getBackend } from "@/platform";
 const MIGRATION_KEY = "neotavern_app_store_migrated_v1";
 const STORAGE_PREFIX = "neotavern";
 const LEGACY_LOCAL_CACHE_KEYS = ["neotavern-characters"];
+const SQLITE_MANAGED_KEYS = new Set(["neotavern_messages"]);
 const STORAGE_TIMEOUT_MS = 4000;
 
 type StorageAttemptResult = { ok: true } | { ok: false; reason: string };
@@ -250,6 +251,7 @@ export async function migrateLocalStorageToAppStore(prefix = STORAGE_PREFIX) {
     }
 
     for (const [key, value] of Object.entries(localEntries(prefix))) {
+      if (SQLITE_MANAGED_KEYS.has(key)) continue;
       const existing = await withTimeout(store.get(key), `app store migration get ${key}`);
       if (existing == null) {
         await withTimeout(store.set(key, value), `app store migration set ${key}`);

@@ -54,7 +54,13 @@ export function useVirtualList({
     getScrollElement: () => containerRef.current,
     estimateSize,
     getItemKey,
+    measureElement: (element, entry) => {
+      const blockSize = entry?.borderBoxSize?.[0]?.blockSize;
+      if (blockSize != null) return Math.ceil(blockSize);
+      return Math.ceil(element.getBoundingClientRect().height);
+    },
     overscan,
+    useAnimationFrameWithResizeObserver: true,
   });
 
   const scrollToIndex = useCallback(

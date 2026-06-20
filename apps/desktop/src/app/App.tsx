@@ -40,6 +40,10 @@ function AppContent() {
       if (migratedCount > 0) {
         console.warn(`[migration] Set parentId for ${migratedCount} messages`);
       }
+      const migratedRoundIndexCount = await messageRepository.migrateRoundIndexes();
+      if (migratedRoundIndexCount > 0) {
+        console.warn(`[migration] Set roundIndex for ${migratedRoundIndexCount} assistant messages`);
+      }
       await seedTestCharacter();
       await seedBuiltinRegex();
       await seedLunaWorldbook();
@@ -47,7 +51,9 @@ function AppContent() {
       await seedSeraphina();
       await seedEldoriaWorldbook();
       await useSettingsStore.getState().loadAllConfigs();
+      await useSettingsStore.getState().loadSmartStreamingScrollEnabled();
       await useSettingsStore.getState().loadMemorySettings();
+      await useSettingsStore.getState().loadRagMemorySettings();
       await useSettingsStore.getState().loadImageGenerationSettings();
       await useSettingsStore.getState().loadRegexRules();
     })();

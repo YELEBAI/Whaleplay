@@ -2,6 +2,7 @@ pub mod comfy;
 pub mod db;
 pub mod file;
 pub mod lan;
+pub mod ollama;
 pub mod search;
 
 use std::{collections::BTreeMap, fs, path::PathBuf};
@@ -96,8 +97,10 @@ pub fn run() {
             db::sqlite_init_messages,
             db::sqlite_list_messages_by_chat_id,
             db::sqlite_list_recent_messages_by_chat_id,
+            db::sqlite_list_recent_turn_messages_by_chat_id,
             db::sqlite_list_child_messages,
             db::sqlite_migrate_parent_ids,
+            db::sqlite_migrate_round_indexes,
             db::sqlite_create_message,
             db::sqlite_update_message,
             db::sqlite_patch_message,
@@ -110,7 +113,15 @@ pub fn run() {
             db::sqlite_upsert_agentic_play_state,
             db::sqlite_delete_agentic_play_state,
             db::sqlite_clear_agentic_play_states,
+            db::sqlite_upsert_rag_chunks,
+            db::sqlite_list_rag_chunks_by_owners,
+            db::sqlite_delete_rag_chunks_by_source_ids,
+            db::sqlite_delete_rag_chunks_by_owner,
+            db::sqlite_count_rag_chunks_by_owner,
             search::web_search,
+            ollama::ollama_check,
+            ollama::ollama_pull,
+            ollama::ollama_embed,
             comfy::comfy_get_system_stats,
             comfy::comfy_queue_prompt,
             comfy::comfy_get_history,

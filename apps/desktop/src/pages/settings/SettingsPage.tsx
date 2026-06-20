@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Bug, Plug, Palette, Regex, SlidersHorizontal, Image as ImageIcon } from "lucide-react";
+import { BrainCircuit, Bug, Plug, Palette, Regex, SlidersHorizontal, Image as ImageIcon } from "lucide-react";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { getStorageItem, setStorageItem } from "@/db/storage";
 import { SettingsSidebar } from "./SettingsSidebar";
@@ -9,6 +9,7 @@ import { ContextSection } from "./ContextSection";
 import { GeneralSection } from "./GeneralSection";
 import { ApiSection } from "./ApiSection";
 import { ImageSection } from "./ImageSection";
+import { RagSection } from "./RagSection";
 import { RegexSection } from "./RegexSection";
 import { toast } from "@/utils/toast";
 import { getLocale, type Locale } from "@/i18n";
@@ -57,6 +58,7 @@ export function SettingsPage() {
   const loadRegexRules = useSettingsStore((s) => s.loadRegexRules);
   const loadMemorySettings = useSettingsStore((s) => s.loadMemorySettings);
   const loadImageGenerationSettings = useSettingsStore((s) => s.loadImageGenerationSettings);
+  const loadRagMemorySettings = useSettingsStore((s) => s.loadRagMemorySettings);
   const loadDailyCostWarningSettings = useSettingsStore((s) => s.loadDailyCostWarningSettings);
   const loadDailyCostSpent = useSettingsStore((s) => s.loadDailyCostSpent);
 
@@ -65,6 +67,7 @@ export function SettingsPage() {
     { key: "api", icon: Plug, label: t("sections.api") },
     { key: "appearance", icon: Palette, label: t("sections.appearance") },
     { key: "context", icon: SlidersHorizontal, label: t("sections.context") },
+    { key: "rag", icon: BrainCircuit, label: t("sections.rag") },
     { key: "image", icon: ImageIcon, label: t("sections.image") },
     { key: "regex", icon: Regex, label: t("sections.regex") },
   ];
@@ -75,6 +78,7 @@ export function SettingsPage() {
     loadRegexRules();
     loadMemorySettings();
     loadImageGenerationSettings();
+    loadRagMemorySettings();
     loadDailyCostWarningSettings();
     loadDailyCostSpent();
     getStorageItem("neotavern_secret_unlocked").then((value) => {
@@ -88,6 +92,7 @@ export function SettingsPage() {
     loadRegexRules,
     loadMemorySettings,
     loadImageGenerationSettings,
+    loadRagMemorySettings,
     loadDailyCostWarningSettings,
     loadDailyCostSpent,
   ]);
@@ -126,6 +131,7 @@ export function SettingsPage() {
         {section === "context" && (
           <ContextSection contextTokens={contextTokens} setContextTokens={setContextTokens} t={t} />
         )}
+        {section === "rag" && <RagSection t={t} />}
         {section === "image" && <ImageSection t={t} />}
         {section === "regex" && <RegexSection t={t} />}
       </div>

@@ -142,16 +142,6 @@ export async function seedBuiltinRegex() {
     {
       id: generateId(),
       presetId: "_neo_builtin",
-      name: "💬 Dialogue",
-      pattern: BUILTIN_PATTERN,
-      displayTemplate: BUILTIN_TEMPLATE,
-      stripFromPrompt: false,
-      enabled: true,
-      createdAt: now,
-    },
-    {
-      id: generateId(),
-      presetId: "_neo_builtin",
       name: "📦 Content (hide)",
       pattern: "<content>([\\s\\S]*?)</content>",
       displayTemplate: "$1",
@@ -201,7 +191,7 @@ export async function seedBuiltinRegex() {
   const builtinPreset: RegexPreset = {
     id: "_neo_builtin",
     name: "Whale Play Built-in",
-    description: "Auto-generated system rules for dialogue, content, and summary formatting",
+    description: "Auto-generated system rules for content, summary, and action formatting",
     isGlobal: true,
     rules: requiredRules,
     createdAt: now,
@@ -536,9 +526,6 @@ const LUNA_WORLDBOOK_ENTRIES_CN: CreateWorldbookEntryInput[] = [
     enabled: true,
   },
 ];
-
-const BUILTIN_PATTERN = "(?:^|\\n)([^\\s：:]{1,10})[：:]\\s*([^\\n]+)";
-const BUILTIN_TEMPLATE = "$1\n$2";
 
 function buildSeedWorldbook(
   id: string,
