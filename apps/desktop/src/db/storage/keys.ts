@@ -14,6 +14,8 @@ export const prefKeys = {
   memorySummaryMaxChars: "memory:summary-max-chars",
   memoryCompressorConfigId: "memory:compressor-config-id",
   imageGeneration: "image-generation",
+  characterViewMode: "character:view-mode",
+  characterSearchExpanded: "character:search-expanded",
 } as const;
 
 export const dataKeys = {

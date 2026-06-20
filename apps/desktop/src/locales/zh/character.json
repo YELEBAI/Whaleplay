@@ -1,13 +1,54 @@
 {
   "title": "角色管理",
   "newCharacter": "新建角色",
-  "importCard": "导入角色卡",
+  "importCard": "导入角色",
   "loading": "加载中……",
   "noCharacters": "暂无角色",
   "characterMenu": "角色菜单",
   "dismiss": "关闭",
   "contextMenu": {
-    "details": "详情"
+    "details": "详情",
+    "edit": "编辑",
+    "delete": "删除",
+    "chat": "聊天"
+  },
+  "search": {
+    "open": "打开搜索",
+    "close": "关闭搜索",
+    "placeholder": "搜索角色名称、描述、人格……",
+    "noResults": "未找到匹配的角色",
+    "nameMatch": "名称匹配",
+    "descMatch": "描述匹配",
+    "personalityMatch": "人格匹配"
+  },
+  "view": {
+    "grid": "网格",
+    "list": "列表"
+  },
+  "create": {
+    "title": "创建新角色",
+    "description": "选择创建方式",
+    "traditional": "传统填表",
+    "traditionalDesc": "手动填写角色信息",
+    "builder": "Whale Builder",
+    "builderDesc": "使用Skill-based AI创作角色"
+  },
+  "sidebar": {
+    "title": "角色详情",
+    "startChat": "使用此角色进行对话",
+    "noCharacterSelected": "点击角色查看详情"
+  },
+  "modeDialog": {
+    "title": "选择会话模式",
+    "description": "为\"{{name}}\"创建一个新会话。",
+    "normal": {
+      "label": "普通模式",
+      "desc": "角色按当前角色卡直接对话。"
+    },
+    "agentic": {
+      "label": "实验模式",
+      "desc": "主持人推进场景、判定风险并维护状态。"
+    }
   },
   "dialog": {
     "editCharacter": "编辑角色",
