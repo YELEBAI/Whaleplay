@@ -282,6 +282,18 @@ export function RagSection({ t }: SettingsSectionProps) {
             />
           </div>
           <div>
+            <Label>参考资料字符预算</Label>
+            <Input
+              className="mt-1"
+              type="number"
+              min={600}
+              max={12000}
+              step={100}
+              value={settings.maxReferenceChars}
+              onChange={(event) => updateRagMemorySettings({ maxReferenceChars: Number(event.target.value) })}
+            />
+          </div>
+          <div>
             <Label>相似度阈值</Label>
             <Input
               className="mt-1"

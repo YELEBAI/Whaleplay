@@ -37,6 +37,7 @@ export interface RagMemorySettings {
   summarySourceTurns: number;
   queryRecentTurns: number;
   maxRecallChunks: number;
+  maxReferenceChars: number;
   similarityThreshold: number;
   maxChunkChars: number;
   maxAssistantTokensForIndex: number;
@@ -88,6 +89,7 @@ export const DEFAULT_RAG_MEMORY_SETTINGS: RagMemorySettings = {
   summarySourceTurns: 2,
   queryRecentTurns: 5,
   maxRecallChunks: 6,
+  maxReferenceChars: 3200,
   similarityThreshold: 0.45,
   maxChunkChars: 700,
   maxAssistantTokensForIndex: 1800,
@@ -125,6 +127,7 @@ export function normalizeRagMemorySettings(input: Partial<RagMemorySettings> = {
     summarySourceTurns: clampNumber(input.summarySourceTurns, DEFAULT_RAG_MEMORY_SETTINGS.summarySourceTurns, 1, 8),
     queryRecentTurns: clampNumber(input.queryRecentTurns, DEFAULT_RAG_MEMORY_SETTINGS.queryRecentTurns, 1, 12),
     maxRecallChunks: clampNumber(input.maxRecallChunks, DEFAULT_RAG_MEMORY_SETTINGS.maxRecallChunks, 1, 16),
+    maxReferenceChars: clampNumber(input.maxReferenceChars, DEFAULT_RAG_MEMORY_SETTINGS.maxReferenceChars, 600, 12000),
     similarityThreshold: clampNumber(
       input.similarityThreshold,
       DEFAULT_RAG_MEMORY_SETTINGS.similarityThreshold,

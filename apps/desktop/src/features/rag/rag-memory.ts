@@ -549,7 +549,11 @@ async function rewriteRecallQueries(options: {
   return parseRewriteQueries(result.content);
 }
 
-const KEYWORD_RECALL_MIN_SCORE = 0.16;
+const KEYWORD_RECALL_MIN_SCORE = 0.22;
+const STRONG_KEYWORD_RECALL_SCORE = 0.52;
+const RELATIVE_RECALL_SCORE_RATIO = 0.72;
+const RECALL_SCORE_DROP_TOLERANCE = 0.18;
+const SAME_SOURCE_EXTRA_RATIO = 0.86;
 const COMMON_RECALL_TERMS = new Set([
   "什么",
   "怎么",
@@ -682,6 +686,18 @@ function scoreKeywordRecall(chunk: RagChunkRecord, queryHaystack: string, queryT
     keywordScore: Math.min(0.95, strongScore + Math.min(0.42, weakScore)),
     keywordMatches: Array.from(matches).slice(0, 5),
   };
+}
+
+function getRecallScoreFloor(bestScore: number) {
+  if (bestScore <= 0) return KEYWORD_RECALL_MIN_SCORE;
+  return Math.max(
+    KEYWORD_RECALL_MIN_SCORE,
+    Math.min(bestScore * RELATIVE_RECALL_SCORE_RATIO, bestScore - RECALL_SCORE_DROP_TOLERANCE),
+  );
+}
+
+function hasStrongRecallSignal(item: { matchedByVector: boolean; matchedByKeyword: boolean; keywordScore: number }) {
+  return item.keywordScore >= STRONG_KEYWORD_RECALL_SCORE || (item.matchedByVector && item.matchedByKeyword);
 }
 
 function formatChunkForPrompt(chunk: RagChunkRecord) {
@@ -904,12 +920,42 @@ export async function buildRagContextBlock(options: {
       .filter((item) => item.matchedByVector || item.matchedByKeyword)
       .sort((a, b) => b.score - a.score || b.vectorScore - a.vectorScore || b.keywordScore - a.keywordScore);
 
+    const bestScore = scored[0]?.score ?? 0;
+    const scoreFloor = getRecallScoreFloor(bestScore);
     const selected: typeof scored = [];
-    const seenSources = new Set<string>();
+    const selectedPromptTexts: string[] = [];
+    const sourceHitCounts = new Map<string, number>();
+    let selectedChars = 0;
+    let skippedByRelevance = 0;
+    let skippedBySource = 0;
+    let skippedByBudget = 0;
     for (const item of scored) {
+      if (!hasStrongRecallSignal(item) && item.score < scoreFloor) {
+        skippedByRelevance += 1;
+        continue;
+      }
+
       const key = `${item.chunk.scope}:${item.chunk.sourceId}`;
-      if (seenSources.has(key) && selected.length >= Math.ceil(settings.maxRecallChunks / 2)) continue;
-      seenSources.add(key);
+      const sourceHitCount = sourceHitCounts.get(key) ?? 0;
+      if (sourceHitCount > 0) {
+        const allowExtraFromSameSource =
+          sourceHitCount < 2 && hasStrongRecallSignal(item) && item.score >= bestScore * SAME_SOURCE_EXTRA_RATIO;
+        if (!allowExtraFromSameSource) {
+          skippedBySource += 1;
+          continue;
+        }
+      }
+
+      const promptText = formatChunkForPrompt(item.chunk);
+      const nextChars = promptText.length + (selectedPromptTexts.length ? 2 : 0);
+      if (selected.length > 0 && selectedChars + nextChars > settings.maxReferenceChars) {
+        skippedByBudget += 1;
+        continue;
+      }
+
+      sourceHitCounts.set(key, sourceHitCount + 1);
+      selectedChars += nextChars;
+      selectedPromptTexts.push(promptText);
       selected.push(item);
       if (selected.length >= settings.maxRecallChunks) break;
     }
@@ -936,7 +982,9 @@ export async function buildRagContextBlock(options: {
         selected.filter((item) => item.matchedByKeyword).length
       }；查询 ${queryTexts.length}${rewrittenQueries.length ? ` / AI 改写 ${rewrittenQueries.length}` : ""}；候选 ${
         searchable.length
-      }${liveWorldbookCandidates.length ? ` / 实时世界书 ${liveWorldbookCandidates.length}` : ""}`,
+      }${liveWorldbookCandidates.length ? ` / 实时世界书 ${liveWorldbookCandidates.length}` : ""}；参考 ${selectedChars}/${
+        settings.maxReferenceChars
+      } 字；过滤 弱相关 ${skippedByRelevance} / 同源 ${skippedBySource} / 超预算 ${skippedByBudget}`,
       progressCurrent: 3,
       progressTotal: 3,
       recalledCount: selected.length,
@@ -953,7 +1001,7 @@ export async function buildRagContextBlock(options: {
         "以下资料由 RAG 记忆系统自动召回，仅作为这一轮回复的底部参考资料。",
         "部分参考资料可能与当前剧情不相关；如果与最近完整对话、角色当前状态或用户输入冲突，请以最近完整对话为准，并无视不相关资料。",
         "",
-        ...selected.map(({ chunk }) => formatChunkForPrompt(chunk)),
+        ...selectedPromptTexts,
       ].join("\n\n"),
     };
   } catch (error) {
