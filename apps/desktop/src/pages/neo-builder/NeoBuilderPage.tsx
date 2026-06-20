@@ -169,7 +169,7 @@ export function NeoBuilderPage() {
   }, [builderSessionId, scheduleBuilderScrollToBottom]);
 
   useEffect(() => {
-    writeBuilderWorkspaceRecords(workspaceRecords);
+    void writeBuilderWorkspaceRecords(workspaceRecords);
   }, [workspaceRecords]);
 
   useEffect(() => {
@@ -189,7 +189,7 @@ export function NeoBuilderPage() {
       savedCharacterId,
       builderSessionId,
     };
-    writeBuilderWorkspaceSnapshot(snapshot);
+    void writeBuilderWorkspaceSnapshot(snapshot);
     if (hasWorkspaceProgress(snapshot)) {
       startTransition(() => {
         setWorkspaceRecords((records) => upsertWorkspaceRecord(records, createWorkspaceRecord(snapshot)));

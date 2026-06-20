@@ -11,13 +11,49 @@ use actix_web::{
 };
 use serde_json::Value;
 
-use crate::AppStore;
+use crate::store;
+use crate::store::StoreOp;
+
+const LAN_ENABLED_KEY: &str = "sys:lan:enabled";
+const LAN_ADDRESS_KEY: &str = "sys:lan:address";
+const LAN_PORT_KEY: &str = "sys:lan:port";
+const LAN_PASSWORD_KEY: &str = "secret:lan:password";
+const CURRENT_STORE_SCHEMA_VERSION: &str = "4";
+
+fn get_with_legacy(app: &tauri::AppHandle, key: &str, legacy: &str) -> Option<String> {
+    store::get(app, key)
+        .ok()
+        .flatten()
+        .or_else(|| store::get(app, legacy).ok().flatten())
+}
+
+fn store_schema_ready(app: &tauri::AppHandle) -> bool {
+    let version = store::get(app, "meta:schema-version").ok().flatten();
+    schema_version_ready(version.as_deref())
+}
+
+fn schema_version_ready(version: Option<&str>) -> bool {
+    version.is_some_and(|version| version == CURRENT_STORE_SCHEMA_VERSION)
+}
+
+fn schema_not_ready() -> HttpResponse {
+    HttpResponse::ServiceUnavailable().json(serde_json::json!({
+        "error": "shared storage migration is not complete",
+        "expectedSchema": CURRENT_STORE_SCHEMA_VERSION
+    }))
+}
+
+fn is_legacy_store_key(key: &str) -> bool {
+    key.starts_with("neotavern_") || key.starts_with("neotavern-") || key.starts_with("neo:")
+}
+
+fn legacy_write_rejected() -> HttpResponse {
+    HttpResponse::Conflict().json(serde_json::json!({
+        "error": "legacy storage keys are read-only after schema v4"
+    }))
+}
 
 /// In-memory session tokens.
-///
-/// Tokens are held in memory only and are destroyed when the server shuts
-/// down (i.e. when the app closes). No explicit cleanup is needed — the
-/// HashMap is simply dropped.
 type TokenStore = Arc<Mutex<std::collections::HashMap<String, Instant>>>;
 
 /// Channel used to signal the LAN server to shut down gracefully.
@@ -28,24 +64,21 @@ static SHUTDOWN_TX: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>> =
 pub async fn start(
     addr: String,
     port: u16,
-    store: Arc<Mutex<AppStore>>,
-    store_path: String,
+    app_handle: tauri::AppHandle,
     web_dir: String,
     mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
 ) -> std::io::Result<()> {
     let tokens: TokenStore = Arc::new(Mutex::new(std::collections::HashMap::new()));
 
     let state = web::Data::new(ServerState {
-        store: store.clone(),
+        app: app_handle.clone(),
         tokens: tokens.clone(),
     });
-    let store_path_data = web::Data::new(store_path);
 
     let server = HttpServer::new(move || {
         let web = web_dir.clone();
         App::new()
             .app_data(state.clone())
-            .app_data(store_path_data.clone())
             // ── Public routes ────────────────────────
             .route("/api/auth/login", web::post().to(login))
             // ── Protected API ───────────────────────
@@ -55,7 +88,8 @@ pub async fn start(
                     .route("/store/{key}", web::get().to(get_store))
                     .route("/store/{key}", web::put().to(set_store))
                     .route("/store/{key}", web::delete().to(delete_store))
-                    .route("/store", web::get().to(list_store)),
+                    .route("/store", web::get().to(list_store))
+                    .route("/store/batch", web::post().to(store_batch)),
             )
             // ── SPA (no auth — LoginGate handles it) ─
             .service(Files::new("/", &web).index_file("index.html"))
@@ -75,7 +109,7 @@ pub async fn start(
 }
 
 struct ServerState {
-    store: Arc<Mutex<AppStore>>,
+    app: tauri::AppHandle,
     tokens: TokenStore,
 }
 
@@ -85,7 +119,6 @@ async fn auth_middleware(
     req: ServiceRequest,
     next: Next<BoxBody>,
 ) -> Result<ServiceResponse<BoxBody>, actix_web::Error> {
-    // Skip auth for localhost / 127.0.0.1
     let host = req.connection_info().host().to_string();
     let is_local = host.starts_with("localhost")
         || host.starts_with("127.0.0.1")
@@ -94,7 +127,6 @@ async fn auth_middleware(
         return next.call(req).await;
     }
 
-    // Login endpoint is public
     if req.path() == "/api/auth/login" {
         return next.call(req).await;
     }
@@ -130,7 +162,6 @@ async fn auth_middleware(
         return next.call(req).await;
     }
 
-    // Unauthenticated API call
     Ok(req.into_response(
         HttpResponse::Unauthorized()
             .json(serde_json::json!({ "error": "unauthorized" }))
@@ -145,29 +176,15 @@ struct LoginBody {
     password: String,
 }
 
-async fn login(
-    state: web::Data<ServerState>,
-    store_path: web::Data<String>,
-    body: web::Json<LoginBody>,
-) -> HttpResponse {
-    // Read password directly from disk — the Tauri invoke may have updated it
-    let stored_pw = std::fs::read_to_string(store_path.get_ref())
-        .ok()
-        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
-        .and_then(|v| {
-            v.get("neotavern_lan_password")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        });
+async fn login(state: web::Data<ServerState>, body: web::Json<LoginBody>) -> HttpResponse {
+    let stored_pw = get_with_legacy(&state.app, LAN_PASSWORD_KEY, "neotavern_lan_password");
 
     match stored_pw {
         Some(pw) if pw == body.password => {
-            // Generate a cryptographically secure random token (32 hex chars)
             let token: String = (0..16)
                 .map(|_| format!("{:02x}", rand::random::<u8>()))
                 .collect();
             let mut tokens = state.tokens.lock().unwrap();
-            // Sweep expired tokens (older than 24 hours)
             tokens
                 .retain(|_, instant| instant.elapsed() < std::time::Duration::from_secs(24 * 3600));
             tokens.insert(token.clone(), std::time::Instant::now());
@@ -180,65 +197,98 @@ async fn login(
 // ── Store handlers ─────────────────────────────────────
 
 async fn get_store(state: web::Data<ServerState>, key: web::Path<String>) -> HttpResponse {
-    let store = state.store.lock().unwrap();
-    match store.get(&key.into_inner()) {
-        Some(v) => HttpResponse::Ok().json(serde_json::json!({ "value": v })),
-        None => HttpResponse::Ok().json(serde_json::json!({ "value": null })),
+    if !store_schema_ready(&state.app) {
+        return schema_not_ready();
+    }
+    match store::get(&state.app, &key.into_inner()) {
+        Ok(Some(v)) => HttpResponse::Ok().json(serde_json::json!({ "value": v })),
+        Ok(None) => HttpResponse::Ok().json(serde_json::json!({ "value": null })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e })),
     }
 }
 
 async fn set_store(
     state: web::Data<ServerState>,
-    store_path: web::Data<String>,
     key: web::Path<String>,
     body: web::Json<Value>,
 ) -> HttpResponse {
-    let raw = {
-        let mut store = state.store.lock().unwrap();
-        let value = body.get("value").and_then(|v| v.as_str()).unwrap_or("");
-        store.insert(key.into_inner(), value.to_string());
-        serde_json::to_string_pretty(&*store).unwrap()
+    if !store_schema_ready(&state.app) {
+        return schema_not_ready();
+    }
+    let key = key.into_inner();
+    if is_legacy_store_key(&key) {
+        return legacy_write_rejected();
+    }
+    let Some(value) = body.get("value").and_then(|v| v.as_str()) else {
+        return HttpResponse::BadRequest()
+            .json(serde_json::json!({ "error": "value must be a string" }));
     };
-    let _ = std::fs::write(store_path.get_ref(), raw);
-    HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
+    match store::set(&state.app, &key, value) {
+        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "ok": true })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e })),
+    }
 }
 
-async fn delete_store(
-    state: web::Data<ServerState>,
-    store_path: web::Data<String>,
-    key: web::Path<String>,
-) -> HttpResponse {
-    let raw = {
-        let mut store = state.store.lock().unwrap();
-        store.remove(&key.into_inner());
-        serde_json::to_string_pretty(&*store).unwrap()
-    };
-    let _ = std::fs::write(store_path.get_ref(), raw);
-    HttpResponse::Ok().json(serde_json::json!({ "ok": true }))
+async fn delete_store(state: web::Data<ServerState>, key: web::Path<String>) -> HttpResponse {
+    if !store_schema_ready(&state.app) {
+        return schema_not_ready();
+    }
+    let key = key.into_inner();
+    if is_legacy_store_key(&key) {
+        return legacy_write_rejected();
+    }
+    match store::remove(&state.app, &key) {
+        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "ok": true })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e })),
+    }
 }
 
 async fn list_store(state: web::Data<ServerState>) -> HttpResponse {
-    let store = state.store.lock().unwrap();
-    HttpResponse::Ok().json(&*store)
+    if !store_schema_ready(&state.app) {
+        return schema_not_ready();
+    }
+    match store::entries(&state.app) {
+        Ok(mut entries) => {
+            entries.retain(|key, _| {
+                !key.starts_with("secret:")
+                    && key != "neotavern_setting_tavilyApiKey"
+                    && key != "neotavern_lan_password"
+                    && key != "meta:migration-lock"
+            });
+            HttpResponse::Ok().json(entries)
+        }
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e })),
+    }
+}
+
+async fn store_batch(state: web::Data<ServerState>, body: web::Json<Vec<StoreOp>>) -> HttpResponse {
+    if !store_schema_ready(&state.app) {
+        return schema_not_ready();
+    }
+    let operations = body.into_inner();
+    if operations
+        .iter()
+        .any(|operation| is_legacy_store_key(&operation.key))
+    {
+        return legacy_write_rejected();
+    }
+    match store::batch_ops(&state.app, &operations) {
+        Ok(()) => HttpResponse::Ok().json(serde_json::json!({ "ok": true })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({ "error": e })),
+    }
 }
 
 // ── LAN server commands ────────────────────────────────
 
 #[tauri::command]
 pub(crate) fn lan_server_status(app: tauri::AppHandle) -> Result<String, String> {
-    let store = crate::read_app_store(&app)?;
-    let enabled = store
-        .get("neotavern_lan_enabled")
+    let enabled = get_with_legacy(&app, LAN_ENABLED_KEY, "neotavern_lan_enabled")
         .map(|v| v == "true")
         .unwrap_or(false);
-    let addr = store
-        .get("neotavern_lan_addr")
-        .cloned()
+    let addr = get_with_legacy(&app, LAN_ADDRESS_KEY, "neotavern_lan_addr")
         .unwrap_or_else(|| "0.0.0.0".into());
-    let port = store
-        .get("neotavern_lan_port")
-        .cloned()
-        .unwrap_or_else(|| "3000".into());
+    let port =
+        get_with_legacy(&app, LAN_PORT_KEY, "neotavern_lan_port").unwrap_or_else(|| "3000".into());
 
     if enabled {
         Ok(format!("Running on {addr}:{port}"))
@@ -248,7 +298,6 @@ pub(crate) fn lan_server_status(app: tauri::AppHandle) -> Result<String, String>
 }
 
 /// Signal the LAN server to stop gracefully.
-/// Call this on Tauri app exit so the server thread can join.
 pub(crate) fn shutdown_lan_server() {
     if let Some(tx) = SHUTDOWN_TX.lock().unwrap().take() {
         let _ = tx.send(());
@@ -259,42 +308,31 @@ pub(crate) fn try_start_lan_server(handle: tauri::AppHandle) {
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let mut store = crate::read_app_store(&handle).unwrap_or_default();
-            let enabled = store
-                .get("neotavern_lan_enabled")
+            let enabled = get_with_legacy(&handle, LAN_ENABLED_KEY, "neotavern_lan_enabled")
                 .map(|v| v == "true")
                 .unwrap_or(false);
             if !enabled {
                 return;
             }
 
-            let addr = store
-                .get("neotavern_lan_addr")
-                .cloned()
+            let addr = get_with_legacy(&handle, LAN_ADDRESS_KEY, "neotavern_lan_addr")
                 .unwrap_or_else(|| "0.0.0.0".into());
-            let port: u16 = store
-                .get("neotavern_lan_port")
+            let port: u16 = get_with_legacy(&handle, LAN_PORT_KEY, "neotavern_lan_port")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(3000);
 
-            let store_path = crate::app_store_path(&handle)
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_default();
-
             // Generate and persist LAN password on first launch
-            if !store.contains_key("neotavern_lan_password") {
+            if get_with_legacy(&handle, LAN_PASSWORD_KEY, "neotavern_lan_password").is_none() {
                 let pw = random_password();
-                store.insert("neotavern_lan_password".into(), pw);
-                let _ = crate::write_store_to_path(&store, &std::path::PathBuf::from(&store_path));
+                let _ = store::set(&handle, LAN_PASSWORD_KEY, &pw);
             }
 
             let web_dir = resolve_web_dir(&handle);
-            let shared_store: Arc<Mutex<AppStore>> = Arc::new(Mutex::new(store));
 
             let (tx, rx) = tokio::sync::oneshot::channel();
             *SHUTDOWN_TX.lock().unwrap() = Some(tx);
 
-            if let Err(e) = start(addr, port, shared_store, store_path, web_dir, rx).await {
+            if let Err(e) = start(addr, port, handle.clone(), web_dir, rx).await {
                 eprintln!("LAN server failed: {e}");
             }
         });
@@ -316,12 +354,6 @@ fn random_password() -> String {
     pw
 }
 
-/// Resolve the web assets directory at runtime.
-///
-/// Priority:
-/// 1. `<exe_dir>/web/` — bundled install (see tauri.conf.json resources)
-/// 2. `<exe_dir>/` — flat layout (NSIS installer may flatten)
-/// 3. `apps/desktop/dist` — dev fallback
 fn resolve_web_dir(_handle: &tauri::AppHandle) -> String {
     let exe = match std::env::current_exe() {
         Ok(exe) => exe,
@@ -332,13 +364,11 @@ fn resolve_web_dir(_handle: &tauri::AppHandle) -> String {
         return dev_web_dir();
     };
 
-    // Bundled layout: <install>/web/index.html
     let web_dir = install_dir.join("web");
     if web_dir.join("index.html").exists() {
         return web_dir.to_string_lossy().to_string();
     }
 
-    // Flat layout (NSIS): <install>/index.html
     if install_dir.join("index.html").exists() {
         return install_dir.to_string_lossy().to_string();
     }
@@ -350,4 +380,24 @@ fn dev_web_dir() -> String {
     std::env::current_dir()
         .map(|p| p.join("apps/desktop/dist").to_string_lossy().to_string())
         .unwrap_or_else(|_| "apps/desktop/dist".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_legacy_store_key, schema_version_ready};
+
+    #[test]
+    fn rest_store_requires_current_shared_schema() {
+        assert!(schema_version_ready(Some("4")));
+        assert!(!schema_version_ready(Some("3")));
+        assert!(!schema_version_ready(None));
+    }
+
+    #[test]
+    fn rest_store_rejects_legacy_write_namespaces() {
+        assert!(is_legacy_store_key("neotavern_characters"));
+        assert!(is_legacy_store_key("neotavern-settings"));
+        assert!(is_legacy_store_key("neo:last-chat-id"));
+        assert!(!is_legacy_store_key("data:characters"));
+    }
 }

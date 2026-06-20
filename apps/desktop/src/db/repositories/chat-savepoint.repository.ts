@@ -1,8 +1,8 @@
 import { generateId } from "@neo-tavern/shared";
 import type { Message } from "@neo-tavern/shared";
-import { getStorageItem, setStorageItem } from "../storage";
-
-const STORAGE_KEY = "neotavern_chat_savepoints";
+import { data } from "../kv";
+import { dataKeys } from "../storage/keys";
+import { loadArray } from "../storage/repository-helpers";
 
 export interface ChatSavepoint {
   id: string;
@@ -31,16 +31,11 @@ export function createDefaultSavepointName(date = new Date()) {
 }
 
 async function loadAll(): Promise<ChatSavepoint[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<ChatSavepoint>(data, dataKeys.chatSavepoints);
 }
 
 async function saveAll(savepoints: ChatSavepoint[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(savepoints));
+  await data.setJson(dataKeys.chatSavepoints, savepoints);
 }
 
 export const chatSavepointRepository = {

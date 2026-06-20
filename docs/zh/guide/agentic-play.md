@@ -39,7 +39,7 @@ Agentic Play 是 Whale Play 内置的一种**实验性游戏主持人模式**。
 
 ```
 1. GM 描述当前场景
-2. GM 提供 2–5 个带有难度评级的选项
+2. GM 提供恰好 5 个带成功率和难度 DC 的选项
 3. 你点击某个选项（或输入自定义行动）
 4. GM 调用 roll_dice，判定成功/失败，叙述结果
 5. GM 调用 update_game_state 追踪变化（生命值、物品、标记）
@@ -114,11 +114,11 @@ present_player_options(
   scene_text: "走廊向左右两侧延伸……",
   question: "你走哪条路？",
   options: [
-    { label: "向左走入黑暗", action: "我小心地向左前进", success_probability: 60 },
-    { label: "向右走向火炬", action: "我朝光亮走去", success_probability: 75 },
-    { label: "先听听", action: "我把耳朵贴在墙上", success_probability: 90 },
-    { label: "回头", action: "我原路返回", success_probability: 100 },
-    { label: "自定义行动……", action: "我做点别的", success_probability: 50 }
+    { label: "向左走入黑暗", action: "我小心地向左前进", success_probability: 60, difficulty: 9 },
+    { label: "向右走向火炬", action: "我朝光亮走去", success_probability: 75, difficulty: 6 },
+    { label: "先听听", action: "我把耳朵贴在墙上听动静", success_probability: 90, difficulty: 3 },
+    { label: "检查地面痕迹", action: "我查看地面是否有脚印或拖痕", success_probability: 70, difficulty: 7 },
+    { label: "大声呼喊", action: "我向走廊深处喊话试探回应", success_probability: 45, difficulty: 12 }
   ]
 )
 ```
@@ -128,9 +128,10 @@ present_player_options(
 - **Label** — 按钮上的简短文字
 - **Action** — 点击后发送回 AI 的完整叙述性行动
 - **Success Probability** — GM 对该行动成功可能性的预估
+- **Difficulty** — 1d20 总值达到该 DC 即视为成功
 - **Description**（可选）— 额外的描述性文字
 
-如果 AI 在其叙述中直接输出选项（而非调用工具），一个后备解析器（`extractAgenticOptions`）会尝试从文本中提取它们。它会匹配诸如 `Option 1.`、`A.`、`1)` 等格式，并查找成功率标记（例如 `success rate 65%`）。如果找到的有效选项少于 2 个，则文本被视为普通叙述。
+选项应由工具生成，而不是写进正文。若模型把选项、成功率或 DC 写入叙述文本，系统会在显示前清理这些内联选项；如果当前回合必须停在玩家选择处，系统会要求模型重新调用 `present_player_options`。
 
 ---
 
@@ -160,7 +161,7 @@ AgenticGameState {
 
 - **行动时描述详细一些**——GM 会利用你的输入来塑造场景。
 - **预料之外的事情**——失败推动故事前进，而非阻碍故事。
-- **尝试自定义行动**——"Custom action"选项让你可以做 AI 能够理解的任何事情。
+- **尝试自定义行动**——你可以不点按钮，直接在输入框写出 AI 能够理解的任何行动。
 - **状态在每个会话中持续存在**——你的生命值、背包和任务进度会持续追踪，直到你开始新游戏。
 
 > 截图存放于 docs/images/ 目录，命名方式见英文版对应文档。

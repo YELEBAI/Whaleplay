@@ -80,7 +80,7 @@ graph BT
 
 | 工具          | 是否必须 | 说明                                                 |
 | ------------- | -------- | ---------------------------------------------------- |
-| Node.js >= 22 | ✅ 必须  |                                                      |
+| Node.js >= 24 | ✅ 必须  | 与根目录 `package.json` 的 `engines.node` 保持一致   |
 | pnpm          | ✅ 必须  |                                                      |
 | Rust stable   | ⚠️ 可选  | 仅在需要 Tauri 桌面开发/打包时需要                   |
 | make          | ⚠️ 可选  | 便捷命令入口，Windows 可通过 coreutils 或 MinGW 使用 |

@@ -8,6 +8,8 @@ import { formatCompactToken } from "@/pages/chat/utils";
 import { formatCnyCost, formatCnyExact } from "@/features/billing/deepseek-billing";
 import { dialogMax80vh, dialogScrollContent } from "./shared";
 
+const TOKEN_COST_FRACTION_DIGITS = 4;
+
 export interface TokenDialogRow {
   id: string;
   index: number;
@@ -157,7 +159,7 @@ export function TokenDialog({
                   title={formatCnyExact(totals.costCny)}
                 >
                   <p className="truncate text-lg leading-tight font-bold text-amber-600 tabular-nums">
-                    {formatCnyCost(totals.costCny)}
+                    {formatCnyCost(totals.costCny, { fractionDigits: TOKEN_COST_FRACTION_DIGITS })}
                   </p>
                   <p className="text-muted-foreground text-[10px]">{t("tokenDialog.columns.cost")}</p>
                 </div>
@@ -229,7 +231,7 @@ export function TokenDialog({
                                 .join(" · ") || undefined
                             }
                           >
-                            {formatCnyCost(cost)}
+                            {formatCnyCost(cost, { fractionDigits: TOKEN_COST_FRACTION_DIGITS })}
                           </td>
                         </tr>
                       );

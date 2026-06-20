@@ -480,12 +480,13 @@ export function useSendMessage({
 
   useEffect(
     () => () => {
-      if (!chatId) return;
-      controllersRef.current.get(chatId)?.abort();
-      controllersRef.current.delete(chatId);
-      finishSending(chatId);
+      for (const [targetChatId, controller] of controllersRef.current) {
+        controller.abort();
+        finishSending(targetChatId);
+      }
+      controllersRef.current.clear();
     },
-    [chatId, finishSending],
+    [finishSending],
   );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -502,10 +503,6 @@ export function useSendMessage({
     if (!draftId) return;
     const draft = useChatStore.getState().messages.find((m) => m.id === draftId);
     if (draft && !draft.content.trim() && !draft.reasoningContent?.trim()) {
-      await deleteMessage(draftId);
-      return;
-    }
-    if (!draft) {
       await deleteMessage(draftId);
     }
   };

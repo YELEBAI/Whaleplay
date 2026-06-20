@@ -1,26 +1,20 @@
 import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
 import { getBackend } from "@/platform";
-import { getStorageItem, setStorageItem } from "../storage";
 import { mergeMessagesByContent } from "@neo-tavern/core/tree";
-import { ragRepository } from "./rag.repository";
-
-const STORAGE_KEY = "neotavern_messages";
 const EMBEDDED_IMAGE_SRC_PREFIX = "data:image/";
 const COMPACTED_EMBEDDED_IMAGE_ERROR = "旧版内嵌图片已清理，请重新生成。";
+import { data } from "../kv";
+import { dataKeys } from "../storage/keys";
+import { loadArray, readOptional } from "../storage/repository-helpers";
 
 let sqliteReady: Promise<boolean> | null = null;
 
 async function loadAll(): Promise<Message[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<Message>(data, dataKeys.messages);
 }
 async function saveAll(msgs: Message[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(compactMessagesForKeyValueStorage(msgs)));
+  await data.setJson(dataKeys.messages, compactMessagesForKeyValueStorage(msgs));
 }
 
 function compactMessagesForKeyValueStorage(messages: Message[]): Message[] {
@@ -151,24 +145,6 @@ function makeMessage(input: CreateMessageInput): Message {
   };
 }
 
-function readLegacyMessagesFromLocalStorage(): string | null {
-  try {
-    return typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
-  } catch {
-    return null;
-  }
-}
-
-function removeLegacyMessagesFromLocalStorage() {
-  try {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
-  } catch {
-    /* localStorage unavailable */
-  }
-}
-
 /** Build a linear path from leaf to root via parentId chain */
 export function buildMessagePath(allMessages: Message[], leafId: string): Message[] {
   const byId = new Map(allMessages.map((m) => [m.id, m]));
@@ -224,10 +200,11 @@ function makeRestoredMessages(chatId: string, messages: Message[]): Message[] {
 async function canUseSqliteMessages() {
   if (!sqliteReady) {
     sqliteReady = (async () => {
-      const legacyMessagesJson = readLegacyMessagesFromLocalStorage();
       try {
+        const legacyMessagesJson = await readOptional(data, dataKeys.messages);
         await getBackend().db.initMessages(legacyMessagesJson);
-        if (legacyMessagesJson) removeLegacyMessagesFromLocalStorage();
+        // Keep the canonical KV source until a later cleanup migration. This
+        // makes SQLite import retryable after interruption or partial failure.
         return true;
       } catch (error) {
         console.warn("[messages] SQLite message store unavailable; falling back to key-value storage.", error);
@@ -300,23 +277,19 @@ export const messageRepository = {
   async deleteByChatId(chatId: string): Promise<void> {
     if (await canUseSqliteMessages()) {
       await getBackend().db.deleteByChatId(chatId);
-      await ragRepository.deleteByOwner("chat", chatId);
       return;
     }
     await saveAll((await loadAll()).filter((m) => m.chatId !== chatId));
-    await ragRepository.deleteByOwner("chat", chatId);
   },
 
   async replaceByChatId(chatId: string, messages: Message[]): Promise<Message[]> {
     const restored = makeRestoredMessages(chatId, messages);
     if (await canUseSqliteMessages()) {
       const saved = await getBackend().db.replaceByChatId(chatId, restored);
-      await ragRepository.deleteByOwner("chat", chatId);
       return saved.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     }
     const all = await loadAll();
     await saveAll([...all.filter((m) => m.chatId !== chatId), ...restored]);
-    await ragRepository.deleteByOwner("chat", chatId);
     return restored.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   },
 
@@ -360,16 +333,13 @@ export const messageRepository = {
 
   async update(id: string, content: string): Promise<Message> {
     if (await canUseSqliteMessages()) {
-      const updated = await getBackend().db.updateMessage(id, content);
-      await ragRepository.deleteBySourceIds([id]);
-      return updated;
+      return getBackend().db.updateMessage(id, content);
     }
     const all = await loadAll();
     const idx = all.findIndex((m) => m.id === id);
     if (idx === -1) throw new Error(`Message not found: ${id}`);
     all[idx].content = content;
     await saveAll(all);
-    await ragRepository.deleteBySourceIds([id]);
     return all[idx];
   },
 
@@ -383,45 +353,38 @@ export const messageRepository = {
     >,
   ): Promise<Message> {
     if (await canUseSqliteMessages()) {
-      const updated = await getBackend().db.patchMessage(id, patch);
-      if ("content" in patch) await ragRepository.deleteBySourceIds([id]);
-      return updated;
+      return getBackend().db.patchMessage(id, patch);
     }
     const all = await loadAll();
     const idx = all.findIndex((m) => m.id === id);
     if (idx === -1) throw new Error(`Message not found: ${id}`);
     all[idx] = { ...all[idx], ...patch };
     await saveAll(all);
-    if ("content" in patch) await ragRepository.deleteBySourceIds([id]);
     return all[idx];
   },
 
   async deleteMessage(id: string): Promise<void> {
     if (await canUseSqliteMessages()) {
       await getBackend().db.deleteMessage(id);
-      await ragRepository.deleteBySourceIds([id]);
       return;
     }
     await saveAll((await loadAll()).filter((m) => m.id !== id));
-    await ragRepository.deleteBySourceIds([id]);
   },
 
   async deleteMessages(ids: string[]): Promise<void> {
     if (await canUseSqliteMessages()) {
       await getBackend().db.deleteMessages(ids);
-      await ragRepository.deleteBySourceIds(ids);
       return;
     }
     const idSet = new Set(ids);
     await saveAll((await loadAll()).filter((m) => !idSet.has(m.id)));
-    await ragRepository.deleteBySourceIds(ids);
   },
 
   async migrateParentIds(): Promise<number> {
     if (await canUseSqliteMessages()) {
       return getBackend().db.migrateParentIds();
     }
-    // localStorage path: compute parentId from chronological order
+    // Browser KV fallback: compute parentId from chronological order.
     const all = await loadAll();
     if (all.every((m) => m.parentId != null)) return 0;
 

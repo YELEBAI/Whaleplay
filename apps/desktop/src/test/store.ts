@@ -82,6 +82,7 @@ export function setupTestStores() {
     streamingMessageId: null,
     generationPhase: null,
     activeGenerations: {},
+    liveMessageDrafts: {},
     activeLeafId: null,
     error: null,
     lastDiceResult: null,

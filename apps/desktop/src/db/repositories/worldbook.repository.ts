@@ -7,25 +7,16 @@ import type {
   CreateWorldbookEntryInput,
   UpdateWorldbookEntryInput,
 } from "@neo-tavern/shared";
-import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
-
-const STORAGE_KEY = "neotavern_worldbooks";
-const ACTIVE_KEY = "neotavern_active_worldbook_id";
+import { data, sys } from "../kv";
+import { dataKeys, sysKeys } from "../storage/keys";
+import { loadArray, readOptional } from "../storage/repository-helpers";
 
 async function loadAll(): Promise<Worldbook[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    if (!raw) return [];
-    const data = JSON.parse(raw);
-    if (!Array.isArray(data)) return [];
-    return data;
-  } catch {
-    return [];
-  }
+  return loadArray<Worldbook>(data, dataKeys.worldbooks);
 }
 
 async function saveAll(wbs: Worldbook[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(wbs));
+  await data.setJson(dataKeys.worldbooks, wbs);
 }
 
 export const worldbookRepository = {
@@ -152,12 +143,12 @@ export const worldbookRepository = {
   },
 
   async getActiveId(): Promise<string | null> {
-    return getStorageItem(ACTIVE_KEY);
+    return readOptional(sys, sysKeys.activeWorldbookId);
   },
 
   async setActiveId(id: string | null): Promise<void> {
-    if (id) await setStorageItem(ACTIVE_KEY, id);
-    else await removeStorageItem(ACTIVE_KEY);
+    if (id) await sys.set(sysKeys.activeWorldbookId, id);
+    else await sys.remove(sysKeys.activeWorldbookId);
   },
 
   async save(wbs: Worldbook[], includeHidden = false): Promise<void> {

@@ -4,7 +4,6 @@ use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 
 static DB: OnceLock<Result<Mutex<rusqlite::Connection>, String>> = OnceLock::new();
-const LEGACY_MESSAGES_KEY: &str = "neotavern_messages";
 
 fn sqlite_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
@@ -17,85 +16,11 @@ fn sqlite_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn open_sqlite(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
-    let conn = rusqlite::Connection::open(sqlite_path(app)?)
+    let mut conn = rusqlite::Connection::open(sqlite_path(app)?)
         .map_err(|err| format!("Failed to open SQLite database: {err}"))?;
-    conn.execute_batch(
-        r#"
-        PRAGMA journal_mode = WAL;
-        PRAGMA synchronous = NORMAL;
-        CREATE TABLE IF NOT EXISTS messages (
-            id TEXT PRIMARY KEY NOT NULL,
-            chat_id TEXT NOT NULL,
-            parent_id TEXT,
-            round_index INTEGER,
-            created_at TEXT NOT NULL,
-            message_json TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_messages_chat_created
-            ON messages(chat_id, created_at);
-        CREATE INDEX IF NOT EXISTS idx_messages_parent_id
-            ON messages(parent_id);
-        CREATE INDEX IF NOT EXISTS idx_messages_chat_round
-            ON messages(chat_id, round_index);
-        CREATE TABLE IF NOT EXISTS agentic_play_states (
-            chat_id TEXT PRIMARY KEY NOT NULL,
-            character_id TEXT NOT NULL,
-            enabled INTEGER NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            record_json TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_agentic_play_states_character
-            ON agentic_play_states(character_id, updated_at);
-        CREATE TABLE IF NOT EXISTS rag_chunks (
-            id TEXT PRIMARY KEY NOT NULL,
-            scope TEXT NOT NULL,
-            owner_id TEXT NOT NULL,
-            source_id TEXT NOT NULL,
-            source_hash TEXT NOT NULL,
-            chunk_index INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            embedding_model TEXT NOT NULL,
-            embedding_json TEXT NOT NULL,
-            status TEXT NOT NULL,
-            metadata_json TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            chunk_json TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_rag_chunks_owner
-            ON rag_chunks(scope, owner_id);
-        CREATE INDEX IF NOT EXISTS idx_rag_chunks_source
-            ON rag_chunks(source_id);
-        CREATE INDEX IF NOT EXISTS idx_rag_chunks_model_status
-            ON rag_chunks(embedding_model, status);
-        "#,
-    )
-    .map_err(|err| format!("Failed to initialize SQLite schema: {err}"))?;
-
-    // Migration: add parent_id column if upgrading from older schema
-    let has_parent_id: bool = conn
-        .prepare("SELECT parent_id FROM messages LIMIT 0")
-        .is_ok();
-    if !has_parent_id {
-        conn.execute_batch(
-            "ALTER TABLE messages ADD COLUMN parent_id TEXT;
-             CREATE INDEX IF NOT EXISTS idx_messages_parent_id ON messages(parent_id);",
-        )
-        .map_err(|err| format!("Failed to migrate SQLite schema for parent_id: {err}"))?;
-    }
-
-    let has_round_index: bool = conn
-        .prepare("SELECT round_index FROM messages LIMIT 0")
-        .is_ok();
-    if !has_round_index {
-        conn.execute_batch(
-            "ALTER TABLE messages ADD COLUMN round_index INTEGER;
-             CREATE INDEX IF NOT EXISTS idx_messages_chat_round ON messages(chat_id, round_index);",
-        )
-        .map_err(|err| format!("Failed to migrate SQLite schema for round_index: {err}"))?;
-    }
+    conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;")
+        .map_err(|err| format!("Failed to configure SQLite: {err}"))?;
+    crate::db_migrations::run(&mut conn)?;
 
     Ok(conn)
 }
@@ -104,28 +29,6 @@ fn get_db(app: &tauri::AppHandle) -> Result<&Mutex<rusqlite::Connection>, String
     match DB.get_or_init(|| open_sqlite(app).map(Mutex::new)) {
         Ok(mutex_conn) => Ok(mutex_conn),
         Err(e) => Err(e.clone()),
-    }
-}
-
-fn read_legacy_messages_from_app_store(app: &tauri::AppHandle) -> Option<String> {
-    crate::read_app_store(app)
-        .ok()
-        .and_then(|store| store.get(LEGACY_MESSAGES_KEY).cloned())
-        .filter(|raw| !raw.trim().is_empty())
-}
-
-fn remove_legacy_messages_from_app_store(app: &tauri::AppHandle) -> Result<(), String> {
-    let mut store = crate::read_app_store(app)?;
-    if store.remove(LEGACY_MESSAGES_KEY).is_none() {
-        return Ok(());
-    }
-    let path = crate::app_store_path(app)?;
-    crate::write_store_to_path(&store, &path)
-}
-
-fn cleanup_legacy_messages_from_app_store(app: &tauri::AppHandle) {
-    if let Err(err) = remove_legacy_messages_from_app_store(app) {
-        eprintln!("Failed to clean legacy messages from app store: {err}");
     }
 }
 
@@ -220,35 +123,25 @@ pub(crate) fn sqlite_init_messages(
     let mut conn = get_db(&app)?
         .lock()
         .map_err(|e| format!("Failed to lock database: {e}"))?;
-    let count = conn
-        .query_row("SELECT COUNT(*) FROM messages", [], |row| {
-            row.get::<_, i64>(0)
-        })
-        .map_err(|err| format!("Failed to count SQLite messages: {err}"))?;
-
-    if count > 0 {
-        cleanup_legacy_messages_from_app_store(&app);
-        return Ok(());
-    }
-
-    let raw = read_legacy_messages_from_app_store(&app)
-        .or_else(|| legacy_messages_json.filter(|raw| !raw.trim().is_empty()));
+    let raw = legacy_messages_json.filter(|raw| !raw.trim().is_empty());
     let Some(raw) = raw else {
         return Ok(());
     };
 
     let parsed = serde_json::from_str::<serde_json::Value>(&raw)
         .map_err(|err| format!("Failed to parse legacy messages: {err}"))?;
-    let Some(messages) = parsed.as_array() else {
-        return Ok(());
-    };
+    let messages = parsed
+        .as_array()
+        .ok_or_else(|| "Legacy messages must be a JSON array".to_string())?;
 
     let tx = conn
         .transaction()
         .map_err(|err| format!("Failed to start SQLite migration: {err}"))?;
+    let mut imported_ids = std::collections::HashSet::new();
     for message in messages {
         let (id, chat_id, parent_id, round_index, created_at, message_raw) =
             serialize_message(message)?;
+        imported_ids.insert(id.clone());
         tx.execute(
             "INSERT OR IGNORE INTO messages (id, chat_id, parent_id, round_index, created_at, message_json)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -256,9 +149,20 @@ pub(crate) fn sqlite_init_messages(
         )
         .map_err(|err| format!("Failed to migrate SQLite message: {err}"))?;
     }
+    for id in imported_ids {
+        let exists: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM messages WHERE id = ?1)",
+                params![id],
+                |row| row.get(0),
+            )
+            .map_err(|err| format!("Failed to validate migrated SQLite message: {err}"))?;
+        if !exists {
+            return Err("SQLite message import validation failed".to_string());
+        }
+    }
     tx.commit()
         .map_err(|err| format!("Failed to finish SQLite migration: {err}"))?;
-    cleanup_legacy_messages_from_app_store(&app);
     Ok(())
 }
 
@@ -615,15 +519,22 @@ pub(crate) fn sqlite_update_message(
     id: String,
     content: String,
 ) -> Result<serde_json::Value, String> {
-    let conn = get_db(&app)?
+    let mut conn = get_db(&app)?
         .lock()
         .map_err(|e| format!("Failed to lock database: {e}"))?;
-    let mut message = read_sqlite_message(&conn, &id)?;
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Failed to start SQLite message update transaction: {err}"))?;
+    let mut message = read_sqlite_message(&tx, &id)?;
     let Some(object) = message.as_object_mut() else {
         return Err("Stored message is not a JSON object.".to_string());
     };
     object.insert("content".to_string(), serde_json::Value::String(content));
-    update_sqlite_message(&conn, &message)?;
+    update_sqlite_message(&tx, &message)?;
+    tx.execute("DELETE FROM rag_chunks WHERE source_id = ?1", params![id])
+        .map_err(|err| format!("Failed to invalidate RAG chunks for message: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("Failed to commit SQLite message update: {err}"))?;
     Ok(message)
 }
 
@@ -633,10 +544,13 @@ pub(crate) fn sqlite_patch_message(
     id: String,
     patch: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let conn = get_db(&app)?
+    let mut conn = get_db(&app)?
         .lock()
         .map_err(|e| format!("Failed to lock database: {e}"))?;
-    let mut message = read_sqlite_message(&conn, &id)?;
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Failed to start SQLite message patch transaction: {err}"))?;
+    let mut message = read_sqlite_message(&tx, &id)?;
     let Some(message_object) = message.as_object_mut() else {
         return Err("Stored message is not a JSON object.".to_string());
     };
@@ -648,7 +562,13 @@ pub(crate) fn sqlite_patch_message(
         message_object.insert(key.clone(), value.clone());
     }
 
-    update_sqlite_message(&conn, &message)?;
+    update_sqlite_message(&tx, &message)?;
+    if patch_object.contains_key("content") {
+        tx.execute("DELETE FROM rag_chunks WHERE source_id = ?1", params![id])
+            .map_err(|err| format!("Failed to invalidate RAG chunks for message: {err}"))?;
+    }
+    tx.commit()
+        .map_err(|err| format!("Failed to commit SQLite message patch: {err}"))?;
     Ok(message)
 }
 
@@ -657,11 +577,21 @@ pub(crate) fn sqlite_delete_messages_by_chat_id(
     app: tauri::AppHandle,
     chat_id: String,
 ) -> Result<(), String> {
-    let conn = get_db(&app)?
+    let mut conn = get_db(&app)?
         .lock()
         .map_err(|e| format!("Failed to lock database: {e}"))?;
-    conn.execute("DELETE FROM messages WHERE chat_id = ?1", params![chat_id])
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Failed to start SQLite chat delete transaction: {err}"))?;
+    tx.execute("DELETE FROM messages WHERE chat_id = ?1", params![&chat_id])
         .map_err(|err| format!("Failed to delete SQLite messages by chat: {err}"))?;
+    tx.execute(
+        "DELETE FROM rag_chunks WHERE scope = 'chat' AND owner_id = ?1",
+        params![&chat_id],
+    )
+    .map_err(|err| format!("Failed to delete RAG chunks by chat: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("Failed to commit SQLite chat delete: {err}"))?;
     Ok(())
 }
 
@@ -677,8 +607,13 @@ pub(crate) fn sqlite_replace_messages_by_chat_id(
     let tx = conn
         .transaction()
         .map_err(|err| format!("Failed to start SQLite replace transaction: {err}"))?;
-    tx.execute("DELETE FROM messages WHERE chat_id = ?1", params![chat_id])
+    tx.execute("DELETE FROM messages WHERE chat_id = ?1", params![&chat_id])
         .map_err(|err| format!("Failed to clear SQLite chat messages: {err}"))?;
+    tx.execute(
+        "DELETE FROM rag_chunks WHERE scope = 'chat' AND owner_id = ?1",
+        params![&chat_id],
+    )
+    .map_err(|err| format!("Failed to clear SQLite RAG chunks by chat: {err}"))?;
 
     for message in &messages {
         let (id, message_chat_id, parent_id, round_index, created_at, raw) =
@@ -701,11 +636,18 @@ pub(crate) fn sqlite_replace_messages_by_chat_id(
 
 #[tauri::command]
 pub(crate) fn sqlite_delete_message(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    let conn = get_db(&app)?
+    let mut conn = get_db(&app)?
         .lock()
         .map_err(|e| format!("Failed to lock database: {e}"))?;
-    conn.execute("DELETE FROM messages WHERE id = ?1", params![id])
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Failed to start SQLite message delete transaction: {err}"))?;
+    tx.execute("DELETE FROM messages WHERE id = ?1", params![&id])
         .map_err(|err| format!("Failed to delete SQLite message: {err}"))?;
+    tx.execute("DELETE FROM rag_chunks WHERE source_id = ?1", params![&id])
+        .map_err(|err| format!("Failed to delete RAG chunks for message: {err}"))?;
+    tx.commit()
+        .map_err(|err| format!("Failed to commit SQLite message delete: {err}"))?;
     Ok(())
 }
 
@@ -721,8 +663,10 @@ pub(crate) fn sqlite_delete_messages(
         .transaction()
         .map_err(|err| format!("Failed to start SQLite delete transaction: {err}"))?;
     for id in ids {
-        tx.execute("DELETE FROM messages WHERE id = ?1", params![id])
+        tx.execute("DELETE FROM messages WHERE id = ?1", params![&id])
             .map_err(|err| format!("Failed to delete SQLite message: {err}"))?;
+        tx.execute("DELETE FROM rag_chunks WHERE source_id = ?1", params![&id])
+            .map_err(|err| format!("Failed to delete RAG chunks for message: {err}"))?;
     }
     tx.commit()
         .map_err(|err| format!("Failed to finish SQLite delete transaction: {err}"))?;
@@ -851,8 +795,25 @@ fn json_i64_field(value: &serde_json::Value, field: &str) -> Result<i64, String>
 
 fn serialize_rag_chunk(
     chunk: &serde_json::Value,
-) -> Result<(String, String, String, String, String, i64, String, String, String, String, String, String, String, String), String>
-{
+) -> Result<
+    (
+        String,
+        String,
+        String,
+        String,
+        String,
+        i64,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+        String,
+    ),
+    String,
+> {
     let id = json_string_field(chunk, "id")?.to_string();
     let scope = json_string_field(chunk, "scope")?.to_string();
     let owner_id = json_string_field(chunk, "ownerId")?.to_string();
@@ -866,11 +827,19 @@ fn serialize_rag_chunk(
         .unwrap_or("")
         .to_string();
     let embedding_model = json_string_field(chunk, "embeddingModel")?.to_string();
-    let embedding_json = serde_json::to_string(chunk.get("embedding").unwrap_or(&serde_json::Value::Array(vec![])))
-        .map_err(|err| format!("Failed to serialize RAG embedding: {err}"))?;
+    let embedding_json = serde_json::to_string(
+        chunk
+            .get("embedding")
+            .unwrap_or(&serde_json::Value::Array(vec![])),
+    )
+    .map_err(|err| format!("Failed to serialize RAG embedding: {err}"))?;
     let status = json_string_field(chunk, "status")?.to_string();
-    let metadata_json = serde_json::to_string(chunk.get("metadata").unwrap_or(&serde_json::Value::Object(Default::default())))
-        .map_err(|err| format!("Failed to serialize RAG metadata: {err}"))?;
+    let metadata_json = serde_json::to_string(
+        chunk
+            .get("metadata")
+            .unwrap_or(&serde_json::Value::Object(Default::default())),
+    )
+    .map_err(|err| format!("Failed to serialize RAG metadata: {err}"))?;
     let created_at = json_string_field(chunk, "createdAt")?.to_string();
     let updated_at = json_string_field(chunk, "updatedAt")?.to_string();
     Ok((
@@ -996,7 +965,10 @@ pub(crate) fn sqlite_list_rag_chunks_by_owners(
         if !owner_set.contains(&owner_id) {
             continue;
         }
-        if embedding_model.as_ref().is_some_and(|expected| expected != &model) {
+        if embedding_model
+            .as_ref()
+            .is_some_and(|expected| expected != &model)
+        {
             continue;
         }
         chunks.push(
@@ -1025,7 +997,10 @@ pub(crate) fn sqlite_delete_rag_chunks_by_source_ids(
     let mut count = 0usize;
     for source_id in source_ids {
         count += tx
-            .execute("DELETE FROM rag_chunks WHERE source_id = ?1", params![source_id])
+            .execute(
+                "DELETE FROM rag_chunks WHERE source_id = ?1",
+                params![source_id],
+            )
             .map_err(|err| format!("Failed to delete RAG chunks by source: {err}"))?;
     }
     tx.commit()

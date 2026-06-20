@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { BrainCircuit, Bug, Plug, Palette, Regex, SlidersHorizontal, Image as ImageIcon } from "lucide-react";
 import { useSettingsStore } from "@/features/settings/settings.store";
-import { getStorageItem, setStorageItem } from "@/db/storage";
+import { sessionSync } from "@/db/kv";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { AppearanceSection } from "./AppearanceSection";
 import { ContextSection } from "./ContextSection";
@@ -16,16 +16,15 @@ import { getLocale, type Locale } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import type { Section, SectionWithLabel } from "./types";
 
-const SETTINGS_TAB_KEY = "neotavern_settings_tab";
 const SETTINGS_TAB_TTL_MS = 60_000; // 1 minute
 
 function readCachedTab(): Section | null {
   try {
-    const raw = sessionStorage.getItem(SETTINGS_TAB_KEY);
+    const raw = sessionSync.get("settings-tab");
     if (!raw) return null;
     const { tab, ts } = JSON.parse(raw) as { tab: string; ts: number };
     if (Date.now() - ts > SETTINGS_TAB_TTL_MS) {
-      sessionStorage.removeItem(SETTINGS_TAB_KEY);
+      sessionSync.remove("settings-tab");
       return null;
     }
     return tab as Section;
@@ -35,7 +34,7 @@ function readCachedTab(): Section | null {
 }
 
 function writeCachedTab(tab: Section) {
-  sessionStorage.setItem(SETTINGS_TAB_KEY, JSON.stringify({ tab, ts: Date.now() }));
+  sessionSync.setJson("settings-tab", { tab, ts: Date.now() });
 }
 
 export function SettingsPage() {
@@ -45,9 +44,9 @@ export function SettingsPage() {
   const [section, setSection] = useState<Section>(() => readCachedTab() ?? "api");
   const [locale, setLocale] = useState<Locale>(getLocale);
   const [easterEggClicks, setEasterEggClicks] = useState(0);
-  const [secretUnlocked, setSecretUnlocked] = useState(false);
+  const [secretUnlocked, setSecretUnlocked] = useState(() => sessionSync.get("secret-unlocked") === "1");
 
-  // Persist selected tab to sessionStorage (1-minute TTL)
+  // Persist selected tab in the session namespace (1-minute TTL).
   useEffect(() => {
     writeCachedTab(section);
   }, [section]);
@@ -73,7 +72,6 @@ export function SettingsPage() {
   ];
 
   useEffect(() => {
-    let cancelled = false;
     loadAllConfigs();
     loadRegexRules();
     loadMemorySettings();
@@ -81,12 +79,6 @@ export function SettingsPage() {
     loadRagMemorySettings();
     loadDailyCostWarningSettings();
     loadDailyCostSpent();
-    getStorageItem("neotavern_secret_unlocked").then((value) => {
-      if (!cancelled) setSecretUnlocked(value === "1");
-    });
-    return () => {
-      cancelled = true;
-    };
   }, [
     loadAllConfigs,
     loadRegexRules,
@@ -105,7 +97,7 @@ export function SettingsPage() {
     const next = easterEggClicks + 1;
     setEasterEggClicks(next);
     if (next >= 10) {
-      void setStorageItem("neotavern_secret_unlocked", "1");
+      sessionSync.set("secret-unlocked", "1");
       setSecretUnlocked(true);
       window.dispatchEvent(new Event("neotavern-secret-changed"));
       toast("success", tt("secretUnlocked"));

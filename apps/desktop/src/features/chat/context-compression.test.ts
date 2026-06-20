@@ -3,7 +3,7 @@ import type { Message } from "@neo-tavern/shared";
 import { hashMessages } from "./memory";
 import { buildStoredContextCompressionPromptPlan } from "./context-compression";
 
-const CHAT_MEMORY_STORAGE_KEY = "neotavern_chat_memories";
+const CHAT_MEMORY_STORAGE_KEY = "data:chat-memories";
 
 function message(role: Message["role"], content: string, index: number, roundIndex?: number): Message {
   return {

@@ -29,7 +29,8 @@ import {
   secondaryApiUsageRepository,
 } from "@/db/repositories";
 import type { SecondaryApiUsageRecord } from "@/db/repositories";
-import { getStorageItem, removeStorageItem, setStorageItem } from "@/db/storage";
+import { device, prefs } from "@/db/kv";
+import { readOptional } from "@/db/storage/repository-helpers";
 import {
   buildChatPrompt,
   formatPreview,
@@ -329,7 +330,7 @@ export function ChatPage() {
   const handleFontSizeChange = (value: number) => {
     const next = clampChatFontSize(value);
     setFontSize(next);
-    void setStorageItem(CHAT_FONT_SIZE_KEY, String(next));
+    void prefs.set(CHAT_FONT_SIZE_KEY, String(next));
   };
 
   const {
@@ -369,7 +370,7 @@ export function ChatPage() {
 
   useEffect(() => {
     let cancelled = false;
-    getStorageItem(CHAT_FONT_SIZE_KEY).then((raw) => {
+    readOptional(prefs, CHAT_FONT_SIZE_KEY).then((raw) => {
       if (cancelled || raw == null) return;
       setFontSize(clampChatFontSize(Number(raw)));
     });
@@ -380,7 +381,7 @@ export function ChatPage() {
 
   useEffect(() => {
     if (currentChat?.id) {
-      localStorage.setItem("neo:last-chat-id", currentChat.id);
+      void device.set("last-chat-id", currentChat.id);
     }
   }, [currentChat?.id]);
 
@@ -599,7 +600,7 @@ export function ChatPage() {
 
     draftReadyChatRef.current = null;
     let cancelled = false;
-    getStorageItem(getChatDraftKey(chatId)).then((draft) => {
+    readOptional(device, getChatDraftKey(chatId)).then((draft) => {
       if (cancelled) return;
       const next = draft ?? "";
       draftReadyChatRef.current = chatId;
@@ -618,8 +619,8 @@ export function ChatPage() {
 
     const timeout = window.setTimeout(() => {
       const key = getChatDraftKey(chatId);
-      if (input) void setStorageItem(key, input);
-      else void removeStorageItem(key);
+      if (input) void device.set(key, input);
+      else void device.remove(key);
     }, 300);
 
     return () => window.clearTimeout(timeout);
@@ -707,7 +708,7 @@ export function ChatPage() {
     if (!input.trim() || !currentChat) return;
     const content = input.trim();
     setInput("");
-    if (currentChat?.id) void removeStorageItem(getChatDraftKey(currentChat.id));
+    if (currentChat?.id) void device.remove(getChatDraftKey(currentChat.id));
     await submitContent(content);
   };
 

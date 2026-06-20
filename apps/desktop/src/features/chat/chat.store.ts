@@ -8,7 +8,6 @@ import {
   buildMessagePath,
   collectDescendantIds,
   secondaryApiUsageRepository,
-  ragRepository,
 } from "@/db/repositories";
 import type { Chat, Message, CreateChatInput, CreateMessageInput } from "@neo-tavern/shared";
 import type { GenerationPhase } from "./chat.types";
@@ -19,6 +18,8 @@ interface ActiveGenerationState {
   streamingMessageId: string | null;
   generationPhase: GenerationPhase;
 }
+
+type LiveMessageDrafts = Record<string, Record<string, Message>>;
 
 interface ChatState {
   chats: Chat[];
@@ -31,6 +32,7 @@ interface ChatState {
   streamingMessageId: string | null;
   generationPhase: GenerationPhase | null;
   activeGenerations: Record<string, ActiveGenerationState>;
+  liveMessageDrafts: LiveMessageDrafts;
   activeLeafId: string | null;
   error: string | null;
   lastDiceResult: DiceRollResult | null;
@@ -133,6 +135,79 @@ function patchMessageById(messages: Message[], id: string, patch: Partial<Messag
   return nextMessages;
 }
 
+function mergeMessagesWithLiveDrafts(messages: Message[], drafts: Record<string, Message> | undefined): Message[] {
+  if (!drafts) return messages;
+
+  const byId = new Map(messages.map((message) => [message.id, message]));
+  for (const draft of Object.values(drafts)) {
+    byId.set(draft.id, draft);
+  }
+  return sortMessages([...byId.values()]);
+}
+
+function findLiveMessageDraft(
+  liveMessageDrafts: LiveMessageDrafts,
+  id: string,
+): { chatId: string; message: Message } | null {
+  for (const [chatId, drafts] of Object.entries(liveMessageDrafts)) {
+    const message = drafts[id];
+    if (message) return { chatId, message };
+  }
+  return null;
+}
+
+function rememberLiveMessageDraft(liveMessageDrafts: LiveMessageDrafts, message: Message): LiveMessageDrafts {
+  const drafts = liveMessageDrafts[message.chatId] ?? {};
+  return {
+    ...liveMessageDrafts,
+    [message.chatId]: {
+      ...drafts,
+      [message.id]: message,
+    },
+  };
+}
+
+function patchLiveMessageDraft(
+  liveMessageDrafts: LiveMessageDrafts,
+  id: string,
+  patch: Partial<
+    Pick<
+      Message,
+      "content" | "reasoningContent" | "generateDuration" | "thinkingDuration" | "usage" | "images" | "agenticOptions"
+    >
+  >,
+  fallback?: Message,
+): LiveMessageDrafts {
+  const live = findLiveMessageDraft(liveMessageDrafts, id);
+  const message = fallback ?? live?.message;
+  if (!message) return liveMessageDrafts;
+  return rememberLiveMessageDraft(liveMessageDrafts, { ...message, ...patch });
+}
+
+function removeLiveMessageDraft(liveMessageDrafts: LiveMessageDrafts, id: string): LiveMessageDrafts {
+  const live = findLiveMessageDraft(liveMessageDrafts, id);
+  if (!live) return liveMessageDrafts;
+
+  const nextDrafts = { ...liveMessageDrafts[live.chatId] };
+  delete nextDrafts[id];
+  if (Object.keys(nextDrafts).length === 0) {
+    const next = { ...liveMessageDrafts };
+    delete next[live.chatId];
+    return next;
+  }
+  return {
+    ...liveMessageDrafts,
+    [live.chatId]: nextDrafts,
+  };
+}
+
+function clearLiveMessageDrafts(liveMessageDrafts: LiveMessageDrafts, chatId: string): LiveMessageDrafts {
+  if (!liveMessageDrafts[chatId]) return liveMessageDrafts;
+  const next = { ...liveMessageDrafts };
+  delete next[chatId];
+  return next;
+}
+
 function legacyGenerationSnapshot(
   activeGenerations: Record<string, ActiveGenerationState>,
   preferredChatId?: string | null,
@@ -161,7 +236,8 @@ function hydrateMessages(
       const state = get();
       if (state.currentChat?.id !== chatId) return fullMessages;
 
-      const merged = mergeHydratedMessages(fullMessages, state.messages);
+      const withDrafts = mergeMessagesWithLiveDrafts(fullMessages, state.liveMessageDrafts[chatId]);
+      const merged = mergeHydratedMessages(withDrafts, state.messages);
       set({ messages: merged, messagesHydrated: true });
       return merged;
     })
@@ -192,6 +268,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streamingMessageId: null,
   generationPhase: null,
   activeGenerations: {},
+  liveMessageDrafts: {},
   activeLeafId: null,
   error: null,
   lastDiceResult: null,
@@ -215,7 +292,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (chat) {
         const messages = await messageRepository.listRecentTurnsByChatId(chat.id, CHAT_INITIAL_TURN_LIMIT);
         if (loadId !== chatLoadSequence) return;
-        set({ currentChat: chat, messages, activeLeafId: null, loading: false, messagesHydrated: false });
+        const withDrafts = mergeMessagesWithLiveDrafts(messages, get().liveMessageDrafts[chat.id]);
+        set({ currentChat: chat, messages: withDrafts, activeLeafId: null, loading: false, messagesHydrated: false });
         void hydrateMessages(chat.id, set, get);
       } else {
         set({ loading: false, messagesHydrated: true });
@@ -235,7 +313,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (inMemory) {
         const messages = await messageRepository.listRecentTurnsByChatId(inMemory.id, CHAT_INITIAL_TURN_LIMIT);
         if (loadId !== chatLoadSequence) return inMemory;
-        set({ currentChat: inMemory, messages, activeLeafId: null, loading: false, messagesHydrated: false });
+        const withDrafts = mergeMessagesWithLiveDrafts(messages, get().liveMessageDrafts[inMemory.id]);
+        set({
+          currentChat: inMemory,
+          messages: withDrafts,
+          activeLeafId: null,
+          loading: false,
+          messagesHydrated: false,
+        });
         void hydrateMessages(inMemory.id, set, get);
         return inMemory;
       }
@@ -248,9 +333,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const messages = await messageRepository.listRecentTurnsByChatId(chat.id, CHAT_INITIAL_TURN_LIMIT);
         if (loadId !== chatLoadSequence) return chat;
         const state = get();
+        const withDrafts = mergeMessagesWithLiveDrafts(messages, state.liveMessageDrafts[chat.id]);
         set({
           currentChat: chat,
-          messages,
+          messages: withDrafts,
           activeLeafId: null,
           chats: state.chats,
           loading: false,
@@ -301,7 +387,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       await messageRepository.deleteByChatId(id);
-      await ragRepository.deleteByOwner("chat", id);
       await chatSavepointRepository.deleteByChatId(id);
       await chatMemoryRepository.delete(id);
       await agenticPlayStateRepository.delete(id);
@@ -318,6 +403,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           messages: state.currentChat?.id === id ? [] : state.messages,
           messagesHydrated: state.currentChat?.id === id ? true : state.messagesHydrated,
           activeGenerations,
+          liveMessageDrafts: clearLiveMessageDrafts(state.liveMessageDrafts, id),
           ...legacyGenerationSnapshot(activeGenerations, state.sendingChatId === id ? null : state.sendingChatId),
           loading: false,
         };
@@ -331,7 +417,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   loadMessages: async (chatId: string) => {
     try {
       const messages = await messageRepository.listByChatId(chatId);
-      set({ messages, messagesHydrated: true });
+      set((state) => ({
+        messages: mergeMessagesWithLiveDrafts(messages, state.liveMessageDrafts[chatId]),
+        messagesHydrated: true,
+      }));
     } catch (err) {
       set({ error: (err as Error).message });
     }
@@ -350,6 +439,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const chat = await chatRepository.update(input.chatId, {});
       set((state) => ({
         messages: state.currentChat?.id === input.chatId ? [...state.messages, message] : state.messages,
+        liveMessageDrafts: state.activeGenerations[input.chatId]
+          ? rememberLiveMessageDraft(state.liveMessageDrafts, message)
+          : state.liveMessageDrafts,
         ...applyTouchedChat(state, chat),
       }));
       return message;
@@ -406,6 +498,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!chatId)
         return {
           activeGenerations: {},
+          liveMessageDrafts: {},
           sending: false,
           sendingChatId: null,
           streamingMessageId: null,
@@ -416,6 +509,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       delete activeGenerations[chatId];
       return {
         activeGenerations,
+        liveMessageDrafts: clearLiveMessageDrafts(state.liveMessageDrafts, chatId),
         ...legacyGenerationSnapshot(activeGenerations, state.sendingChatId === chatId ? null : state.sendingChatId),
       };
     }),
@@ -425,6 +519,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!sending) {
         return {
           activeGenerations: {},
+          liveMessageDrafts: {},
           sending: false,
           sendingChatId: null,
           streamingMessageId: null,
@@ -471,14 +566,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   patchMessage: async (id, patch, options = {}) => {
     const persist = options.persist ?? true;
-    set((state) => ({
-      messages: patchMessageById(state.messages, id, patch),
-    }));
+    set((state) => {
+      const fallback = state.messages.find((message) => message.id === id);
+      return {
+        messages: patchMessageById(state.messages, id, patch),
+        liveMessageDrafts: patchLiveMessageDraft(state.liveMessageDrafts, id, patch, fallback),
+      };
+    });
     if (!persist) return;
     try {
       const updated = await messageRepository.patch(id, patch);
       set((state) => ({
         messages: replaceMessageById(state.messages, id, updated),
+        liveMessageDrafts: state.activeGenerations[updated.chatId]
+          ? rememberLiveMessageDraft(state.liveMessageDrafts, updated)
+          : removeLiveMessageDraft(state.liveMessageDrafts, updated.id),
       }));
     } catch (err) {
       set({ error: (err as Error).message });
@@ -488,11 +590,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   deleteMessage: async (id: string) => {
     try {
-      const target = get().messages.find((m) => m.id === id);
+      const state = get();
+      const target =
+        state.messages.find((m) => m.id === id) ?? findLiveMessageDraft(state.liveMessageDrafts, id)?.message;
       if (!target) return;
 
       // Cascade: collect all descendant ids
-      const descendantIds = collectDescendantIds(get().messages, id);
+      const descendantIds = collectDescendantIds(
+        mergeMessagesWithLiveDrafts(get().messages, get().liveMessageDrafts[target.chatId]),
+        id,
+      );
       const allIds = [id, ...descendantIds];
 
       await messageRepository.deleteMessages(allIds);
@@ -501,6 +608,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const idSet = new Set(allIds);
       set((state) => ({
         messages: state.messages.filter((m) => !idSet.has(m.id)),
+        liveMessageDrafts: allIds.reduce(removeLiveMessageDraft, state.liveMessageDrafts),
         ...applyTouchedChat(state, chat),
       }));
     } catch (err) {

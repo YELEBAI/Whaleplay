@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node.js** >= 20 (see `.npmrc` or `package.json` engines)
+- **Node.js** >= 24 (see the root `package.json` `engines.node` field)
 - **pnpm** 9+ (corepack is recommended: `corepack enable && corepack prepare pnpm@latest --activate`)
 - **Rust toolchain** (for Tauri builds; install via [rustup](https://rustup.rs/))
 - Platform-specific Tauri dependencies: see [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/)

@@ -1,7 +1,8 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useNavigate, type NavLinkRenderProps } from "react-router";
-import { useState, useEffect } from "react";
 import { check } from "@tauri-apps/plugin-updater";
+import { device } from "@/db/kv";
 import {
   User,
   Settings,
@@ -79,8 +80,13 @@ export function Layout() {
   const { t } = useTranslation("common");
   const navigate = useNavigate();
   const [updateDot, setUpdateDot] = useState(false);
+  const [lastChatId, setLastChatId] = useState<string | null>(null);
 
-  const lastChatId = typeof window !== "undefined" ? localStorage.getItem("neo:last-chat-id") : null;
+  useEffect(() => {
+    device.get("last-chat-id").then((r) => {
+      setLastChatId(r.status === "found" ? r.value : null);
+    });
+  }, []);
 
   // Check for updates on mount — show red dot if available
   useEffect(() => {

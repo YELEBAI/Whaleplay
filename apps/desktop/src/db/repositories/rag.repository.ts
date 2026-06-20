@@ -1,10 +1,12 @@
 import { getBackend } from "@/platform";
 import type { RagChunkRecord, RagChunkScope } from "@/features/rag/rag-settings";
 
-function asRagChunkRecord(value: unknown): RagChunkRecord | null {
-  if (!value || typeof value !== "object") return null;
+function asRagChunkRecord(value: unknown): RagChunkRecord {
+  if (!value || typeof value !== "object") throw new Error("Stored RAG chunk is not an object");
   const chunk = value as Partial<RagChunkRecord>;
-  if (!chunk.id || !chunk.scope || !chunk.ownerId || !chunk.sourceId || !chunk.embeddingModel) return null;
+  if (!chunk.id || !chunk.scope || !chunk.ownerId || !chunk.sourceId || !chunk.embeddingModel) {
+    throw new Error("Stored RAG chunk is missing required identity fields");
+  }
   return {
     id: String(chunk.id),
     scope: chunk.scope as RagChunkScope,
@@ -25,51 +27,27 @@ function asRagChunkRecord(value: unknown): RagChunkRecord | null {
 
 export const ragRepository = {
   async upsertChunks(chunks: RagChunkRecord[]) {
-    try {
-      return await getBackend().rag.upsertChunks(chunks);
-    } catch (error) {
-      console.warn("[rag] upsert failed", error);
-      return 0;
-    }
+    return getBackend().rag.upsertChunks(chunks);
   },
 
   async listByOwners(ownerIds: string[], embeddingModel?: string | null): Promise<RagChunkRecord[]> {
     const uniqueOwnerIds = Array.from(new Set(ownerIds.map((id) => id.trim()).filter(Boolean)));
     if (uniqueOwnerIds.length === 0) return [];
-    try {
-      const rows = await getBackend().rag.listChunksByOwners(uniqueOwnerIds, embeddingModel || null);
-      return rows.map(asRagChunkRecord).filter((chunk): chunk is RagChunkRecord => !!chunk);
-    } catch (error) {
-      console.warn("[rag] list failed", error);
-      return [];
-    }
+    const rows = await getBackend().rag.listChunksByOwners(uniqueOwnerIds, embeddingModel || null);
+    return rows.map(asRagChunkRecord);
   },
 
   async deleteBySourceIds(sourceIds: string[]) {
     const uniqueSourceIds = Array.from(new Set(sourceIds.map((id) => id.trim()).filter(Boolean)));
     if (uniqueSourceIds.length === 0) return 0;
-    try {
-      return await getBackend().rag.deleteChunksBySourceIds(uniqueSourceIds);
-    } catch (error) {
-      console.warn("[rag] delete by source failed", error);
-      return 0;
-    }
+    return getBackend().rag.deleteChunksBySourceIds(uniqueSourceIds);
   },
 
   async deleteByOwner(scope: RagChunkScope, ownerId: string) {
-    try {
-      return await getBackend().rag.deleteChunksByOwner(scope, ownerId);
-    } catch (error) {
-      console.warn("[rag] delete by owner failed", error);
-      return 0;
-    }
+    return getBackend().rag.deleteChunksByOwner(scope, ownerId);
   },
 
   async countByOwner(scope: RagChunkScope, ownerId: string) {
-    try {
-      return await getBackend().rag.countChunksByOwner(scope, ownerId);
-    } catch {
-      return 0;
-    }
+    return getBackend().rag.countChunksByOwner(scope, ownerId);
   },
 };

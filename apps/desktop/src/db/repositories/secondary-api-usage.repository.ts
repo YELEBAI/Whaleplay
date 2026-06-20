@@ -1,8 +1,8 @@
 import { generateId } from "@neo-tavern/shared";
 import type { MessageUsage } from "@neo-tavern/shared";
-import { getStorageItem, setStorageItem } from "../storage";
-
-const STORAGE_KEY = "neotavern_secondary_api_usage";
+import { usage } from "../kv";
+import { usageKeys } from "../storage/keys";
+import { loadArray } from "../storage/repository-helpers";
 
 export type SecondaryApiUsageSource = "memory-compressor" | "image-planner";
 
@@ -27,16 +27,11 @@ export interface CreateSecondaryApiUsageInput {
 }
 
 async function loadAll(): Promise<SecondaryApiUsageRecord[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<SecondaryApiUsageRecord>(usage, usageKeys.secondaryApi);
 }
 
 async function saveAll(records: SecondaryApiUsageRecord[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(records));
+  await usage.setJson(usageKeys.secondaryApi, records);
 }
 
 function hasUsageData(usage?: MessageUsage) {

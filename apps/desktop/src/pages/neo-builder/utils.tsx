@@ -9,19 +9,14 @@ import type {
 } from "@/features/character/neo-character-builder";
 import { CheckCircle2, ChevronRight, Loader2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@neo-tavern/ui";
-import {
-  BUILDER_WORKSPACE_RECORDS_STORAGE_KEY,
-  BUILDER_WORKSPACE_STORAGE_KEY,
-  NEW_TARGET,
-  type BuilderMessage,
-  type BuilderWorkspaceRecord,
-  type BuilderWorkspaceSnapshot,
-} from "./types";
+import { device, deviceSync } from "@/db/kv";
+import { NEW_TARGET, type BuilderMessage, type BuilderWorkspaceRecord, type BuilderWorkspaceSnapshot } from "./types";
+
 export { NEW_TARGET };
 
 // ── Message helpers ──────────────────────────────────
 
-/** Sanitize and normalize messages restored from localStorage, clearing stale pending flags. */
+/** Sanitize and normalize messages restored from device storage, clearing stale pending flags. */
 export function normalizeRestoredMessages(messages: unknown): BuilderMessage[] {
   if (!Array.isArray(messages) || messages.length === 0) return initialMessages();
   return messages
@@ -39,11 +34,11 @@ export function normalizeRestoredMessages(messages: unknown): BuilderMessage[] {
     }));
 }
 
-/** Read the current builder workspace snapshot from localStorage. */
+/** Read the current device-scoped workspace, falling back to the legacy key. */
 export function readBuilderWorkspaceSnapshot(): BuilderWorkspaceSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(BUILDER_WORKSPACE_STORAGE_KEY);
+    const raw = deviceSync.get("builder-workspace");
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<BuilderWorkspaceSnapshot>;
     return {
@@ -67,13 +62,12 @@ export function readBuilderWorkspaceSnapshot(): BuilderWorkspaceSnapshot | null 
   }
 }
 
-/** Persist a builder workspace snapshot to localStorage (best-effort). */
-export function writeBuilderWorkspaceSnapshot(snapshot: BuilderWorkspaceSnapshot) {
-  if (typeof window === "undefined") return;
+/** Persist a builder workspace snapshot via the device namespace (best-effort). */
+export async function writeBuilderWorkspaceSnapshot(snapshot: BuilderWorkspaceSnapshot) {
   try {
-    window.localStorage.setItem(BUILDER_WORKSPACE_STORAGE_KEY, JSON.stringify(snapshot));
+    await device.setJson("builder-workspace", snapshot);
   } catch {
-    // Local snapshots are best-effort; the Builder should keep working if storage is full or blocked.
+    /* best-effort */
   }
 }
 
@@ -163,11 +157,11 @@ export function normalizeWorkspaceRecord(record: Partial<BuilderWorkspaceRecord>
   };
 }
 
-/** Read all workspace history records from localStorage, sorted most-recent-first. */
+/** Read device-scoped workspace history, falling back to the legacy key. */
 export function readBuilderWorkspaceRecords(): BuilderWorkspaceRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(BUILDER_WORKSPACE_RECORDS_STORAGE_KEY);
+    const raw = deviceSync.get("builder-records");
     const parsed = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
     return parsed
@@ -179,13 +173,12 @@ export function readBuilderWorkspaceRecords(): BuilderWorkspaceRecord[] {
   }
 }
 
-/** Persist workspace records to localStorage, capped at 80 entries. */
-export function writeBuilderWorkspaceRecords(records: BuilderWorkspaceRecord[]) {
-  if (typeof window === "undefined") return;
+/** Persist workspace records via the device namespace, capped at 80 entries. */
+export async function writeBuilderWorkspaceRecords(records: BuilderWorkspaceRecord[]) {
   try {
-    window.localStorage.setItem(BUILDER_WORKSPACE_RECORDS_STORAGE_KEY, JSON.stringify(records.slice(0, 80)));
+    await device.setJson("builder-records", records.slice(0, 80));
   } catch {
-    // Best-effort bookkeeping for Builder workspace history.
+    /* best-effort */
   }
 }
 

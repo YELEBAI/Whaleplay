@@ -2,7 +2,7 @@
 
 ## 前置条件
 
-- **Node.js** >= 20（参见 `.npmrc` 或 `package.json` 的 engines 字段）
+- **Node.js** >= 24（参见根目录 `package.json` 的 `engines.node` 字段）
 - **pnpm** 9+（推荐使用 corepack：`corepack enable && corepack prepare pnpm@latest --activate`）
 - **Rust 工具链**（用于 Tauri 构建；通过 [rustup](https://rustup.rs/) 安装）
 - 平台特定的 Tauri 依赖：参见 [Tauri v2 前置条件](https://v2.tauri.app/start/prerequisites/)

@@ -1,19 +1,14 @@
 import { generateId } from "@neo-tavern/shared";
 import type { Character, CreateCharacterInput, UpdateCharacterInput } from "@neo-tavern/shared";
-import { getStorageItem, setStorageItem } from "../storage";
-
-const STORAGE_KEY = "neotavern_characters";
+import { data } from "../kv";
+import { dataKeys } from "../storage/keys";
+import { loadArray } from "../storage/repository-helpers";
 
 async function loadAll(): Promise<Character[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<Character>(data, dataKeys.characters);
 }
 async function saveAll(chars: Character[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(chars));
+  await data.setJson(dataKeys.characters, chars);
 }
 
 export const characterRepository = {
