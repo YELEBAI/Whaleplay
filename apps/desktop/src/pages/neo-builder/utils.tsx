@@ -9,23 +9,14 @@ import type {
 } from "@/features/character/neo-character-builder";
 import { CheckCircle2, ChevronRight, Loader2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@neo-tavern/ui";
-import { device } from "@/db/kv";
-import {
-  BUILDER_WORKSPACE_RECORDS_STORAGE_KEY,
-  BUILDER_WORKSPACE_STORAGE_KEY,
-  NEW_TARGET,
-  type BuilderMessage,
-  type BuilderWorkspaceRecord,
-  type BuilderWorkspaceSnapshot,
-} from "./types";
+import { device, deviceSync } from "@/db/kv";
+import { NEW_TARGET, type BuilderMessage, type BuilderWorkspaceRecord, type BuilderWorkspaceSnapshot } from "./types";
 
-const DEVICE_WORKSPACE_KEY = "device:builder-workspace";
-const DEVICE_WORKSPACE_RECORDS_KEY = "device:builder-records";
 export { NEW_TARGET };
 
 // ── Message helpers ──────────────────────────────────
 
-/** Sanitize and normalize messages restored from localStorage, clearing stale pending flags. */
+/** Sanitize and normalize messages restored from device storage, clearing stale pending flags. */
 export function normalizeRestoredMessages(messages: unknown): BuilderMessage[] {
   if (!Array.isArray(messages) || messages.length === 0) return initialMessages();
   return messages
@@ -47,8 +38,7 @@ export function normalizeRestoredMessages(messages: unknown): BuilderMessage[] {
 export function readBuilderWorkspaceSnapshot(): BuilderWorkspaceSnapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw =
-      window.localStorage.getItem(DEVICE_WORKSPACE_KEY) ?? window.localStorage.getItem(BUILDER_WORKSPACE_STORAGE_KEY);
+    const raw = deviceSync.get("builder-workspace");
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<BuilderWorkspaceSnapshot>;
     return {
@@ -171,9 +161,7 @@ export function normalizeWorkspaceRecord(record: Partial<BuilderWorkspaceRecord>
 export function readBuilderWorkspaceRecords(): BuilderWorkspaceRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw =
-      window.localStorage.getItem(DEVICE_WORKSPACE_RECORDS_KEY) ??
-      window.localStorage.getItem(BUILDER_WORKSPACE_RECORDS_STORAGE_KEY);
+    const raw = deviceSync.get("builder-records");
     const parsed = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
     return parsed

@@ -26,43 +26,103 @@ export interface StorageDriver {
   batch(operations: StorageOperation[]): Promise<void>;
 }
 
-// ── Shims / adapters ────────────────────────────────────────────────────
-
-/**
- * Wrap the legacy `getStorageItem` / `setStorageItem` / `removeStorageItem`
- * functions so existing migration and namespace code can consume a
- * `StorageDriver` while we prepare the real plugin-store / REST backends.
- */
-import { getStorageItem, removeStorageItem, setStorageItem, getStorageEntries } from "../storage";
-
 function wrapRead(raw: string | null): ReadResult {
   return raw !== null ? { status: "found", value: raw } : { status: "missing" };
 }
 
-export const legacyFallbackDriver: StorageDriver = {
+async function canonicalStore() {
+  const { getBackend } = await import("@/platform");
+  return getBackend().store;
+}
+
+/** The authoritative Tauri/plugin-store driver. It never falls through to localStorage. */
+export const canonicalBackendDriver: StorageDriver = {
   get: async (key) => {
     try {
-      return wrapRead(await getStorageItem(key));
-    } catch (e) {
-      return { status: "error", reason: e instanceof Error ? e.message : String(e) };
+      return wrapRead(await (await canonicalStore()).get(key));
+    } catch (error) {
+      return { status: "error", reason: error instanceof Error ? error.message : String(error) };
     }
   },
-  set: (key, value) => setStorageItem(key, value),
-  remove: (key) => removeStorageItem(key),
-  entries: (prefix) => getStorageEntries(prefix),
-  batch: async (ops) => {
-    // Prefer the atomic Tauri/REST backend when available.
+  set: async (key, value) => (await canonicalStore()).set(key, value),
+  remove: async (key) => (await canonicalStore()).remove(key),
+  entries: async (prefix) => {
+    const entries = await (await canonicalStore()).entries();
+    return Object.fromEntries(Object.entries(entries).filter(([key]) => key.startsWith(prefix)));
+  },
+  batch: async (operations) => (await canonicalStore()).batch(operations),
+};
+
+function restHeaders(json = false): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (json) headers["Content-Type"] = "application/json";
+  try {
+    const token = window.sessionStorage.getItem("session:auth-token");
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch {
+    /* The request will fail with an explicit HTTP error if auth is required. */
+  }
+  return headers;
+}
+
+async function requireRestResponse(response: Response, operation: string): Promise<Response> {
+  if (response.ok) return response;
+  let detail = "";
+  try {
+    detail = (await response.text()).slice(0, 240);
+  } catch {
+    /* best-effort diagnostics */
+  }
+  throw new Error(`${operation} failed with HTTP ${response.status}${detail ? `: ${detail}` : ""}`);
+}
+
+/** Authoritative LAN REST driver. Missing keys never fall through to browser storage. */
+export const restBackendDriver: StorageDriver = {
+  get: async (key) => {
     try {
-      const { getBackend } = await import("@/platform");
-      await getBackend().store.batch(ops);
-      return;
-    } catch {
-      // Fall through to legacy one-by-one path.
+      const response = await requireRestResponse(
+        await fetch(`/api/store/${encodeURIComponent(key)}`, { headers: restHeaders() }),
+        `REST get ${key}`,
+      );
+      const payload = (await response.json()) as { value?: string | null };
+      return wrapRead(payload.value ?? null);
+    } catch (error) {
+      return { status: "error", reason: error instanceof Error ? error.message : String(error) };
     }
-    // Legacy non-atomic fallback for browser-only sessions.
-    for (const op of ops) {
-      if (op.type === "set") await setStorageItem(op.key, op.value);
-      else await removeStorageItem(op.key);
-    }
+  },
+  set: async (key, value) => {
+    await requireRestResponse(
+      await fetch(`/api/store/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        headers: restHeaders(true),
+        body: JSON.stringify({ value }),
+      }),
+      `REST set ${key}`,
+    );
+  },
+  remove: async (key) => {
+    await requireRestResponse(
+      await fetch(`/api/store/${encodeURIComponent(key)}`, { method: "DELETE", headers: restHeaders() }),
+      `REST remove ${key}`,
+    );
+  },
+  entries: async (prefix) => {
+    const response = await requireRestResponse(
+      await fetch("/api/store", { headers: restHeaders() }),
+      `REST entries ${prefix}`,
+    );
+    const payload = (await response.json()) as Record<string, string> | [string, string][];
+    const entries = Array.isArray(payload) ? payload : Object.entries(payload);
+    return Object.fromEntries(entries.filter(([key]) => key.startsWith(prefix)));
+  },
+  batch: async (operations) => {
+    await requireRestResponse(
+      await fetch("/api/store/batch", {
+        method: "POST",
+        headers: restHeaders(true),
+        body: JSON.stringify(operations),
+      }),
+      "REST batch",
+    );
   },
 };

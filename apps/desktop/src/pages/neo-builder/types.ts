@@ -49,7 +49,7 @@ export type BuilderMessage = {
 /** Which artifact dialog is currently open (or null if none). */
 export type ArtifactView = "character" | "worldbook" | "plan" | "palette" | "statusBars" | "evaluation" | null;
 
-/** Full serializable state of a builder workspace, persisted to localStorage. */
+/** Full serializable state of a builder workspace, persisted in the device namespace. */
 export type BuilderWorkspaceSnapshot = {
   targetId: BuilderTarget;
   messages: BuilderMessage[];

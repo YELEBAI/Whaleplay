@@ -40,6 +40,21 @@ fn app_store_batch(app: tauri::AppHandle, operations: Vec<store::StoreOp>) -> Re
     store::batch_ops(&app, &operations)
 }
 
+#[tauri::command]
+fn app_store_lock(app: tauri::AppHandle) -> Result<bool, String> {
+    store::try_lock(&app)
+}
+
+#[tauri::command]
+fn app_store_unlock(app: tauri::AppHandle) -> Result<(), String> {
+    store::unlock(&app)
+}
+
+#[tauri::command]
+fn app_store_backup(app: tauri::AppHandle) -> Result<String, String> {
+    store::backup(&app)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -54,6 +69,9 @@ pub fn run() {
             app_store_remove,
             app_store_entries,
             app_store_batch,
+            app_store_lock,
+            app_store_unlock,
+            app_store_backup,
             lan::lan_server_status,
             file::pick_folder,
             file::save_workspace_dir,
@@ -77,6 +95,8 @@ pub fn run() {
             db::sqlite_upsert_agentic_play_state,
             db::sqlite_delete_agentic_play_state,
             db::sqlite_clear_agentic_play_states,
+            db::sqlite_get_version,
+            db::sqlite_set_version,
             search::web_search,
             comfy::comfy_get_system_stats,
             comfy::comfy_queue_prompt,

@@ -3,8 +3,8 @@ import type { GenerationPhase } from "@/features/chat/chat.types";
 
 // ── Constants ─────────────────────────────────────────
 export const DEEPSEEK_CONTEXT_LIMIT = 1_000_000;
-export const CHAT_FONT_SIZE_KEY = "neotavern_chat_font_size";
-export const CHAT_DRAFT_KEY_PREFIX = "neotavern_chat_draft";
+export const CHAT_FONT_SIZE_KEY = "chat:font-size";
+export const CHAT_DRAFT_KEY_PREFIX = "chat-draft";
 export const CONTINUE_PROMPT = "继续";
 export const CHAT_VISIBLE_TURN_LIMIT = 20;
 export const CHAT_FONT_SIZE_MIN = 12;
@@ -21,7 +21,7 @@ export function formatCompactToken(value: number) {
 }
 
 export function getChatDraftKey(chatId: string) {
-  return `${CHAT_DRAFT_KEY_PREFIX}_${chatId}`;
+  return `${CHAT_DRAFT_KEY_PREFIX}:${chatId}`;
 }
 
 export function clampChatFontSize(value: number) {

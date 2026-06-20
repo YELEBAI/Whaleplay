@@ -4,10 +4,10 @@ import {
   normalizeAgenticGameState,
   type AgenticGameState,
 } from "@/features/agentic-play/agentic-play";
-import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
 import { getBackend } from "@/platform";
-
-const STORAGE_KEY = "neotavern_agentic_play_states";
+import { data } from "../kv";
+import { dataKeys } from "../storage/keys";
+import { loadArray, readOptional } from "../storage/repository-helpers";
 let sqliteReady: Promise<boolean> | null = null;
 
 export interface AgenticPlayStateRecord {
@@ -20,25 +20,18 @@ export interface AgenticPlayStateRecord {
 }
 
 async function loadAll(): Promise<AgenticPlayStateRecord[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return loadArray<AgenticPlayStateRecord>(data, dataKeys.agenticPlayStates);
 }
 
 async function saveAll(records: AgenticPlayStateRecord[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(records));
+  await data.setJson(dataKeys.agenticPlayStates, records);
 }
 
 async function ensureSqliteReady(): Promise<boolean> {
   if (!sqliteReady) {
     sqliteReady = (async () => {
       try {
-        const legacyStatesJson = await getStorageItem(STORAGE_KEY);
+        const legacyStatesJson = await readOptional(data, dataKeys.agenticPlayStates);
         await getBackend().agenticPlay.initFromJson(legacyStatesJson);
         return true;
       } catch {
@@ -203,6 +196,6 @@ export const agenticPlayStateRepository = {
 
   async clearAll(): Promise<void> {
     await sqliteClearAll();
-    await removeStorageItem(STORAGE_KEY);
+    await data.remove(dataKeys.agenticPlayStates);
   },
 };

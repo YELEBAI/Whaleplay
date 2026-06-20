@@ -14,10 +14,15 @@ export const tauriBackend: Backend = {
     remove: (key) => invoke("app_store_remove", { key }),
     entries: () => invoke<Record<string, string>>("app_store_entries"),
     batch: (ops) => invoke("app_store_batch", { operations: ops }),
+    lock: () => invoke<boolean>("app_store_lock"),
+    unlock: () => invoke("app_store_unlock"),
+    backup: () => invoke<string>("app_store_backup"),
   },
 
   db: {
     initMessages: (legacyJson) => invoke("sqlite_init_messages", { legacyMessagesJson: legacyJson }),
+    getVersion: () => invoke<number>("sqlite_get_version"),
+    setVersion: (version) => invoke("sqlite_set_version", { version }),
     listMessages: (chatId) => invoke("sqlite_list_messages_by_chat_id", { chatId }),
     listRecentMessages: (chatId, limit) => invoke("sqlite_list_recent_messages_by_chat_id", { chatId, limit }),
     listChildMessages: (parentId) => invoke("sqlite_list_child_messages", { parentId }),

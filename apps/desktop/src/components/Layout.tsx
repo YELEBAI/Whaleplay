@@ -84,11 +84,7 @@ export function Layout() {
 
   useEffect(() => {
     device.get("last-chat-id").then((r) => {
-      if (r.status === "found") {
-        setLastChatId(r.value);
-        return;
-      }
-      setLastChatId(typeof localStorage === "undefined" ? null : localStorage.getItem("neo:last-chat-id"));
+      setLastChatId(r.status === "found" ? r.value : null);
     });
   }, []);
 

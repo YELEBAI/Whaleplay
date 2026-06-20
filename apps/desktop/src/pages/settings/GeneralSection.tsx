@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { Bell, Bug, Globe, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Input, Label, Button, cn } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
-import { getStorageItem, setStorageItem } from "@/db/storage";
+import { secret, sys } from "@/db/kv";
+import { secretKeys, sysKeys } from "@/db/storage/keys";
+import { readOptional } from "@/db/storage/repository-helpers";
 import { changeLocale, type Locale } from "@/i18n";
 import { formatCnyCost, formatCnyExact } from "@/features/billing/deepseek-billing";
 import { DAILY_COST_WARNING_RATIO } from "@/features/billing/daily-cost";
@@ -60,10 +62,12 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
 
   useEffect(() => {
     (async () => {
-      const en = await getStorageItem("neotavern_lan_enabled");
-      const ad = await getStorageItem("neotavern_lan_addr");
-      const po = await getStorageItem("neotavern_lan_port");
-      const pw = await getStorageItem("neotavern_lan_password");
+      const [en, ad, po, pw] = await Promise.all([
+        readOptional(sys, sysKeys.lanEnabled),
+        readOptional(sys, sysKeys.lanAddress),
+        readOptional(sys, sysKeys.lanPort),
+        readOptional(secret, secretKeys.lanPassword),
+      ]);
       setLanEnabled(en === "true");
       if (ad) setLanAddr(ad);
       if (po) setLanPort(po);
@@ -78,7 +82,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
     crypto.getRandomValues(buf);
     for (let i = 0; i < 12; i++) pw += chars[buf[i] % chars.length];
     setLanPassword(pw);
-    await setStorageItem("neotavern_lan_password", pw);
+    await secret.set(secretKeys.lanPassword, pw);
   };
 
   const dailyWarningAtCny = dailyCostWarningLimitCny * DAILY_COST_WARNING_RATIO;
@@ -203,7 +207,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                 onClick={async () => {
                   const next = !lanEnabled;
                   setLanEnabled(next);
-                  await setStorageItem("neotavern_lan_enabled", String(next));
+                  await sys.set(sysKeys.lanEnabled, String(next));
                 }}
                 className={cn(
                   "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
@@ -227,7 +231,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                       value={lanAddr}
                       onChange={async (e: React.ChangeEvent<HTMLInputElement>) => {
                         setLanAddr(e.target.value);
-                        await setStorageItem("neotavern_lan_addr", e.target.value);
+                        await sys.set(sysKeys.lanAddress, e.target.value);
                       }}
                       className="mt-1 h-7 text-xs"
                     />
@@ -238,7 +242,7 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
                       value={lanPort}
                       onChange={async (e: React.ChangeEvent<HTMLInputElement>) => {
                         setLanPort(e.target.value);
-                        await setStorageItem("neotavern_lan_port", e.target.value);
+                        await sys.set(sysKeys.lanPort, e.target.value);
                       }}
                       className="mt-1 h-7 text-xs"
                     />

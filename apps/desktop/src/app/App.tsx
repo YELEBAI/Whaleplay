@@ -14,7 +14,6 @@ import {
 import { ToastContainer, useToast } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
-import { migrateLocalStorageToAppStore } from "@/db/storage";
 import { messageRepository } from "@/db/repositories";
 import { LoginGate } from "@/components/LoginGate";
 import { useThemeStore } from "./theme.store";
@@ -36,7 +35,6 @@ function AppContent() {
     seeded = true;
 
     void (async () => {
-      await migrateLocalStorageToAppStore();
       const migratedCount = await messageRepository.migrateParentIds();
       if (migratedCount > 0) {
         console.warn(`[migration] Set parentId for ${migratedCount} messages`);

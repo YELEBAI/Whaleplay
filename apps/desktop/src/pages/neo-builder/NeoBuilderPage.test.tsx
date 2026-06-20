@@ -165,14 +165,14 @@ describe("NeoBuilderPage", () => {
   // ── No crash with empty localStorage state ──
 
   it("handles corrupted localStorage gracefully", () => {
-    localStorage.setItem("neo:character-builder:workspace:v1", "{corrupted json");
-    localStorage.setItem("neo:character-builder:workspace-records:v1", "[{]");
+    localStorage.setItem("device:builder-workspace", "{corrupted json");
+    localStorage.setItem("device:builder-records", "[{]");
     expect(() => render(<NeoBuilderPage />)).not.toThrow();
   });
 
   it("handles null localStorage state", () => {
-    localStorage.removeItem("neo:character-builder:workspace:v1");
-    localStorage.removeItem("neo:character-builder:workspace-records:v1");
+    localStorage.removeItem("device:builder-workspace");
+    localStorage.removeItem("device:builder-records");
     expect(() => render(<NeoBuilderPage />)).not.toThrow();
   });
 });

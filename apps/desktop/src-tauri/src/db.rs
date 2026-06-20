@@ -59,6 +59,15 @@ fn open_sqlite(app: &tauri::AppHandle) -> Result<rusqlite::Connection, String> {
         .map_err(|err| format!("Failed to migrate SQLite schema for parent_id: {err}"))?;
     }
 
+    // Bootstrap PRAGMA user_version if not set
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap_or(0);
+    if version == 0 {
+        conn.pragma_update(None, "user_version", 1)
+            .map_err(|err| format!("Failed to set SQLite user_version: {err}"))?;
+    }
+
     Ok(conn)
 }
 
@@ -585,4 +594,24 @@ pub(crate) fn sqlite_clear_agentic_play_states(app: tauri::AppHandle) -> Result<
     conn.execute("DELETE FROM agentic_play_states", [])
         .map_err(|err| format!("Failed to clear SQLite Agentic Play states: {err}"))?;
     Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn sqlite_get_version(app: tauri::AppHandle) -> Result<i64, String> {
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
+    let version: i64 = conn
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .map_err(|err| format!("Failed to read SQLite user_version: {err}"))?;
+    Ok(version)
+}
+
+#[tauri::command]
+pub(crate) fn sqlite_set_version(app: tauri::AppHandle, version: i64) -> Result<(), String> {
+    let conn = get_db(&app)?
+        .lock()
+        .map_err(|e| format!("Failed to lock database: {e}"))?;
+    conn.pragma_update(None, "user_version", version)
+        .map_err(|err| format!("Failed to set SQLite user_version: {err}"))
 }

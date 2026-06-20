@@ -45,6 +45,14 @@ export interface PrefixedKV {
   clear(): Promise<void>;
 }
 
+export interface SyncPrefixedStorage {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+  remove(key: string): void;
+  getJson<T = unknown>(key: string): T | null;
+  setJson(key: string, value: unknown): void;
+}
+
 export function createPrefixedKV(prefix: string, driver: StorageDriver): PrefixedKV {
   const pk = (name: string) => `${prefix}${name}`;
 
@@ -92,6 +100,37 @@ export function createPrefixedKV(prefix: string, driver: StorageDriver): Prefixe
   };
 }
 
+function createSyncBrowserNamespace(
+  prefix: string,
+  storageName: "localStorage" | "sessionStorage",
+): SyncPrefixedStorage {
+  const storage = () => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window[storageName];
+    } catch {
+      return null;
+    }
+  };
+  const keyFor = (key: string) => `${prefix}${key}`;
+
+  return {
+    get: (key) => storage()?.getItem(keyFor(key)) ?? null,
+    set: (key, value) => storage()?.setItem(keyFor(key), value),
+    remove: (key) => storage()?.removeItem(keyFor(key)),
+    getJson: <T = unknown>(key: string): T | null => {
+      const raw = storage()?.getItem(keyFor(key));
+      if (raw == null) return null;
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        return null;
+      }
+    },
+    setJson: (key, value) => storage()?.setItem(keyFor(key), JSON.stringify(value)),
+  };
+}
+
 // ── Pre-built instances ──────────────────────────────────────────────────
 //
 // Shared namespaces use the transitional shared driver. Device and session
@@ -111,10 +150,20 @@ export const sys = createPrefixedKV("sys:", getSharedDriver());
 /** Migration metadata (schema version, lock, migration completion records). */
 export const meta = createPrefixedKV("meta:", getSharedDriver());
 
+/** Usage aggregates and temporary usage detail awaiting the Phase E SQLite move. */
+export const usage = createPrefixedKV("usage:", getSharedDriver());
+
+/** Sensitive values. Exact-key access is allowed; enumeration is filtered from LAN REST. */
+export const secret = createPrefixedKV("secret:", getSharedDriver());
+
 /** Device-scoped data (last-chat-id, Builder drafts, local-only prefs). */
 export const device = createPrefixedKV("device:", getDeviceDriver());
 
 /** Session-scoped data (cleared when the browsing context ends). */
 export const session = createPrefixedKV("session:", getSessionDriver());
+
+/** Synchronous browser-owned adapters for state initialisers that cannot await. */
+export const deviceSync = createSyncBrowserNamespace("device:", "localStorage");
+export const sessionSync = createSyncBrowserNamespace("session:", "sessionStorage");
 
 // No __z: instance — canonical Zustand persist is being removed per the survey.

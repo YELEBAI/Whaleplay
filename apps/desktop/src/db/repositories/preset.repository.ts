@@ -9,39 +9,26 @@ import type {
   RegexPreset,
   RegexRule,
 } from "@neo-tavern/shared";
-import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
-
-const STORAGE_KEY = "neotavern_presets";
-const ACTIVE_KEY = "neotavern_active_preset_id";
-const REGEX_KEY = "neotavern_regex_presets";
+import { data, sys } from "../kv";
+import { dataKeys, sysKeys } from "../storage/keys";
+import { loadArray, readOptional } from "../storage/repository-helpers";
 
 async function loadRegexPresets(): Promise<RegexPreset[]> {
-  try {
-    const raw = await getStorageItem(REGEX_KEY);
-    if (!raw) return [];
-    const data = JSON.parse(raw);
-    if (!Array.isArray(data)) return [];
-    return data.filter((p) => p && Array.isArray(p.rules));
-  } catch {
-    return [];
-  }
+  return (await loadArray<RegexPreset>(data, dataKeys.regexPresets)).filter((preset) =>
+    Boolean(preset && Array.isArray(preset.rules)),
+  );
 }
 
 async function saveRegexPresets(presets: RegexPreset[]) {
-  await setStorageItem(REGEX_KEY, JSON.stringify(presets));
+  await data.setJson(dataKeys.regexPresets, presets);
 }
 
 async function loadAll(): Promise<Preset[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<Preset>(data, dataKeys.presets);
 }
 
 async function saveAll(presets: Preset[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(presets));
+  await data.setJson(dataKeys.presets, presets);
 }
 
 export const presetRepository = {
@@ -166,12 +153,12 @@ export const presetRepository = {
   },
 
   async getActivePresetId(): Promise<string | null> {
-    return getStorageItem(ACTIVE_KEY);
+    return readOptional(sys, sysKeys.activePresetId);
   },
 
   async setActivePresetId(id: string | null): Promise<void> {
-    if (id) await setStorageItem(ACTIVE_KEY, id);
-    else await removeStorageItem(ACTIVE_KEY);
+    if (id) await sys.set(sysKeys.activePresetId, id);
+    else await sys.remove(sysKeys.activePresetId);
   },
 
   save: saveAll,

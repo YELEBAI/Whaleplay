@@ -1,23 +1,18 @@
 import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
 import { getBackend } from "@/platform";
-import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
 import { mergeMessagesByContent } from "@neo-tavern/core/tree";
-
-const STORAGE_KEY = "neotavern_messages";
+import { data } from "../kv";
+import { dataKeys } from "../storage/keys";
+import { loadArray, readOptional } from "../storage/repository-helpers";
 
 let sqliteReady: Promise<boolean> | null = null;
 
 async function loadAll(): Promise<Message[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<Message>(data, dataKeys.messages);
 }
 async function saveAll(msgs: Message[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(msgs));
+  await data.setJson(dataKeys.messages, msgs);
 }
 
 function makeMessage(input: CreateMessageInput): Message {
@@ -93,10 +88,10 @@ async function canUseSqliteMessages() {
   if (!sqliteReady) {
     sqliteReady = (async () => {
       try {
-        const legacyMessagesJson = await getStorageItem(STORAGE_KEY);
+        const legacyMessagesJson = await readOptional(data, dataKeys.messages);
         await getBackend().db.initMessages(legacyMessagesJson);
         if (legacyMessagesJson) {
-          await removeStorageItem(STORAGE_KEY);
+          await data.remove(dataKeys.messages);
         }
         return true;
       } catch {
@@ -262,7 +257,7 @@ export const messageRepository = {
     if (await canUseSqliteMessages()) {
       return getBackend().db.migrateParentIds();
     }
-    // localStorage path: compute parentId from chronological order
+    // Browser KV fallback: compute parentId from chronological order.
     const all = await loadAll();
     if (all.every((m) => m.parentId != null)) return 0;
 

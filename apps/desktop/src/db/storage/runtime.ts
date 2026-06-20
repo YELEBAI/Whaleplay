@@ -1,15 +1,13 @@
 /**
  * Storage runtime — selects the canonical driver for each namespace scope.
  *
- * Shared data still uses the transitional legacy driver. Device and session
- * scopes are isolated in localStorage and sessionStorage respectively.
- *
  * Key principle: the same logical data scope gets ONE driver.  We do NOT
  * fall back per-operation when the primary driver returns "missing" — that
  * would make it impossible to distinguish "authentically absent" from
  * "backend temporarily down".
  */
-import { legacyFallbackDriver } from "./driver";
+import { isTauri } from "@tauri-apps/api/core";
+import { canonicalBackendDriver, restBackendDriver } from "./driver";
 import type { StorageDriver } from "./driver";
 
 type BrowserStorageName = "localStorage" | "sessionStorage";
@@ -81,9 +79,21 @@ export function createBrowserStorageDriver(name: BrowserStorageName): StorageDri
 const deviceDriver = createBrowserStorageDriver("localStorage");
 const sessionDriver = createBrowserStorageDriver("sessionStorage");
 
+export function isRemoteLanClient(): boolean {
+  if (isTauri() || typeof window === "undefined") return false;
+  const host = window.location.hostname;
+  return host !== "localhost" && host !== "127.0.0.1" && !host.endsWith(".localhost");
+}
+
+const sharedDriver = isTauri()
+  ? canonicalBackendDriver
+  : isRemoteLanClient()
+    ? restBackendDriver
+    : createBrowserStorageDriver("localStorage");
+
 /** Shared canonical driver (KV — prefs / data / sys / meta). */
 export function getSharedDriver(): StorageDriver {
-  return legacyFallbackDriver;
+  return sharedDriver;
 }
 
 /** Device-local driver (persisted per browser / app install). */

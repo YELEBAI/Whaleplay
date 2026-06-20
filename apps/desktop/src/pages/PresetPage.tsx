@@ -32,7 +32,7 @@ import { usePresetStore } from "@/features/preset/preset.store";
 import { AGENTIC_PLAY_PRESET_ID, ensureAgenticPlayPreset } from "@/features/agentic-play/agentic-preset";
 import { forwardRef } from "react";
 import type { Preset, PresetItem } from "@neo-tavern/shared";
-import { getStorageItem } from "@/db/storage";
+import { sessionSync } from "@/db/kv";
 import { getBackend } from "@/platform";
 import { toast } from "@/utils/toast";
 
@@ -591,9 +591,7 @@ export function PresetPage() {
   useEffect(() => {
     let cancelled = false;
     const refreshSecret = () => {
-      getStorageItem("neotavern_secret_unlocked").then((value) => {
-        if (!cancelled) setSecretUnlocked(value === "1");
-      });
+      if (!cancelled) setSecretUnlocked(sessionSync.get("secret-unlocked") === "1");
     };
     refreshSecret();
     window.addEventListener("neotavern-secret-changed", refreshSecret);

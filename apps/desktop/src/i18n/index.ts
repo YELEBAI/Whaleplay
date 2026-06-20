@@ -1,8 +1,8 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { getStorageItem, setStorageItem } from "@/db/storage";
-
-const LOCALE_KEY = "neotavern_locale";
+import { prefs } from "@/db/kv";
+import { prefKeys } from "@/db/storage/keys";
+import { readOptional } from "@/db/storage/repository-helpers";
 
 // Eagerly load all locale JSON files at build time.
 const resources: Record<string, Record<string, Record<string, unknown>>> = {};
@@ -22,17 +22,17 @@ export type Locale = (typeof SUPPORTED_LOCALES)[number];
 // Fast synchronous default — overridden by loadPersistedLocale() in main.tsx.
 i18n.use(initReactI18next).init({
   resources,
-  lng: (typeof localStorage !== "undefined" ? localStorage.getItem(LOCALE_KEY) : null) || "zh",
+  lng: "zh",
   fallbackLng: "zh",
   defaultNS: "common",
   interpolation: { escapeValue: false },
   returnNull: false,
 });
 
-/** Load persisted locale from the 3-layer storage, overriding the fast default. */
+/** Load persisted locale from the selected authoritative preferences driver. */
 export async function loadPersistedLocale() {
   try {
-    const saved = await getStorageItem(LOCALE_KEY);
+    const saved = await readOptional(prefs, prefKeys.locale);
     if (saved && (saved === "zh" || saved === "en") && saved !== i18n.language) {
       i18n.changeLanguage(saved);
     }
@@ -43,7 +43,7 @@ export async function loadPersistedLocale() {
 
 export function changeLocale(locale: Locale) {
   i18n.changeLanguage(locale);
-  void setStorageItem(LOCALE_KEY, locale);
+  void prefs.set(prefKeys.locale, locale);
 }
 
 export function getLocale(): Locale {

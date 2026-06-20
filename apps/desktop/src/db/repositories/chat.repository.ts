@@ -1,19 +1,14 @@
 import { generateId } from "@neo-tavern/shared";
 import type { Chat, CreateChatInput, UpdateChatInput } from "@neo-tavern/shared";
-import { getStorageItem, setStorageItem } from "../storage";
-
-const STORAGE_KEY = "neotavern_chats";
+import { data } from "../kv";
+import { dataKeys } from "../storage/keys";
+import { loadArray } from "../storage/repository-helpers";
 
 async function loadAll(): Promise<Chat[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<Chat>(data, dataKeys.chats);
 }
 async function saveAll(chats: Chat[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(chats));
+  await data.setJson(dataKeys.chats, chats);
 }
 
 export const chatRepository = {

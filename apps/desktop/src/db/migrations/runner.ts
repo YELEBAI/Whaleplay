@@ -8,6 +8,8 @@
  *   a later stable release (Phase F).
  */
 import type { StorageDriver } from "../storage/driver";
+import type { Backend } from "@/platform";
+import { isTauri } from "@tauri-apps/api/core";
 import type { MigrationContext, StorageMigration } from "./types";
 
 const SCHEMA_VERSION_KEY = "meta:schema-version";
@@ -93,44 +95,83 @@ export async function runMigrations(
   const ctx = makeContext(driver, appVersion);
   console.warn(`[migration] Current schema version: ${version}. Running ${sorted.length - startIndex} migration(s).`);
 
-  for (let i = startIndex; i < sorted.length; i++) {
-    const migration = sorted[i];
-    if (migration.from !== version) {
-      throw new Error(`Migration ${migration.id} expected v${migration.from}, current schema is v${version}`);
-    }
-    console.warn(`[migration] Running ${migration.id} (${migration.from} → ${migration.to}): ${migration.description}`);
-
+  // Acquire the process-wide lock before touching the desktop store.
+  let lockedBackend: Backend | null = null;
+  let backupPath: string | null = null;
+  if (isTauri()) {
     try {
-      const startedAt = new Date().toISOString();
-      const ops = await migration.plan(ctx);
-      await driver.batch(ops);
-      await migration.verify(ctx);
-
-      // Record completion
-      const record = {
-        state: "completed" as const,
-        from: migration.from,
-        to: migration.to,
-        appVersion,
-        startedAt,
-        completedAt: new Date().toISOString(),
-      };
-      await driver.batch([
-        { type: "set", key: `${MIGRATION_PREFIX}${migration.id}`, value: JSON.stringify(record) },
-        { type: "set", key: SCHEMA_VERSION_KEY, value: String(migration.to) },
-      ]);
-      version = migration.to;
-
-      console.warn(`[migration] ${migration.id} completed. Schema now at v${migration.to}.`);
-    } catch (err) {
-      console.error(
-        `[migration] ${migration.id} FAILED:`,
-        err instanceof Error ? err.message : err,
-        `. Schema stays at v${version}. Will retry next launch.`,
-      );
+      const { getBackend } = await import("@/platform");
+      const backend = getBackend();
+      const locked = await backend.store.lock();
+      if (!locked) {
+        console.warn("[migration] Lock not acquired — another instance may be migrating.");
+        return false;
+      }
+      lockedBackend = backend;
+    } catch (error) {
+      console.error("[migration] Unable to acquire migration lock:", error);
       return false;
     }
   }
 
-  return true;
+  try {
+    if (lockedBackend) {
+      try {
+        backupPath = await lockedBackend.store.backup();
+      } catch (error) {
+        console.error("[migration] Unable to create pre-migration backup:", error);
+        return false;
+      }
+    }
+
+    for (let i = startIndex; i < sorted.length; i++) {
+      const migration = sorted[i];
+      if (migration.from !== version) {
+        throw new Error(`Migration ${migration.id} expected v${migration.from}, current schema is v${version}`);
+      }
+      console.warn(
+        `[migration] Running ${migration.id} (${migration.from} → ${migration.to}): ${migration.description}`,
+      );
+
+      try {
+        const startedAt = new Date().toISOString();
+        const ops = await migration.plan(ctx);
+        await driver.batch(ops);
+        await migration.verify(ctx);
+
+        // Record completion
+        const record = {
+          state: "completed" as const,
+          from: migration.from,
+          to: migration.to,
+          appVersion,
+          startedAt,
+          completedAt: new Date().toISOString(),
+          backup: backupPath,
+        };
+        await driver.batch([
+          { type: "set", key: `${MIGRATION_PREFIX}${migration.id}`, value: JSON.stringify(record) },
+          { type: "set", key: SCHEMA_VERSION_KEY, value: String(migration.to) },
+        ]);
+        version = migration.to;
+
+        console.warn(`[migration] ${migration.id} completed. Schema now at v${migration.to}.`);
+      } catch (err) {
+        console.error(
+          `[migration] ${migration.id} FAILED:`,
+          err instanceof Error ? err.message : err,
+          `. Schema stays at v${version}. Will retry next launch.`,
+        );
+        return false;
+      }
+    }
+
+    return true;
+  } finally {
+    try {
+      await lockedBackend?.store.unlock();
+    } catch {
+      /* best-effort */
+    }
+  }
 }

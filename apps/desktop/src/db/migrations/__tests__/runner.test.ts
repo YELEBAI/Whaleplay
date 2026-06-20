@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { isTauri } from "@tauri-apps/api/core";
+import { getBackend } from "@/platform";
 import { runMigrations } from "../runner";
 import type { StorageDriver, ReadResult } from "../../storage/driver";
 import type { StorageMigration } from "../types";
@@ -82,6 +84,27 @@ describe("runMigrations", () => {
     const data = await driver.get("prefs:test");
     expect(data.status).toBe("found");
     if (data.status === "found") expect(data.value).toBe("hello");
+  });
+
+  it("records the backup path and releases the native lock", async () => {
+    vi.mocked(isTauri).mockReturnValueOnce(true);
+    const backend = getBackend();
+    vi.mocked(backend.store.lock).mockResolvedValueOnce(true);
+    vi.mocked(backend.store.backup).mockResolvedValueOnce("/backup/store.json");
+    const migration: StorageMigration = {
+      id: "001-native-backup",
+      from: -1,
+      to: 1,
+      description: "native migration",
+      plan: async () => [],
+      verify: async () => {},
+    };
+
+    expect(await runMigrations(driver, [migration], APP_VERSION)).toBe(true);
+    const record = await driver.get("meta:migration:001-native-backup");
+    expect(record.status).toBe("found");
+    if (record.status === "found") expect(JSON.parse(record.value).backup).toBe("/backup/store.json");
+    expect(backend.store.unlock).toHaveBeenCalled();
   });
 
   it("is idempotent — running twice does not re-apply", async () => {

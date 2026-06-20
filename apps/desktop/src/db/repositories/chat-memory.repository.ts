@@ -1,6 +1,6 @@
-import { getStorageItem, removeStorageItem, setStorageItem } from "../storage";
-
-const STORAGE_KEY = "neotavern_chat_memories";
+import { data } from "../kv";
+import { dataKeys } from "../storage/keys";
+import { loadArray } from "../storage/repository-helpers";
 
 export interface ChatMemory {
   chatId: string;
@@ -29,16 +29,11 @@ export interface ChatMemorySegment {
 }
 
 async function loadAll(): Promise<ChatMemory[]> {
-  try {
-    const raw = await getStorageItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return loadArray<ChatMemory>(data, dataKeys.chatMemories);
 }
 
 async function saveAll(memories: ChatMemory[]) {
-  await setStorageItem(STORAGE_KEY, JSON.stringify(memories));
+  await data.setJson(dataKeys.chatMemories, memories);
 }
 
 export const chatMemoryRepository = {
@@ -61,6 +56,6 @@ export const chatMemoryRepository = {
   },
 
   async clearAll(): Promise<void> {
-    await removeStorageItem(STORAGE_KEY);
+    await data.remove(dataKeys.chatMemories);
   },
 };

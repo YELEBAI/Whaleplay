@@ -1,10 +1,10 @@
 import { create } from "zustand";
-import { getStorageItem, setStorageItem } from "@/db/storage";
+import { prefs } from "@/db/kv";
+import { prefKeys } from "@/db/storage/keys";
+import { readOptional } from "@/db/storage/repository-helpers";
 
 export type Theme = "light" | "dark" | "sepia" | "blue" | "system";
 export type ResolvedTheme = "light" | "dark" | "sepia" | "blue";
-
-const STORAGE_KEY = "neotavern_theme";
 
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "light";
@@ -37,14 +37,14 @@ export const useThemeStore = create<ThemeStore>((set) => ({
   resolvedTheme: resolveTheme("system"),
 
   init: async () => {
-    const saved = await getStorageItem(STORAGE_KEY);
+    const saved = await readOptional(prefs, prefKeys.theme);
     if (saved === "light" || saved === "dark" || saved === "sepia" || saved === "blue" || saved === "system") {
       const resolved = resolveTheme(saved);
       set({ theme: saved, resolvedTheme: resolved });
       applyDOMTheme(resolved);
     } else {
       // First launch: persist default "system"
-      void setStorageItem(STORAGE_KEY, "system");
+      void prefs.set(prefKeys.theme, "system");
       const resolved = getSystemTheme();
       set({ theme: "system", resolvedTheme: resolved });
       applyDOMTheme(resolved);
@@ -55,7 +55,7 @@ export const useThemeStore = create<ThemeStore>((set) => ({
     const resolved = resolveTheme(t);
     set({ theme: t, resolvedTheme: resolved });
     applyDOMTheme(resolved);
-    void setStorageItem(STORAGE_KEY, t);
+    void prefs.set(prefKeys.theme, t);
   },
 }));
 

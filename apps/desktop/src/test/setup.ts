@@ -4,6 +4,7 @@ import { vi } from "vitest";
 // ── Mock Tauri APIs ──────────────────────────────────
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn().mockResolvedValue(null),
+  isTauri: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock("@/platform", () => ({
@@ -14,6 +15,9 @@ vi.mock("@/platform", () => ({
       remove: vi.fn().mockResolvedValue(undefined),
       entries: vi.fn().mockResolvedValue({}),
       batch: vi.fn().mockResolvedValue(undefined),
+      lock: vi.fn().mockResolvedValue(true),
+      unlock: vi.fn().mockResolvedValue(undefined),
+      backup: vi.fn().mockResolvedValue("/mock/store.backup.json"),
     },
     db: {
       initMessages: vi.fn().mockResolvedValue(undefined),

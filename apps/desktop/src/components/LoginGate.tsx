@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Button, Input, Label } from "@neo-tavern/ui";
 import { KeyRound } from "lucide-react";
+import { sessionSync } from "@/db/kv";
 
 declare global {
   interface Window {
@@ -38,7 +39,7 @@ export function LoginGate({ children }: { children: ReactNode }) {
         return;
       }
       const data = (await res.json()) as { token: string };
-      sessionStorage.setItem("neo_token", data.token);
+      sessionSync.set("auth-token", data.token);
       setAuthed(true);
     } catch {
       setError("Connection failed. Is the LAN server running?");

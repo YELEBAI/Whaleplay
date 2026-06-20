@@ -9,7 +9,7 @@ use std::sync::{Arc, OnceLock};
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 type StoreRef = Arc<tauri_plugin_store::Store<tauri::Wry>>;
 
@@ -62,14 +62,32 @@ pub(crate) fn get(app: &tauri::AppHandle, key: &str) -> Result<Option<String>, S
 
 pub(crate) fn set(app: &tauri::AppHandle, key: &str, value: &str) -> Result<(), String> {
     let store = get_store(app)?;
+    let previous = store.get(key);
     store.set(key, serde_json::Value::String(value.to_string()));
-    store.save().map_err(|err| format!("Store save: {err}"))
+    if let Err(error) = store.save() {
+        if let Some(previous) = previous {
+            store.set(key, previous);
+        } else {
+            store.delete(key);
+        }
+        let _ = store.save();
+        return Err(format!("Store save: {error}"));
+    }
+    Ok(())
 }
 
 pub(crate) fn remove(app: &tauri::AppHandle, key: &str) -> Result<(), String> {
     let store = get_store(app)?;
+    let previous = store.get(key);
     store.delete(key);
-    store.save().map_err(|err| format!("Store save: {err}"))
+    if let Err(error) = store.save() {
+        if let Some(previous) = previous {
+            store.set(key, previous);
+        }
+        let _ = store.save();
+        return Err(format!("Store save: {error}"));
+    }
+    Ok(())
 }
 
 pub(crate) fn entries(app: &tauri::AppHandle) -> Result<BTreeMap<String, String>, String> {
@@ -92,7 +110,7 @@ pub(crate) fn entries(app: &tauri::AppHandle) -> Result<BTreeMap<String, String>
 pub(crate) struct StoreOp {
     #[serde(rename = "type")]
     op_type: String,
-    key: String,
+    pub(crate) key: String,
     #[serde(default)]
     value: Option<String>,
 }
@@ -100,6 +118,18 @@ pub(crate) struct StoreOp {
 /// Apply multiple operations in a single save.
 pub(crate) fn batch_ops(app: &tauri::AppHandle, ops: &[StoreOp]) -> Result<(), String> {
     let store = get_store(app)?;
+    for op in ops {
+        if op.op_type != "set" && op.op_type != "remove" {
+            return Err(format!("Unknown batch op type: {}", op.op_type));
+        }
+    }
+
+    let mut previous = BTreeMap::new();
+    for op in ops {
+        previous
+            .entry(op.key.clone())
+            .or_insert_with(|| store.get(&op.key));
+    }
     for op in ops {
         match op.op_type.as_str() {
             "set" => {
@@ -109,32 +139,83 @@ pub(crate) fn batch_ops(app: &tauri::AppHandle, ops: &[StoreOp]) -> Result<(), S
             "remove" => {
                 store.delete(&op.key);
             }
-            _ => return Err(format!("Unknown batch op type: {}", op.op_type)),
+            _ => unreachable!("operation types were validated before mutation"),
         }
     }
-    store.save().map_err(|err| format!("Batch save: {err}"))
+    if let Err(error) = store.save() {
+        for (key, value) in previous {
+            if let Some(value) = value {
+                store.set(key, value);
+            } else {
+                store.delete(key);
+            }
+        }
+        let _ = store.save();
+        return Err(format!("Batch save: {error}"));
+    }
+    Ok(())
 }
 
 // ── Migration lock ──────────────────────────────────────
 
 const LOCK_KEY: &str = "meta:migration-lock";
+const LOCK_STALE_AFTER_SECS: u64 = 5 * 60;
+
+#[derive(Debug, Deserialize, Serialize)]
+struct MigrationLock {
+    pid: u32,
+    acquired_at: u64,
+}
+
+fn unix_seconds() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn lock_is_active(raw: &str, now: u64) -> bool {
+    serde_json::from_str::<MigrationLock>(raw)
+        .map(|lock| now.saturating_sub(lock.acquired_at) < LOCK_STALE_AFTER_SECS)
+        .unwrap_or(false)
+}
 
 /// Acquire the migration lock.  Returns true when granted.
 pub(crate) fn try_lock(app: &tauri::AppHandle) -> Result<bool, String> {
     let store = get_store(app)?;
-    if store.get(LOCK_KEY).is_some() {
+    let now = unix_seconds();
+    if store
+        .get(LOCK_KEY)
+        .and_then(|value| value.as_str().map(|raw| lock_is_active(raw, now)))
+        .unwrap_or(false)
+    {
         return Ok(false);
     }
-    store.set(LOCK_KEY, serde_json::Value::String("1".into()));
-    store.save().map_err(|err| format!("Lock save: {err}"))?;
+    let lock = MigrationLock {
+        pid: std::process::id(),
+        acquired_at: now,
+    };
+    let serialized = serde_json::to_string(&lock).map_err(|err| format!("Lock encode: {err}"))?;
+    store.set(LOCK_KEY, serde_json::Value::String(serialized));
+    if let Err(error) = store.save() {
+        store.delete(LOCK_KEY);
+        return Err(format!("Lock save: {error}"));
+    }
     Ok(true)
 }
 
 /// Release the migration lock.
 pub(crate) fn unlock(app: &tauri::AppHandle) -> Result<(), String> {
     let store = get_store(app)?;
+    let previous = store.get(LOCK_KEY);
     store.delete(LOCK_KEY);
-    store.save().map_err(|err| format!("Unlock save: {err}"))
+    if let Err(error) = store.save() {
+        if let Some(previous) = previous {
+            store.set(LOCK_KEY, previous);
+        }
+        return Err(format!("Unlock save: {error}"));
+    }
+    Ok(())
 }
 
 // ── Backup ───────────────────────────────────────────────
@@ -159,10 +240,33 @@ pub(crate) fn backup(app: &tauri::AppHandle) -> Result<String, String> {
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_secs();
+        .as_millis();
     let backup_path = backup_dir.join(format!("store.pre-migration.{}.json", ts));
     std::fs::copy(&src, &backup_path).map_err(|err| format!("Failed to copy backup: {err}"))?;
+
+    prune_backups(&backup_dir, 5)?;
     Ok(backup_path.to_string_lossy().to_string())
+}
+
+fn prune_backups(backup_dir: &std::path::Path, keep: usize) -> Result<(), String> {
+    let mut backups = std::fs::read_dir(backup_dir)
+        .map_err(|err| format!("Failed to list backups: {err}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| {
+                    name.starts_with("store.pre-migration.") && name.ends_with(".json")
+                })
+        })
+        .collect::<Vec<_>>();
+    backups.sort();
+    let remove_count = backups.len().saturating_sub(keep);
+    for stale in backups.into_iter().take(remove_count) {
+        let _ = std::fs::remove_file(stale);
+    }
+    Ok(())
 }
 
 // ── Tests ───────────────────────────────────────────────────
@@ -185,8 +289,7 @@ mod tests {
         use std::sync::atomic::{AtomicU32, Ordering};
         static COUNTER: AtomicU32 = AtomicU32::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir()
-            .join(format!("neo_store_test_{}_{}", std::process::id(), n));
+        let dir = std::env::temp_dir().join(format!("neo_store_test_{}_{}", std::process::id(), n));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("Failed to create temp dir");
         dir
@@ -231,8 +334,7 @@ mod tests {
             .iter()
             .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
             .collect();
-        let json =
-            serde_json::to_vec_pretty(&obj).expect("Failed to serialise store data");
+        let json = serde_json::to_vec_pretty(&obj).expect("Failed to serialise store data");
         fs::write(&path, &json).expect("Failed to write store.json");
     }
 
@@ -258,10 +360,7 @@ mod tests {
     /// Simulate a single `StoreOp` on the in-memory map.  Returns
     /// `Ok(())` or `Err(…​)` for an unknown op type (mirroring the real
     /// function's behaviour).
-    fn simulate_op(
-        map: &mut BTreeMap<String, String>,
-        op: &StoreOp,
-    ) -> Result<(), String> {
+    fn simulate_op(map: &mut BTreeMap<String, String>, op: &StoreOp) -> Result<(), String> {
         match op.op_type.as_str() {
             "set" => {
                 let v = op.value.as_deref().unwrap_or("");
@@ -543,10 +642,7 @@ mod tests {
         simulate_batch(&dir, &ops).expect("batch set without value");
         let data = read_store(&dir);
         // The real module uses `op.value.as_deref().unwrap_or("")`
-        assert_eq!(
-            data.get("empty_val").map(|s| s.as_str()),
-            Some("")
-        );
+        assert_eq!(data.get("empty_val").map(|s| s.as_str()), Some(""));
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -674,10 +770,7 @@ mod tests {
             serde_json::from_str(&backup_raw).expect("parse backup");
 
         for (key, expected) in &original {
-            let val = backup_map
-                .get(key)
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
+            let val = backup_map.get(key).and_then(|v| v.as_str()).unwrap_or("");
             assert_eq!(val, expected.as_str(), "mismatch for key '{key}'");
         }
         assert_eq!(backup_map.len(), original.len());
@@ -746,11 +839,67 @@ mod tests {
         simulate_set(&dir, "num", "42");
 
         let raw = fs::read_to_string(store_file(&dir)).expect("read store");
-        let parsed: serde_json::Value =
-            serde_json::from_str(&raw).expect("parse store");
+        let parsed: serde_json::Value = serde_json::from_str(&raw).expect("parse store");
 
         // Even numeric-looking values should be strings
         assert!(parsed["num"].is_string());
         assert_eq!(parsed["num"].as_str(), Some("42"));
+    }
+
+    #[test]
+    fn timestamped_lock_expires_but_active_lock_does_not() {
+        let now = 10_000;
+        let active = serde_json::to_string(&MigrationLock {
+            pid: 1,
+            acquired_at: now - 10,
+        })
+        .unwrap();
+        let stale = serde_json::to_string(&MigrationLock {
+            pid: 1,
+            acquired_at: now - LOCK_STALE_AFTER_SECS,
+        })
+        .unwrap();
+
+        assert!(lock_is_active(&active, now));
+        assert!(!lock_is_active(&stale, now));
+        assert!(
+            !lock_is_active("1", now),
+            "legacy unowned locks must be recoverable"
+        );
+    }
+
+    #[test]
+    fn backup_retention_keeps_latest_five_and_ignores_other_files() {
+        let dir = make_temp_dir();
+        let backup_dir = backups_dir(&dir);
+        fs::create_dir_all(&backup_dir).unwrap();
+        for index in 0..7 {
+            fs::write(
+                backup_dir.join(format!("store.pre-migration.{index:02}.json")),
+                "{}",
+            )
+            .unwrap();
+        }
+        fs::write(backup_dir.join("keep-me.txt"), "diagnostic").unwrap();
+
+        prune_backups(&backup_dir, 5).unwrap();
+
+        let mut remaining = fs::read_dir(&backup_dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+        remaining.sort();
+        assert_eq!(
+            remaining,
+            vec![
+                "keep-me.txt",
+                "store.pre-migration.02.json",
+                "store.pre-migration.03.json",
+                "store.pre-migration.04.json",
+                "store.pre-migration.05.json",
+                "store.pre-migration.06.json",
+            ]
+        );
     }
 }

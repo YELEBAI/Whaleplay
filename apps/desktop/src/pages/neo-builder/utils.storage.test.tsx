@@ -47,8 +47,8 @@ describe("Builder device persistence", () => {
     expect(readBuilderWorkspaceRecords()[0]).toMatchObject({ id: "record-1", input: "persist me" });
   });
 
-  it("still reads the legacy workspace key", () => {
-    localStorage.setItem("neo:character-builder:workspace:v1", JSON.stringify(snapshot()));
+  it("reads the scoped device workspace key", () => {
+    localStorage.setItem("device:builder-workspace", JSON.stringify(snapshot()));
     expect(readBuilderWorkspaceSnapshot()).toMatchObject({ input: "persist me" });
   });
 });

@@ -152,13 +152,17 @@ describe("createPrefixedKV", () => {
 describe("pre-built instances smoke test", () => {
   // Import the pre-built instances — they should not throw during import.
   // No real backend is touched because we are not calling any method.
-  it("import prefs/data/sys/meta/device/session without error", async () => {
+  it("imports all scoped namespaces without error", async () => {
     const mod = await import("../namespaces");
     expect(mod.prefs).toBeDefined();
     expect(mod.data).toBeDefined();
     expect(mod.sys).toBeDefined();
     expect(mod.meta).toBeDefined();
+    expect(mod.usage).toBeDefined();
+    expect(mod.secret).toBeDefined();
     expect(mod.device).toBeDefined();
     expect(mod.session).toBeDefined();
+    expect(mod.deviceSync).toBeDefined();
+    expect(mod.sessionSync).toBeDefined();
   });
 });
