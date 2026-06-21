@@ -8,7 +8,6 @@
  * to it once the REST db/search/comfy mirrors are implemented (dev-sync).
  */
 import { tauriBackend } from "./tauri";
-import { restBackend } from "./rest";
 import type { Backend } from "./types";
 
 // Default to Tauri to preserve current runtime behavior. Browser mode still

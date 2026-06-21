@@ -2,9 +2,9 @@
  * REST backend — implements the same Backend interface as `tauri.ts`, but over
  * HTTP against the desktop's LAN server (or a standalone server build).
  *
- * Status: scaffold. Only `store.*` is real (the LAN server already serves
- * `/api/store/*` and the browser/REST fallback in `db/storage.ts` has been
- * exercising this path for a long time). The SQLite-backed sections
+ * Status: scaffold. Store CRUD and batch writes are real (the LAN server
+ * already serves `/api/store/*`). Native migration locking/backups and the
+ * SQLite-backed sections
  * (`db`/`agenticPlay`), `search`, `comfy`, and `file` throw NotImplemented so
  * callers fail loudly rather than silently no-op'ing. Real REST mirrors land
  * alongside the sync work on `dev-sync`.
@@ -61,6 +61,15 @@ export const restBackend: Backend = {
       const entries = await request<[string, string][]>("/api/store");
       return Object.fromEntries(entries);
     },
+    batch: async (operations) => {
+      await request("/api/store/batch", {
+        method: "POST",
+        body: JSON.stringify(operations),
+      });
+    },
+    lock: () => notImplemented("store.lock"),
+    unlock: () => notImplemented("store.unlock"),
+    backup: () => notImplemented("store.backup"),
   },
 
   db: {
@@ -83,6 +92,8 @@ export const restBackend: Backend = {
     migrateParentIds: (() => notImplemented("db.migrateParentIds")) as () => Promise<number>,
     mergeFromSavepoint: (() => notImplemented("db.mergeFromSavepoint")) as (messages: Message[]) => Promise<Message[]>,
     initMessages: () => notImplemented("db.initMessages"),
+    getVersion: () => notImplemented("db.getVersion"),
+    setVersion: () => notImplemented("db.setVersion"),
   },
 
   agenticPlay: {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Chat, CreateMessageInput, Message } from "@neo-tavern/shared";
+import { generationTaskRunner } from "@/app/generation-task-runner";
 import { useChatStore } from "./chat.store";
 
 const repositoryState = vi.hoisted(() => ({
@@ -121,6 +122,7 @@ function resetChatStore() {
     generationPhase: null,
     activeGenerations: {},
     liveMessageDrafts: {},
+    generationErrors: {},
     activeLeafId: null,
     error: null,
     lastDiceResult: null,
@@ -165,5 +167,30 @@ describe("chat store live message drafts", () => {
     expect(useChatStore.getState().messages.find((message) => message.id === assistant.id)?.content).toBe(
       "partial output",
     );
+  });
+
+  it("keeps generation errors scoped to their chat", () => {
+    useChatStore.getState().setGenerationError("chat-a", "failed");
+    useChatStore.getState().setGenerationError("chat-b", "stopped");
+
+    expect(useChatStore.getState().generationErrors).toEqual({
+      "chat-a": "failed",
+      "chat-b": "stopped",
+    });
+
+    useChatStore.getState().clearGenerationError("chat-a");
+    expect(useChatStore.getState().generationErrors).toEqual({ "chat-b": "stopped" });
+  });
+
+  it("aborts a running task and clears transient state before deleting a chat", async () => {
+    const abort = vi.spyOn(generationTaskRunner, "abort");
+    useChatStore.getState().beginSending("chat-a");
+    useChatStore.getState().setGenerationError("chat-a", "failed");
+
+    await useChatStore.getState().deleteChat("chat-a");
+
+    expect(abort).toHaveBeenCalledWith("chat:chat-a");
+    expect(useChatStore.getState().activeGenerations["chat-a"]).toBeUndefined();
+    expect(useChatStore.getState().generationErrors["chat-a"]).toBeUndefined();
   });
 });

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { generationTaskRunner } from "@/app/generation-task-runner";
 import {
   chatMemoryRepository,
   chatRepository,
@@ -32,6 +33,7 @@ interface ChatState {
   generationPhase: GenerationPhase | null;
   activeGenerations: Record<string, ActiveGenerationState>;
   liveMessageDrafts: LiveMessageDrafts;
+  generationErrors: Record<string, string | null>;
   activeLeafId: string | null;
   error: string | null;
   lastDiceResult: DiceRollResult | null;
@@ -63,6 +65,8 @@ interface ChatState {
   setStreamingMessageId: (chatId: string, id: string | null) => void;
   setGenerationPhase: (chatId: string, phase: GenerationPhase) => void;
   finishSending: (chatId?: string) => void;
+  setGenerationError: (chatId: string, message: string | null) => void;
+  clearGenerationError: (chatId: string) => void;
   setSending: (sending: boolean) => void;
   setLastDiceResult: (result: DiceRollResult | null) => void;
   clearError: () => void;
@@ -240,6 +244,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   generationPhase: null,
   activeGenerations: {},
   liveMessageDrafts: {},
+  generationErrors: {},
   activeLeafId: null,
   error: null,
   lastDiceResult: null,
@@ -334,6 +339,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteChat: async (id: string) => {
+    generationTaskRunner.abort(`chat:${id}`);
     set({ loading: true, error: null });
     try {
       await chatRepository.delete(id);
@@ -346,6 +352,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const activeGenerations = Object.fromEntries(
           Object.entries(state.activeGenerations).filter(([chatId]) => chatId !== id),
         );
+        const generationErrors = { ...state.generationErrors };
+        delete generationErrors[id];
         return {
           chats: state.chats.filter((c) => c.id !== id),
           currentChat: state.currentChat?.id === id ? null : state.currentChat,
@@ -353,6 +361,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           messagesHydrated: state.currentChat?.id === id ? true : state.messagesHydrated,
           activeGenerations,
           liveMessageDrafts: clearLiveMessageDrafts(state.liveMessageDrafts, id),
+          generationErrors,
           ...legacyGenerationSnapshot(activeGenerations, state.sendingChatId === id ? null : state.sendingChatId),
           loading: false,
         };
@@ -401,6 +410,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  setGenerationError: (chatId, message) =>
+    set((state) => {
+      if ((state.generationErrors[chatId] ?? null) === message) return {};
+      const generationErrors = { ...state.generationErrors };
+      if (message === null) {
+        delete generationErrors[chatId];
+      } else {
+        generationErrors[chatId] = message;
+      }
+      return { generationErrors };
+    }),
+
+  clearGenerationError: (chatId) =>
+    set((state) => {
+      if (!(chatId in state.generationErrors)) return {};
+      const generationErrors = { ...state.generationErrors };
+      delete generationErrors[chatId];
+      return { generationErrors };
+    }),
 
   beginSending: (chatId: string) =>
     set((state) => {

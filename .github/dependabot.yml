@@ -1,0 +1,83 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/London
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      tauri-minor:
+        patterns:
+          - "@tauri-apps/*"
+        update-types:
+          - minor
+          - patch
+      react-minor:
+        patterns:
+          - react
+          - react-dom
+          - react-router
+          - "@types/react*"
+        update-types:
+          - minor
+          - patch
+      tooling-minor:
+        patterns:
+          - eslint
+          - "eslint-*"
+          - typescript
+          - vite
+          - vitest
+          - "@vitejs/*"
+          - "@vitest/*"
+        update-types:
+          - minor
+          - patch
+      remaining-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: cargo
+    directory: /apps/desktop/src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:20"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      cargo-minor:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:40"
+      timezone: Europe/London
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns:
+          - "*"

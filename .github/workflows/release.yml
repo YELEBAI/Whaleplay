@@ -1,121 +1,162 @@
-name: Release Build
+name: Release
 
 on:
   push:
-    tags: ["v*", "[0-9]*"]
-  workflow_dispatch:
+    tags:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  check:
-    name: Lint & Type Check
+  verify:
+    name: Verify release source
     runs-on: ubuntu-22.04
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v6
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          version: latest
-          cache: true
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup-js
+
+      - name: Verify tag and manifest versions
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node .github/scripts/check-release-version.mjs
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # pinned
         with:
-          node-version: "24"
+          toolchain: "1.95.0"
+          components: clippy,rustfmt
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf libssl-dev
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Frontend checks
+        run: |
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm build
 
-      - name: Cache Rust target
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            apps/desktop/src-tauri/target
-          key: ${{ runner.os }}-cargo-check-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-check-
-            ${{ runner.os }}-cargo-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: TypeScript check
-        run: pnpm --filter @neo-tavern/desktop exec tsc --noEmit
-
-      - name: Rust check
-        run: cd apps/desktop/src-tauri && cargo check
+      - name: Rust checks
+        working-directory: apps/desktop/src-tauri
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --all-targets --all-features -- -D warnings
+          cargo test --locked --all-targets --all-features
 
   publish-tauri:
-    needs: [check]
+    name: Build ${{ matrix.label }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: "windows-latest"
-            args: ""
-          - platform: "ubuntu-22.04"
-            args: ""
-          - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
-    runs-on: ${{ matrix.platform }}
+          - label: windows-x64
+            os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            args: --target x86_64-pc-windows-msvc
+          - label: linux-x64
+            os: ubuntu-22.04
+            rust_target: x86_64-unknown-linux-gnu
+            args: --target x86_64-unknown-linux-gnu
+          - label: macos-arm64
+            os: macos-latest
+            rust_target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
+          - label: macos-x64
+            os: macos-latest
+            rust_target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
 
     env:
-      SOURCE_DATE_EPOCH: 0
-      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
       CARGO_PROFILE_RELEASE_LTO: "fat"
+      TZ: UTC
 
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v6
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
-          version: latest
-          cache: true
+          persist-credentials: false
 
-      - uses: actions/setup-node@v6
+      - uses: ./.github/actions/setup-js
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # pinned
         with:
-          node-version: "24"
-
-      - uses: dtolnay/rust-toolchain@stable
+          toolchain: "1.95.0"
+          targets: ${{ matrix.rust_target }}
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf libssl-dev
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
-      - name: Cache Rust target
-        uses: actions/cache@v4
+      - name: Cache Cargo registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/desktop/src-tauri/target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-release-
-            ${{ runner.os }}-cargo-
+          key: ${{ runner.os }}-${{ matrix.rust_target }}-cargo-release-1.95.0-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Set deterministic build timestamp
+        shell: bash
+        run: echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Build and upload Tauri bundles
+        id: tauri
+        uses: tauri-apps/tauri-action@61337b436e85a75347fec553393c9e2be16a0d85 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          projectPath: apps/desktop
           tagName: ${{ github.ref_name }}
-          releaseName: "${{ github.ref_name }}"
-          releaseBody: "See assets below to download and install."
+          releaseName: Whale Play ${{ github.ref_name }}
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          args: ${{ matrix.args }}
+          generateReleaseNotes: true
+          retryAttempts: 2
+          updaterJsonPreferNsis: true
+          args: ${{ matrix.args }} --ci -- --locked
+
+      - name: Generate SHA-256 manifest
+        id: metadata
+        shell: bash
+        env:
+          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+          CHECKSUM_FILE: release-metadata/SHA256SUMS-${{ matrix.label }}.txt
+        run: node .github/scripts/prepare-release-metadata.mjs
+
+      - name: Upload SHA-256 manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHECKSUM_FILE: ${{ steps.metadata.outputs.checksum_file }}
+        run: gh release upload "${{ github.ref_name }}" "$CHECKSUM_FILE" --clobber
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@f14352a605c57b0a66e0d49bba5825967f1dbedf # v3
+        with:
+          subject-path: ${{ steps.metadata.outputs.subject_paths }}

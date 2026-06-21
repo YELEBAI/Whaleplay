@@ -106,6 +106,7 @@ export function NeoBuilderPage() {
 
   // Restore snapshot messages into the persistent session store on mount
   const restoredRef = useRef(false);
+  const appliedResultVersionRef = useRef(0);
   const builderScrollRef = useRef<HTMLDivElement>(null);
   const builderBottomRef = useRef<HTMLDivElement>(null);
   const isBuilderNearBottomRef = useRef(true);
@@ -115,16 +116,9 @@ export function NeoBuilderPage() {
     restoredRef.current = true;
     const currentSession = builderSessions.getSnapshot(builderSessionId);
     if (initialSnapshot?.messages?.length && currentSession.messages.length === 0 && !currentSession.running) {
-      builderSessions.restore(builderSessionId, initialSnapshot.messages);
+      builderSessions.restore(builderSessionId, initialSnapshot.messages, initialSnapshot.lastResult);
     }
   }, [builderSessionId, initialSnapshot]);
-
-  useEffect(
-    () => () => {
-      builderSessions.abort(builderSessionId);
-    },
-    [builderSessionId],
-  );
 
   const visibleMessages = messages.filter((message) => !message.hidden);
 
@@ -237,7 +231,7 @@ export function NeoBuilderPage() {
   const handleSelectWorkspace = (record: BuilderWorkspaceRecord) => {
     setTargetId(record.targetId);
     setBuilderSessionId(record.builderSessionId);
-    builderSessions.restore(record.builderSessionId, normalizeRestoredMessages(record.messages));
+    builderSessions.restore(record.builderSessionId, normalizeRestoredMessages(record.messages), record.lastResult);
     setInput(record.input);
     setWebSearchEnabled(record.webSearchEnabled);
     setLastResult(record.lastResult);
@@ -253,9 +247,10 @@ export function NeoBuilderPage() {
   };
 
   const handleDeleteWorkspace = (record: BuilderWorkspaceRecord) => {
+    builderSessions.abort(record.builderSessionId);
     setWorkspaceRecords((records) => records.filter((item) => item.id !== record.id));
     deleteWorkspaceDir(record.builderSessionId).catch(() => {});
-    if (record.id === builderSessionId) resetWorkspace();
+    if (record.builderSessionId === builderSessionId) resetWorkspace();
   };
 
   const applyDraftFromResult = useCallback(
@@ -286,6 +281,19 @@ export function NeoBuilderPage() {
     [creationPlan, evaluationReport, personalityPalette, savedCharacterId, statusBars],
   );
 
+  useEffect(() => {
+    appliedResultVersionRef.current = 0;
+  }, [builderSessionId]);
+
+  useEffect(() => {
+    if (!session.lastResult || session.resultVersion <= 0) return;
+    if (appliedResultVersionRef.current === session.resultVersion) return;
+    appliedResultVersionRef.current = session.resultVersion;
+    setLastResult(session.lastResult);
+    applyDraftFromResult(session.lastResult);
+    void recordUsageCostAndWarn(session.lastResult.usage);
+  }, [applyDraftFromResult, session.lastResult, session.resultVersion]);
+
   /** Send a user message to the builder session and apply results. */
   const sendMessage = async (content: string, webSearchOverride = webSearchEnabled, hiddenUserMessage = false) => {
     if (builderBusy) return;
@@ -295,7 +303,7 @@ export function NeoBuilderPage() {
       builderSessions.setMessages(builderSessionId, [...messages, userMsg]);
     }
 
-    const result = await gen.send(content, webSearchOverride, {
+    await gen.send(content, webSearchOverride, {
       draft,
       worldbookDraft,
       creationPlan,
@@ -303,11 +311,6 @@ export function NeoBuilderPage() {
       mvu,
       statusBars,
     });
-
-    if (!result) return;
-    setLastResult(result);
-    applyDraftFromResult(result);
-    void recordUsageCostAndWarn(result.usage);
   };
 
   /** Handle a choice selection from the choice panel. */

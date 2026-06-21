@@ -46,11 +46,8 @@ Tests are written with **vitest**. The `core` package has its own `vitest.config
 ### Type Checking
 
 ```bash
-# Full type check for the desktop app
-pnpm --filter @neo-tavern/desktop exec tsc --noEmit
-
-# Type check for core
-pnpm --filter @neo-tavern/core exec tsc --noEmit
+# Type check the desktop app and its workspace references
+pnpm typecheck
 ```
 
 ### Linting
@@ -83,3 +80,5 @@ pnpm list -r --depth=-1
 |-------|--------|
 | `pnpm build` | `apps/desktop/dist/` (static web assets) |
 | `pnpm build:desktop` | `apps/desktop/src-tauri/target/release/bundle/` (platform installer) |
+
+See [CI and releases](./ci-release.md) for automated checks, release tags, checksums, and build provenance.

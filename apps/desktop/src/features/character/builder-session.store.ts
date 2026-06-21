@@ -1,16 +1,17 @@
 /**
  * BuilderSessionStore — Module-level store for NeoBuilder messages and
- * the current page-bound generation state.
+ * generation state independently from the Builder page lifecycle.
  *
  * Keyed by builderSessionId. Each session tracks its messages and running
  * generation independently, enabling parallel sessions.
  *
- * Generation is intentionally not kept alive across page unmounts. The page
- * calls abort() during cleanup so switching away stops the current turn.
+ * Tasks survive route changes and are cancelled only by an explicit stop,
+ * workspace deletion, or replacement with the same session key.
  */
 
 import { useSyncExternalStore, useCallback } from "react";
 import { generateId } from "@neo-tavern/shared";
+import { generationTaskRunner } from "@/app/generation-task-runner";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { runNeoCharacterBuilderTurn } from "@/features/character/neo-character-builder";
 import { searchWeb } from "@/features/character/web-search";
@@ -32,11 +33,16 @@ interface SessionState {
   messages: BuilderMessage[];
   running: boolean;
   error: string | null;
-  controller: AbortController | null;
+  lastResult: NeoBuilderTurnResult | null;
+  resultVersion: number;
   snapshot: Snapshot;
 }
 
-type Snapshot = Pick<SessionState, "sessionId" | "messages" | "running" | "error">;
+type Snapshot = Pick<SessionState, "sessionId" | "messages" | "running" | "error" | "lastResult" | "resultVersion">;
+
+function builderTaskKey(sessionId: string): string {
+  return `builder:${sessionId}`;
+}
 
 class BuilderSessionStore {
   private sessions = new Map<string, SessionState>();
@@ -50,8 +56,10 @@ class BuilderSessionStore {
         messages: [],
         running: false,
         error: null,
+        lastResult: null,
+        resultVersion: 0,
       };
-      session = { ...snapshot, controller: null, snapshot };
+      session = { ...snapshot, snapshot };
       this.sessions.set(sessionId, session);
     }
     return session;
@@ -63,6 +71,8 @@ class BuilderSessionStore {
       messages: session.messages,
       running: session.running,
       error: session.error,
+      lastResult: session.lastResult,
+      resultVersion: session.resultVersion,
     };
   }
 
@@ -71,12 +81,14 @@ class BuilderSessionStore {
     this.notify();
   }
 
-  restore(sessionId: string, messages: BuilderMessage[]): void {
+  restore(sessionId: string, messages: BuilderMessage[], lastResult: NeoBuilderTurnResult | null = null): void {
     const s = this.getOrCreate(sessionId);
+    if (s.running) return;
     s.messages = messages;
     s.running = false; // never restore running=true — stale
     s.error = null;
-    s.controller = null;
+    s.lastResult = lastResult;
+    s.resultVersion = 0;
     this.commit(s);
   }
 
@@ -92,11 +104,23 @@ class BuilderSessionStore {
 
   abort(sessionId: string): void {
     const s = this.getOrCreate(sessionId);
-    s.controller?.abort();
-    s.controller = null;
+    generationTaskRunner.abort(builderTaskKey(sessionId));
+    s.running = false;
+    s.messages = s.messages.map((message) =>
+      message.pending
+        ? {
+            ...message,
+            content: message.content || "生成已停止。",
+            backgroundCreation: false,
+            pending: false,
+            completedAt: Date.now(),
+          }
+        : message,
+    );
+    this.commit(s);
   }
 
-  // ── Send message (survives unmount, returns result for component to sync) ──
+  // ── Send message ──
 
   async sendMessage(
     sessionId: string,
@@ -122,112 +146,109 @@ class BuilderSessionStore {
       return null;
     }
 
-    const assistantId = generateId();
-    const backgroundCreation = shouldRunBuilderTurnInBackground(
-      clean,
-      workspace.creationPlan as never,
-      workspace.draft,
-      false,
-    );
-    const userMessage: BuilderMessage = { id: generateId(), role: "user", content: clean, hidden: false };
-    const assistantMessage: BuilderMessage = {
-      id: assistantId,
-      role: "assistant",
-      content: "",
-      pending: true,
-      backgroundCreation,
-      startedAt: Date.now(),
-    };
-
-    s.messages = [...s.messages, userMessage, assistantMessage];
-    s.running = true;
-    s.error = null;
-    const controller = new AbortController();
-    s.controller = controller;
-    this.commit(s);
-
-    const { signal } = controller;
-
-    try {
-      const result = await runNeoCharacterBuilderTurn({
-        conversation: toConversation(s.messages.filter((m) => m.id !== assistantMessage.id)),
-        existingCharacter: null,
-        currentDraft: workspace.draft,
-        currentWorldbookEntries: workspace.worldbookDraft?.entries ?? [],
-        creationPlan: workspace.creationPlan as never,
-        personalityPalette: workspace.personalityPalette as never,
-        currentMvu: workspace.mvu as never,
-        currentStatusBars: workspace.statusBars as never,
-        modelConfig: config,
-        scopeId: sessionId,
-        webSearchEnabled,
-        searchWeb,
-        onContentDelta: (delta) => {
-          if (backgroundCreation) return;
-          s.messages = s.messages.map((m) => (m.id === assistantId ? { ...m, content: `${m.content}${delta}` } : m));
-          this.commit(s);
-        },
-        onReasoningDelta: (delta) => {
-          s.messages = s.messages.map((m) =>
-            m.id === assistantId ? { ...m, reasoningContent: `${m.reasoningContent ?? ""}${delta}` } : m,
-          );
-          this.commit(s);
-        },
-        onToolEvent: (event: NeoBuilderToolEvent) => {
-          s.messages = s.messages.map((m) =>
-            m.id === assistantId ? { ...m, toolEvents: upsertToolEvent(m.toolEvents, event) } : m,
-          );
-          this.commit(s);
-        },
-        signal,
-      });
-
-      const keepBackgroundCreation = backgroundCreation && !result.choices?.length && !result.questions?.length;
-      s.messages = s.messages.map((m) =>
-        m.id === assistantId
-          ? {
-              ...m,
-              content: keepBackgroundCreation ? getBackgroundResultContent(result) : result.content,
-              choices: result.choices,
-              questions: result.questions,
-              backgroundCreation: keepBackgroundCreation,
-              reasoningContent: result.reasoningContent,
-              toolEvents: result.toolEvents,
-              usage: result.usage,
-              pending: false,
-              completedAt: Date.now(),
-            }
-          : m,
+    return generationTaskRunner.startExclusive(builderTaskKey(sessionId), async ({ signal, isCurrent }) => {
+      if (!isCurrent()) return null;
+      const session = this.getOrCreate(sessionId);
+      const assistantId = generateId();
+      const backgroundCreation = shouldRunBuilderTurnInBackground(
+        clean,
+        workspace.creationPlan as never,
+        workspace.draft,
+        false,
       );
-      return result;
-    } catch (err) {
-      if (signal.aborted) {
-        s.messages = s.messages.map((m) =>
+      const userMessage: BuilderMessage = { id: generateId(), role: "user", content: clean, hidden: false };
+      const assistantMessage: BuilderMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        pending: true,
+        backgroundCreation,
+        startedAt: Date.now(),
+      };
+
+      session.messages = [...session.messages, userMessage, assistantMessage];
+      session.running = true;
+      session.error = null;
+      this.commit(session);
+
+      const isLiveTurn = () => isCurrent() && !signal.aborted;
+
+      try {
+        const result = await runNeoCharacterBuilderTurn({
+          conversation: toConversation(session.messages.filter((m) => m.id !== assistantMessage.id)),
+          existingCharacter: null,
+          currentDraft: workspace.draft,
+          currentWorldbookEntries: workspace.worldbookDraft?.entries ?? [],
+          creationPlan: workspace.creationPlan as never,
+          personalityPalette: workspace.personalityPalette as never,
+          currentMvu: workspace.mvu as never,
+          currentStatusBars: workspace.statusBars as never,
+          modelConfig: config,
+          scopeId: sessionId,
+          webSearchEnabled,
+          searchWeb,
+          onContentDelta: (delta) => {
+            if (!isLiveTurn() || backgroundCreation) return;
+            session.messages = session.messages.map((m) =>
+              m.id === assistantId ? { ...m, content: `${m.content}${delta}` } : m,
+            );
+            this.commit(session);
+          },
+          onReasoningDelta: (delta) => {
+            if (!isLiveTurn()) return;
+            session.messages = session.messages.map((m) =>
+              m.id === assistantId ? { ...m, reasoningContent: `${m.reasoningContent ?? ""}${delta}` } : m,
+            );
+            this.commit(session);
+          },
+          onToolEvent: (event: NeoBuilderToolEvent) => {
+            if (!isLiveTurn()) return;
+            session.messages = session.messages.map((m) =>
+              m.id === assistantId ? { ...m, toolEvents: upsertToolEvent(m.toolEvents, event) } : m,
+            );
+            this.commit(session);
+          },
+          signal,
+        });
+
+        if (!isLiveTurn()) return null;
+        const keepBackgroundCreation = backgroundCreation && !result.choices?.length && !result.questions?.length;
+        session.messages = session.messages.map((m) =>
           m.id === assistantId
             ? {
                 ...m,
-                content: m.content || "生成已停止。",
-                backgroundCreation: false,
+                content: keepBackgroundCreation ? getBackgroundResultContent(result) : result.content,
+                choices: result.choices,
+                questions: result.questions,
+                backgroundCreation: keepBackgroundCreation,
+                reasoningContent: result.reasoningContent,
+                toolEvents: result.toolEvents,
+                usage: result.usage,
                 pending: false,
                 completedAt: Date.now(),
               }
             : m,
         );
+        session.lastResult = result;
+        session.resultVersion += 1;
+        return result;
+      } catch (err) {
+        if (signal.aborted || !isCurrent()) return null;
+        const msg = (err as Error).message || "Generation failed";
+        session.error = msg;
+        session.messages = session.messages.map((m) =>
+          m.id === assistantId
+            ? { ...m, content: msg, backgroundCreation: false, pending: false, completedAt: Date.now() }
+            : m,
+        );
         return null;
+      } finally {
+        if (isCurrent()) {
+          session.running = false;
+          this.commit(session);
+        }
       }
-      const msg = (err as Error).message || "Generation failed";
-      s.error = msg;
-      s.messages = s.messages.map((m) =>
-        m.id === assistantId
-          ? { ...m, content: msg, backgroundCreation: false, pending: false, completedAt: Date.now() }
-          : m,
-      );
-      return null;
-    } finally {
-      s.running = false;
-      if (s.controller === controller) s.controller = null;
-      this.commit(s);
-    }
+    });
   }
 
   // ── React ──

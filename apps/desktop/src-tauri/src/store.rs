@@ -462,7 +462,7 @@ mod tests {
     fn get_missing_key_returns_none() {
         let dir = make_temp_dir();
         let data = read_store(&dir);
-        assert!(data.get("ghost").is_none());
+        assert!(!data.contains_key("ghost"));
     }
 
     #[test]
@@ -487,7 +487,7 @@ mod tests {
         simulate_remove(&dir, "a");
 
         let data = read_store(&dir);
-        assert!(data.get("a").is_none());
+        assert!(!data.contains_key("a"));
         assert_eq!(data.get("b").map(|s| s.as_str()), Some("2"));
         assert_eq!(data.len(), 1);
     }
@@ -555,7 +555,7 @@ mod tests {
         simulate_remove(&dir, "debug");
         let after_remove = simulate_entries(&dir);
         assert_eq!(after_remove.len(), 2);
-        assert!(after_remove.get("debug").is_none());
+        assert!(!after_remove.contains_key("debug"));
 
         // Overwrite existing
         simulate_set(&dir, "version", "0.2.0");
@@ -600,7 +600,7 @@ mod tests {
         let data = read_store(&dir);
         assert_eq!(data.get("a").map(|s| s.as_str()), Some("1"));
         assert_eq!(data.get("b").map(|s| s.as_str()), Some("2"));
-        assert!(data.get("c").is_none(), "c should have been removed");
+        assert!(!data.contains_key("c"), "c should have been removed");
         assert_eq!(data.get("d").map(|s| s.as_str()), Some("keep"));
         assert_eq!(data.len(), 3);
     }
@@ -808,7 +808,7 @@ mod tests {
             Some("initial")
         );
         assert!(
-            backup_map.get("y").is_none(),
+            !backup_map.contains_key("y"),
             "key added after backup should not be in backup"
         );
 

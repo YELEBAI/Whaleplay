@@ -1,0 +1,29 @@
+name: Dependency Review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review dependency changes
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@dcd589ca9f7a6ded22e224ca2e288beb6bf9846b # v5
+        with:
+          fail-on-severity: high
+          show-openssf-scorecard: true
+          retry-on-snapshot-warnings: true

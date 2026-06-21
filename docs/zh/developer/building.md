@@ -46,11 +46,8 @@
 ### 类型检查
 
 ```bash
-# 对 desktop 应用进行完整类型检查
-pnpm --filter @neo-tavern/desktop exec tsc --noEmit
-
-# 对 core 进行类型检查
-pnpm --filter @neo-tavern/core exec tsc --noEmit
+# 检查 desktop 应用及其 workspace 引用
+pnpm typecheck
 ```
 
 ### 代码检查
@@ -83,3 +80,5 @@ pnpm list -r --depth=-1
 |-------|--------|
 | `pnpm build` | `apps/desktop/dist/`（静态 Web 资源） |
 | `pnpm build:desktop` | `apps/desktop/src-tauri/target/release/bundle/`（平台安装包） |
+
+自动化检查、release tag、校验和与构建来源证明见 [CI 与发布](./ci-release.md)。

@@ -143,6 +143,8 @@ export function ChatPage() {
   const completedScrollMessageRef = useRef<string | null>(null);
   const agenticOpeningStartedRef = useRef<string | null>(null);
   const presetItemsRef = useRef<{ role: "system" | "user"; content: string; injectionOrder: number }[]>([]);
+  const mountedRef = useRef(true);
+  const currentChatIdRef = useRef<string | null>(null);
 
   const { characters, loadCharacters } = useCharacterStore();
   const {
@@ -212,6 +214,10 @@ export function ChatPage() {
   const characterId = searchParams.get("characterId");
   const character = characters.find((c) => c.id === (currentChat?.characterId ?? characterId));
 
+  useEffect(() => {
+    currentChatIdRef.current = currentChat?.id ?? null;
+  }, [currentChat?.id]);
+
   const handleSelectCharacterChat = useCallback(
     (chatId: string) => {
       if (chatId === currentChat?.id) return;
@@ -240,11 +246,21 @@ export function ChatPage() {
     character,
     chatId: currentChat?.id,
     agenticPlayEnabled,
-    onAgenticPlayStateUpdated: setAgenticGameState,
+    onAgenticPlayStateUpdated: (state) => {
+      if (mountedRef.current && currentChatIdRef.current === currentChat?.id) setAgenticGameState(state);
+    },
     onPromptBuilt: (built: BuiltPrompt) => {
+      if (!mountedRef.current || currentChatIdRef.current !== currentChat?.id) return;
       setPreviewText(formatPreview(built));
     },
   });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     loadCharacters();

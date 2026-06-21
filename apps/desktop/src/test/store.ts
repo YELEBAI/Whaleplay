@@ -83,6 +83,7 @@ export function setupTestStores() {
     generationPhase: null,
     activeGenerations: {},
     liveMessageDrafts: {},
+    generationErrors: {},
     activeLeafId: null,
     error: null,
     lastDiceResult: null,

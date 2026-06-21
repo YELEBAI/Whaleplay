@@ -22,6 +22,8 @@ vi.mock("@/features/character/builder-session.store", () => ({
       ],
       running: false,
       error: null,
+      lastResult: null,
+      resultVersion: 0,
     }),
   },
   useBuilderSession: vi.fn().mockReturnValue({
@@ -36,6 +38,8 @@ vi.mock("@/features/character/builder-session.store", () => ({
     ],
     running: false,
     error: null,
+    lastResult: null,
+    resultVersion: 0,
   }),
 }));
 
