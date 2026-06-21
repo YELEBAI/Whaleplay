@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo, useCallback, startTransition } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { ScrollArea, Button } from "@neo-tavern/ui";
@@ -6,30 +6,21 @@ import { Plus } from "lucide-react";
 import { useCharacterStore } from "@/features/character/character.store";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
-import type { CreateCharacterInput, Character } from "@neo-tavern/shared";
-import { agenticPlayStateRepository, settingsRepository, worldbookRepository } from "@/db/repositories";
 import { useChatStore } from "@/features/chat/chat.store";
-import { parseJsonCharacterCard, parsePngCharacterCard, type ParsedCharacterCard } from "@/utils/parse-character-card";
+import { agenticPlayStateRepository, settingsRepository, worldbookRepository } from "@/db/repositories";
 import { toast } from "@/utils/toast";
-import { prefs } from "@/db/kv";
-import { prefKeys } from "@/db/storage/keys";
-import type { ViewMode, CharacterMenu, SearchMatches } from "./types";
-import {
-  readCachedSidebarCharId,
-  writeCachedSidebarCharId,
-  clearCachedSidebarCharId,
-  pngAvatarDataUrl,
-  getErrorMessage,
-  buildImportedRegexPreset,
-  buildImportedWorldbook,
-  rollbackImportedResources,
-} from "./utils";
+import type { CreateCharacterInput, Character } from "@neo-tavern/shared";
+import { getErrorMessage } from "./utils";
+import type { CharacterMenu } from "./types";
 import { Title } from "./CharacterTitle";
 import { SearchBar } from "./CharacterSearchBar";
 import { InfoPanel } from "./CharacterInfoPanel";
 import { CharacterContextMenu } from "./CharacterContextMenu";
 import { GridOrList } from "./CharacterGridOrList";
 import { CreateDialog, CreateModeDialog, CharFormDialog, DeleteDialog } from "./dialogs";
+import { useCharacterImport } from "./hooks/useCharacterImport";
+import { useCharacterSearch } from "./hooks/useCharacterSearch";
+import { useCharacterSidebar } from "./hooks/useCharacterSidebar";
 
 const emptyForm: CreateCharacterInput = {
   name: "",
@@ -42,68 +33,57 @@ const emptyForm: CreateCharacterInput = {
 
 export function CharacterPage() {
   const { t } = useTranslation("character");
-  const { t: tc } = useTranslation("common");
   const { t: tt } = useTranslation("toast");
   const navigate = useNavigate();
   const { characters, loading, error, loadCharacters, createCharacter, updateCharacter, deleteCharacter, clearError } =
     useCharacterStore();
+  const { chats, createOrGetChat } = useChatStore();
+
+  // ── Form / edit state ──
   const [form, setForm] = useState<CreateCharacterInput>(emptyForm);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+
+  // ── Dialog / menu state ──
   const [characterMenu, setCharacterMenu] = useState<CharacterMenu | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
-  const [importing, setImporting] = useState(false);
   const [modeTarget, setModeTarget] = useState<Character | null>(null);
   const [creatingMode, setCreatingMode] = useState<"normal" | "agentic" | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // New state for refactored UI
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchExpanded, setSearchExpanded] = useState(false);
-  const [sidebarChar, setSidebarChar] = useState<Character | null>(null);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  // ── Hooks ──
+  const {
+    searchQuery,
+    setSearchQuery,
+    searchExpanded,
+    viewMode,
+    prefsLoaded,
+    searchMatches,
+    hasSearchResults,
+    handleViewModeChange,
+    handleSearchToggle,
+  } = useCharacterSearch(characters);
+  const { sidebarChar, openSidebar, closeSidebar } = useCharacterSidebar(characters, prefsLoaded);
+  const { importing, handleImportFile } = useCharacterImport(fileInputRef);
 
-  const { chats, createOrGetChat } = useChatStore();
-
-  // Load preferences on mount
-  useEffect(() => {
-    (async () => {
-      const mode = await prefs.getJson<ViewMode>(prefKeys.characterViewMode);
-      const expanded = await prefs.getJson<boolean>(prefKeys.characterSearchExpanded);
-      setViewMode(mode.status === "valid" ? (mode.value === "list" ? "list" : "grid") : "grid");
-      setSearchExpanded(expanded.status === "valid" ? expanded.value : false);
-      setPrefsLoaded(true);
-    })();
-  }, []);
-
-  // Auto-expand search when characters > 20 (only on initial load)
-  useEffect(() => {
-    if (prefsLoaded && !searchExpanded && characters.length > 20) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSearchExpanded(true);
-      void prefs.setJson(prefKeys.characterSearchExpanded, true);
-    }
-  }, [prefsLoaded, characters.length, searchExpanded]);
-
+  // Load characters on mount
   useEffect(() => {
     loadCharacters();
   }, [loadCharacters]);
 
+  // Close context menu on outside click / ESC / scroll
   useEffect(() => {
     if (!characterMenu) return;
-
     const close = () => setCharacterMenu(null);
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") close();
     };
-
     window.addEventListener("click", close);
     window.addEventListener("scroll", close, true);
     window.addEventListener("keydown", closeOnEscape);
-
     return () => {
       window.removeEventListener("click", close);
       window.removeEventListener("scroll", close, true);
@@ -111,85 +91,7 @@ export function CharacterPage() {
     };
   }, [characterMenu]);
 
-  // Persist view mode preference
-  const handleViewModeChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    void prefs.setJson(prefKeys.characterViewMode, mode);
-  }, []);
-
-  // Persist search expanded preference
-  const handleSearchToggle = useCallback(() => {
-    setSearchExpanded((prev) => {
-      const next = !prev;
-      void prefs.setJson(prefKeys.characterSearchExpanded, next);
-      if (!next) setSearchQuery("");
-      return next;
-    });
-  }, []);
-
-  // Search filtering - simplified to single loop with priority matching
-  const searchMatches = useMemo<SearchMatches | null>(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return null;
-
-    const nameMatches: Character[] = [];
-    const descMatches: Character[] = [];
-    const personalityMatches: Character[] = [];
-
-    // Single loop with priority matching
-    for (const char of characters) {
-      if (char.name.toLowerCase().includes(query)) {
-        nameMatches.push(char);
-      } else if (char.description?.toLowerCase().includes(query)) {
-        descMatches.push(char);
-      } else if (char.personality?.toLowerCase().includes(query)) {
-        personalityMatches.push(char);
-      }
-    }
-
-    return { nameMatches, descMatches, personalityMatches };
-  }, [characters, searchQuery]);
-
-  const hasSearchResults =
-    searchMatches !== null &&
-    (searchMatches.nameMatches.length > 0 ||
-      searchMatches.descMatches.length > 0 ||
-      searchMatches.personalityMatches.length > 0);
-
-  const closeSidebar = () => {
-    setSidebarChar(null);
-    setEditingId(null);
-    setCreating(false);
-    setForm(emptyForm);
-    clearCachedSidebarCharId();
-  };
-
-  const openSidebar = (char: Character) => {
-    setCharacterMenu(null);
-    setSelectedId(char.id);
-    setEditingId(null);
-    setCreating(false);
-    setSidebarChar(char);
-    writeCachedSidebarCharId(char.id);
-  };
-
-  // Restore sidebar from session on mount
-  useEffect(() => {
-    if (!prefsLoaded) return;
-    const cachedCharId = readCachedSidebarCharId();
-    if (cachedCharId) {
-      const char = characters.find((c) => c.id === cachedCharId);
-      if (char) {
-        startTransition(() => {
-          setSelectedId(char.id);
-          setSidebarChar(char);
-          setEditingId(null);
-          setCreating(false);
-        });
-      }
-    }
-  }, [prefsLoaded, characters]);
-
+  // ── Context menu handlers ──
   const openCharacterMenu = (event: React.MouseEvent, character: Character) => {
     event.preventDefault();
     event.stopPropagation();
@@ -202,103 +104,12 @@ export function CharacterPage() {
     event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     setSelectedId(character.id);
-    setCharacterMenu({
-      x: rect.left + rect.width / 2,
-      y: rect.bottom + 6,
-      character,
-    });
+    setCharacterMenu({ x: rect.left + rect.width / 2, y: rect.bottom + 6, character });
   };
 
-  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-
-    const rollback = async (resources: { regexPresetId?: string; worldbookId?: string }) => {
-      await rollbackImportedResources(resources);
-    };
-
-    const isPng = file.type === "image/png";
-    let avatar: string | undefined;
-    let card: ParsedCharacterCard | null;
-
-    try {
-      const buf = await file.arrayBuffer();
-      if (isPng) {
-        card = await parsePngCharacterCard(buf);
-        if (card) avatar = await pngAvatarDataUrl(buf);
-      } else {
-        const text = new TextDecoder().decode(buf);
-        card = parseJsonCharacterCard(text);
-      }
-    } catch (err) {
-      toast("error", `解析角色卡失败：${getErrorMessage(err)}`);
-      setImporting(false);
-      event.target.value = "";
-      return;
-    }
-
-    if (!card) {
-      toast("error", "未能从文件中解析出角色数据");
-      event.target.value = "";
-      return;
-    }
-
-    const charName = card.name || file.name.replace(/\.(json|png)$/i, "");
-    const now = new Date().toISOString();
-    const regexPreset = buildImportedRegexPreset(card, charName, now);
-    const worldbook = buildImportedWorldbook(card, charName, now);
-
-    const existingPresets = useSettingsStore.getState().regexPresets;
-    const regexPresetId = regexPreset ? regexPreset.id : undefined;
-
-    const existingWorldbooks = useWorldbookStore.getState().worldbooks;
-    const worldbookId = worldbook ? worldbook.id : undefined;
-
-    try {
-      if (regexPreset) {
-        await settingsRepository.saveRegexRules([...existingPresets, regexPreset]);
-        await useSettingsStore.getState().loadRegexRules();
-      }
-      if (worldbook) {
-        await worldbookRepository.save([...existingWorldbooks, worldbook]);
-        await useWorldbookStore.getState().loadWorldbooks();
-      }
-
-      const characterInput: CreateCharacterInput = {
-        name: charName,
-        description: card.description || "",
-        personality: card.personality || "",
-        scenario: card.scenario || "",
-        firstMessage: card.firstMessage || "",
-        exampleDialogues: card.exampleDialogues || "",
-      };
-
-      await createCharacter({
-        ...characterInput,
-        avatar,
-        regexPresetId,
-        worldbookId,
-      });
-
-      const importedParts: string[] = ["Character"];
-      if (avatar) importedParts.push("avatar");
-      if (regexPreset) importedParts.push(regexPreset.rules.length + " regex rules");
-      if (worldbook) importedParts.push(worldbook.entries.length + " worldbook entries");
-
-      toast("success", `Imported: ${importedParts.join(", ")}`);
-    } catch (err) {
-      await rollback({ regexPresetId, worldbookId });
-      toast("error", `Import failed: ${getErrorMessage(err)}`);
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
+  // ── Form handlers ──
   const handleSubmit = async () => {
     if (!form.name.trim()) return;
-
     try {
       if (editingId) {
         await updateCharacter(editingId, form);
@@ -334,48 +145,18 @@ export function CharacterPage() {
     }
   };
 
-  // Single click: open sidebar with character details
-  const handleCharacterClick = (char: Character) => {
-    openSidebar(char);
-  };
-
-  // Double click: start chat
-  const handleCharacterDoubleClick = (char: Character) => {
-    const existingChat = chats.find((c) => c.characterId === char.id);
-    if (existingChat) {
-      navigate(`/chat/${existingChat.id}`);
-    } else {
-      setModeTarget(char);
-    }
-  };
-
-  const handleCreateChatWithMode = async (mode: "normal" | "agentic") => {
-    if (!modeTarget) return;
-    setCreatingMode(mode);
-    try {
-      const chat = await createOrGetChat({ characterId: modeTarget.id, title: modeTarget.name });
-      await agenticPlayStateRepository.setEnabled(chat.id, modeTarget, mode === "agentic");
-      setModeTarget(null);
-      navigate(`/chat/${chat.id}`);
-    } catch (err) {
-      toast("error", (err as Error).message || tt("createChatFailed"));
-    } finally {
-      setCreatingMode(null);
-    }
-  };
-
   const handleCancel = () => {
     setEditingId(null);
     setCreating(false);
     setForm(emptyForm);
   };
 
+  // ── Delete handler ──
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
     try {
       await deleteCharacter(target.id);
-
       let cleanupError: string | null = null;
       if (target.regexPresetId) {
         const presets = useSettingsStore.getState().regexPresets.filter((p) => p.id !== target.regexPresetId);
@@ -414,23 +195,46 @@ export function CharacterPage() {
     }
   };
 
+  // ── Character interaction ──
+  const handleCharacterClick = (char: Character) => {
+    setCharacterMenu(null);
+    openSidebar(char);
+    setSelectedId(char.id);
+    setEditingId(null);
+    setCreating(false);
+  };
+
+  const handleCharacterDoubleClick = (char: Character) => {
+    const existingChat = chats.find((c) => c.characterId === char.id);
+    if (existingChat) {
+      navigate(`/chat/${existingChat.id}`);
+    } else {
+      setModeTarget(char);
+    }
+  };
+
+  const handleCreateChatWithMode = async (mode: "normal" | "agentic") => {
+    if (!modeTarget) return;
+    setCreatingMode(mode);
+    try {
+      const chat = await createOrGetChat({ characterId: modeTarget.id, title: modeTarget.name });
+      await agenticPlayStateRepository.setEnabled(chat.id, modeTarget, mode === "agentic");
+      setModeTarget(null);
+      navigate(`/chat/${chat.id}`);
+    } catch (err) {
+      toast("error", (err as Error).message || tt("createChatFailed"));
+    } finally {
+      setCreatingMode(null);
+    }
+  };
+
   const updateField = (field: keyof CreateCharacterInput, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const hasContent = (text: string | undefined): boolean => !!text && text.trim().length > 0;
 
-  // Keep sidebarChar in sync with character store updates
-  useEffect(() => {
-    if (sidebarChar) {
-      const updated = characters.find((c) => c.id === sidebarChar.id);
-      if (updated && updated !== sidebarChar) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSidebarChar(updated);
-      }
-    }
-  }, [characters, sidebarChar]);
-
+  // ── Render ──
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Toolbar */}
@@ -441,8 +245,6 @@ export function CharacterPage() {
         onFileChange={handleImportFile}
         importing={importing}
         fileInputRef={fileInputRef}
-        t={t}
-        tc={tc}
       />
 
       {/* Main content area */}
@@ -457,7 +259,6 @@ export function CharacterPage() {
             onSearchToggle={handleSearchToggle}
             onSearchChange={setSearchQuery}
             onViewModeChange={handleViewModeChange}
-            t={t}
           />
 
           {/* Character grid/list (scrollable) */}
@@ -486,18 +287,14 @@ export function CharacterPage() {
                 </div>
               )}
 
-              {/* Search results: three sections */}
+              {/* Search results */}
               {searchMatches !== null && !hasSearchResults && (
                 <p className="text-muted-foreground py-8 text-center text-sm">{t("search.noResults")}</p>
               )}
-
               {searchMatches !== null && hasSearchResults && (
                 <div className="space-y-6">
                   {searchMatches.nameMatches.length > 0 && (
-                    <div>
-                      <h3 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
-                        {t("search.nameMatch")} ({searchMatches.nameMatches.length})
-                      </h3>
+                    <SearchResultSection title={t("search.nameMatch")} count={searchMatches.nameMatches.length}>
                       <GridOrList
                         chars={searchMatches.nameMatches}
                         viewMode={viewMode}
@@ -506,15 +303,11 @@ export function CharacterPage() {
                         onCharacterDoubleClick={handleCharacterDoubleClick}
                         onContextMenu={openCharacterMenu}
                         onMenuButton={openCharacterMenuFromButton}
-                        t={t}
                       />
-                    </div>
+                    </SearchResultSection>
                   )}
                   {searchMatches.descMatches.length > 0 && (
-                    <div>
-                      <h3 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
-                        {t("search.descMatch")} ({searchMatches.descMatches.length})
-                      </h3>
+                    <SearchResultSection title={t("search.descMatch")} count={searchMatches.descMatches.length}>
                       <GridOrList
                         chars={searchMatches.descMatches}
                         viewMode={viewMode}
@@ -523,15 +316,14 @@ export function CharacterPage() {
                         onCharacterDoubleClick={handleCharacterDoubleClick}
                         onContextMenu={openCharacterMenu}
                         onMenuButton={openCharacterMenuFromButton}
-                        t={t}
                       />
-                    </div>
+                    </SearchResultSection>
                   )}
                   {searchMatches.personalityMatches.length > 0 && (
-                    <div>
-                      <h3 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
-                        {t("search.personalityMatch")} ({searchMatches.personalityMatches.length})
-                      </h3>
+                    <SearchResultSection
+                      title={t("search.personalityMatch")}
+                      count={searchMatches.personalityMatches.length}
+                    >
                       <GridOrList
                         chars={searchMatches.personalityMatches}
                         viewMode={viewMode}
@@ -540,14 +332,13 @@ export function CharacterPage() {
                         onCharacterDoubleClick={handleCharacterDoubleClick}
                         onContextMenu={openCharacterMenu}
                         onMenuButton={openCharacterMenuFromButton}
-                        t={t}
                       />
-                    </div>
+                    </SearchResultSection>
                   )}
                 </div>
               )}
 
-              {/* Normal view (no search) */}
+              {/* Normal view */}
               {searchMatches === null && characters.length > 0 && (
                 <GridOrList
                   chars={characters}
@@ -557,7 +348,6 @@ export function CharacterPage() {
                   onCharacterDoubleClick={handleCharacterDoubleClick}
                   onContextMenu={openCharacterMenu}
                   onMenuButton={openCharacterMenuFromButton}
-                  t={t}
                 />
               )}
             </div>
@@ -576,8 +366,6 @@ export function CharacterPage() {
               onEdit={handleStartEdit}
               onDelete={setDeleteTarget}
               hasContent={hasContent}
-              t={t}
-              tc={tc}
             />
           )}
         </aside>
@@ -588,16 +376,23 @@ export function CharacterPage() {
         <CharacterContextMenu
           menu={characterMenu}
           onChat={handleCharacterDoubleClick}
-          onDetails={openSidebar}
-          onEdit={handleStartEdit}
-          onDelete={setDeleteTarget}
+          onDetails={(char) => {
+            setCharacterMenu(null);
+            openSidebar(char);
+          }}
+          onEdit={(char) => {
+            setCharacterMenu(null);
+            handleStartEdit(char);
+          }}
+          onDelete={(char) => {
+            setCharacterMenu(null);
+            setDeleteTarget(char);
+          }}
           onClose={() => setCharacterMenu(null)}
-          t={t}
-          tc={tc}
         />
       )}
 
-      {/* Edit form dialog */}
+      {/* Dialogs */}
       <CharFormDialog
         open={editingId !== null || creating}
         form={form}
@@ -606,24 +401,14 @@ export function CharacterPage() {
         onUpdateField={updateField}
         onSubmit={handleSubmit}
         onCancel={handleCancel}
-        t={t}
-        tc={tc}
       />
-
-      {/* Delete confirmation dialog */}
-      <DeleteDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} onDelete={handleDelete} t={t} tc={tc} />
-
-      {/* Chat mode selection dialog */}
+      <DeleteDialog target={deleteTarget} onClose={() => setDeleteTarget(null)} onDelete={handleDelete} />
       <CreateModeDialog
         target={modeTarget}
         creatingMode={creatingMode}
         onSelectMode={handleCreateChatWithMode}
         onCancel={() => setModeTarget(null)}
-        t={t}
-        tc={tc}
       />
-
-      {/* Create character mode dialog */}
       <CreateDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
@@ -635,9 +420,19 @@ export function CharacterPage() {
           setCreateDialogOpen(false);
           navigate("/character-builder");
         }}
-        t={t}
-        tc={tc}
       />
+    </div>
+  );
+}
+
+/** Section heading for search result groups. */
+function SearchResultSection({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-muted-foreground mb-3 text-xs font-semibold tracking-wider uppercase">
+        {title} ({count})
+      </h3>
+      {children}
     </div>
   );
 }

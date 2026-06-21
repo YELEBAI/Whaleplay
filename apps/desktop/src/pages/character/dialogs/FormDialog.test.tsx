@@ -3,9 +3,6 @@ import { render, screen, fireEvent } from "@/test/utils";
 import { CharFormDialog } from "./FormDialog";
 import type { CreateCharacterInput } from "@neo-tavern/shared";
 
-const t = vi.fn((key: string) => key);
-const tc = vi.fn((key: string) => key);
-
 const emptyForm: CreateCharacterInput = {
   name: "",
   description: "",
@@ -26,8 +23,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     expect(screen.queryByText("form.name")).not.toBeInTheDocument();
@@ -43,8 +38,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     expect(screen.getByText("form.name")).toBeInTheDocument();
@@ -65,8 +58,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     expect(screen.getByText("dialog.editCharacter")).toBeInTheDocument();
@@ -82,8 +73,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     expect(screen.getByText("dialog.newCharacter")).toBeInTheDocument();
@@ -100,8 +89,6 @@ describe("CharFormDialog", () => {
         onUpdateField={onUpdateField}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     const input = screen.getByLabelText("form.name");
@@ -119,8 +106,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     expect(screen.getByText("actions.create")).toBeDisabled();
@@ -137,8 +122,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     expect(screen.getByText("actions.create")).not.toBeDisabled();
@@ -155,8 +138,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     expect(screen.getByText("actions.create")).toBeDisabled();
@@ -173,8 +154,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={vi.fn()}
         onCancel={onCancel}
-        t={t}
-        tc={tc}
       />,
     );
     fireEvent.click(screen.getByText("actions.cancel"));
@@ -193,8 +172,6 @@ describe("CharFormDialog", () => {
         onUpdateField={vi.fn()}
         onSubmit={onSubmit}
         onCancel={vi.fn()}
-        t={t}
-        tc={tc}
       />,
     );
     fireEvent.click(screen.getByText("actions.create"));

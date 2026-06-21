@@ -1,4 +1,5 @@
 import { MoreHorizontal } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@neo-tavern/ui";
 import type { Character } from "@neo-tavern/shared";
 import { CharacterAvatarTile } from "@/components";
@@ -13,7 +14,6 @@ export function GridOrList({
   onCharacterDoubleClick,
   onContextMenu,
   onMenuButton,
-  t,
 }: {
   chars: Character[];
   viewMode: ViewMode;
@@ -22,8 +22,10 @@ export function GridOrList({
   onCharacterDoubleClick: (char: Character) => void;
   onContextMenu: (event: React.MouseEvent, char: Character) => void;
   onMenuButton: (event: React.MouseEvent<HTMLButtonElement>, char: Character) => void;
-  t: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+
+  // List mode
   if (viewMode === "list") {
     return (
       <div className="flex flex-col gap-2">
@@ -41,6 +43,7 @@ export function GridOrList({
     );
   }
 
+  // Grid Mode
   return (
     <div className="flex flex-wrap gap-x-6 gap-y-8">
       {chars.map((char) => (

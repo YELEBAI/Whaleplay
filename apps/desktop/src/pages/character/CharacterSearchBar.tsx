@@ -1,4 +1,5 @@
 import { Search, X, LayoutGrid, List } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button, Input } from "@neo-tavern/ui";
 import type { ViewMode } from "./types";
 
@@ -9,7 +10,6 @@ export function SearchBar({
   onSearchToggle,
   onSearchChange,
   onViewModeChange,
-  t,
 }: {
   searchExpanded: boolean;
   searchQuery: string;
@@ -17,8 +17,9 @@ export function SearchBar({
   onSearchToggle: () => void;
   onSearchChange: (query: string) => void;
   onViewModeChange: (mode: ViewMode) => void;
-  t: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+
   return (
     <div className="flex shrink-0 items-center gap-2 px-4 py-2">
       {searchExpanded ? (

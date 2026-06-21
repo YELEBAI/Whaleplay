@@ -1,4 +1,4 @@
-import type { MouseEvent } from "react";
+import { useTranslation } from "react-i18next";
 import type { Character } from "@neo-tavern/shared";
 import { cn } from "@neo-tavern/ui";
 
@@ -10,6 +10,7 @@ interface CharacterListItemProps {
   onContextMenu?: (event: React.MouseEvent, character: Character) => void;
 }
 
+// Items in List mode, contain Avatar, Name, Desc
 export function CharacterListItem({
   character,
   selected = false,
@@ -17,6 +18,8 @@ export function CharacterListItem({
   onDoubleClick,
   onContextMenu,
 }: CharacterListItemProps) {
+  const { t } = useTranslation("character");
+
   return (
     <div
       role="button"
@@ -53,7 +56,7 @@ export function CharacterListItem({
             {character.description}
           </div>
         ) : (
-          <div className="text-muted-foreground/50 mt-0.5 text-sm italic">No description</div>
+          <div className="text-muted-foreground/50 mt-0.5 text-sm italic">{t("noDescription")}</div>
         )}
       </div>
     </div>

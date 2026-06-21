@@ -40,10 +40,10 @@ describe("CharacterListItem", () => {
     expect(screen.getAllByText("A test description").length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows "No description" when the character has no description', () => {
+  it("shows placeholder text when the character has no description", () => {
     const char = mockChar({ description: "" });
     const { container } = render(<CharacterListItem {...defaultProps()} character={char} />);
-    expect(within(container).getByText("No description")).toBeInTheDocument();
+    expect(within(container).getByText("noDescription")).toBeInTheDocument();
   });
 
   it("applies the border-primary class when selected is true", () => {

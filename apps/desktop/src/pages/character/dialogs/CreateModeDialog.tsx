@@ -1,4 +1,5 @@
 import { MessageCircle, Dice5 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   Button,
   Dialog,
@@ -15,16 +16,15 @@ export function CreateModeDialog({
   creatingMode,
   onSelectMode,
   onCancel,
-  t,
-  tc,
 }: {
   target: Character | null;
   creatingMode: "normal" | "agentic" | null;
   onSelectMode: (mode: "normal" | "agentic") => void;
   onCancel: () => void;
-  t: (key: string, params?: Record<string, unknown>) => string;
-  tc: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+  const { t: tc } = useTranslation("common");
+
   return (
     <Dialog
       open={!!target}

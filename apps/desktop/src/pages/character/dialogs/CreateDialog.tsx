@@ -1,4 +1,5 @@
 import { Edit, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
   Button,
   Dialog,
@@ -14,16 +15,15 @@ export function CreateDialog({
   onOpenChange,
   onTraditional,
   onBuilder,
-  t,
-  tc,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onTraditional: () => void;
   onBuilder: () => void;
-  t: (key: string) => string;
-  tc: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+  const { t: tc } = useTranslation("common");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

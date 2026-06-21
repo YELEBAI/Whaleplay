@@ -1,19 +1,15 @@
 import { MessageSquare, List, Edit, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { Character } from "@neo-tavern/shared";
+import type { CharacterMenu } from "./types";
 
 interface CharacterContextMenuProps {
-  menu: {
-    x: number;
-    y: number;
-    character: Character;
-  };
+  menu: CharacterMenu;
   onChat: (character: Character) => void;
   onDetails: (character: Character) => void;
   onEdit: (character: Character) => void;
   onDelete: (character: Character) => void;
   onClose: () => void;
-  t: (key: string) => string;
-  tc: (key: string) => string;
 }
 
 export function CharacterContextMenu({
@@ -23,16 +19,14 @@ export function CharacterContextMenu({
   onEdit,
   onDelete,
   onClose,
-  t,
-  tc,
 }: CharacterContextMenuProps) {
+  const { t } = useTranslation("character");
+  const { t: tc } = useTranslation("common");
+
   return (
     <div
       className="bg-popover text-popover-foreground fixed z-50 min-w-36 overflow-hidden rounded-md border p-1 text-sm shadow-lg"
-      style={{
-        left: Math.min(menu.x, window.innerWidth - 160),
-        top: Math.min(menu.y, window.innerHeight - 200),
-      }}
+      style={{ left: Math.min(menu.x, window.innerWidth - 160), top: Math.min(menu.y, window.innerHeight - 200) }}
       onClick={(event) => event.stopPropagation()}
     >
       <button

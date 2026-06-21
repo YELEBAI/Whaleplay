@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Button,
   Input,
@@ -19,8 +20,6 @@ export function CharFormDialog({
   onUpdateField,
   onSubmit,
   onCancel,
-  t,
-  tc,
 }: {
   open: boolean;
   form: CreateCharacterInput;
@@ -29,9 +28,10 @@ export function CharFormDialog({
   onUpdateField: (field: keyof CreateCharacterInput, value: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
-  t: (key: string) => string;
-  tc: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+  const { t: tc } = useTranslation("common");
+
   return (
     <Dialog
       open={open}
@@ -43,7 +43,6 @@ export function CharFormDialog({
         <DialogHeader className="bg-background sticky pb-2">
           <DialogTitle>{editingId ? t("dialog.editCharacter") : t("dialog.newCharacter")}</DialogTitle>
         </DialogHeader>
-
         <div className="grid gap-4">
           <div>
             <Label htmlFor="char-name">{t("form.name")}</Label>
@@ -107,7 +106,6 @@ export function CharFormDialog({
             />
           </div>
         </div>
-
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
             {tc("actions.cancel")}

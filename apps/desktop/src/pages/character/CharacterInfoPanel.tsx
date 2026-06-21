@@ -1,4 +1,5 @@
 import { X, MessageCircle, Edit, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button, ScrollArea } from "@neo-tavern/ui";
 import type { Character } from "@neo-tavern/shared";
 
@@ -9,8 +10,6 @@ export function InfoPanel({
   onEdit,
   onDelete,
   hasContent,
-  t,
-  tc,
 }: {
   character: Character;
   onClose: () => void;
@@ -18,9 +17,10 @@ export function InfoPanel({
   onEdit: (character: Character) => void;
   onDelete: (character: Character) => void;
   hasContent: (text: string | undefined) => boolean;
-  t: (key: string) => string;
-  tc: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+  const { t: tc } = useTranslation("common");
+
   const sections = [
     {
       key: "description",
@@ -68,7 +68,6 @@ export function InfoPanel({
 
   return (
     <div className="flex h-full w-full flex-col">
-      {/* Sticky header with action buttons */}
       <div className="shrink-0 space-y-2 border-b p-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">{t("sidebar.title")}</h2>

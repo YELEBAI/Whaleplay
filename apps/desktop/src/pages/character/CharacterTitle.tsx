@@ -1,5 +1,6 @@
 import { ArrowLeft, Plus, Import } from "lucide-react";
 import { Button } from "@neo-tavern/ui";
+import { useTranslation } from "react-i18next";
 import type { RefObject } from "react";
 
 export function Title({
@@ -9,8 +10,6 @@ export function Title({
   onFileChange,
   importing,
   fileInputRef,
-  t,
-  tc,
 }: {
   onBack: () => void;
   onNewCharacter: () => void;
@@ -18,9 +17,10 @@ export function Title({
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   importing: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
-  t: (key: string) => string;
-  tc: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+  const { t: tc } = useTranslation("common");
+
   return (
     <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2">
       <Button size="sm" variant="ghost" onClick={onBack}>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   Button,
   Dialog,
@@ -13,15 +14,14 @@ export function DeleteDialog({
   target,
   onClose,
   onDelete,
-  t,
-  tc,
 }: {
   target: Character | null;
   onClose: () => void;
   onDelete: () => void;
-  t: (key: string, params?: Record<string, unknown>) => string;
-  tc: (key: string) => string;
 }) {
+  const { t } = useTranslation("character");
+  const { t: tc } = useTranslation("common");
+
   return (
     <Dialog open={!!target} onOpenChange={onClose}>
       <DialogContent>
