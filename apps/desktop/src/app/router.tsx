@@ -1,7 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import { Layout } from "@/components";
 import { HomePage } from "@/pages/HomePage";
-import { CharacterPage } from "@/pages/CharacterPage";
+import { CharacterPage } from "@/pages/character";
 import { ChatPage } from "@/pages/ChatPage";
 import { SettingsPage } from "@/pages/settings";
 import { PresetPage } from "@/pages/PresetPage";

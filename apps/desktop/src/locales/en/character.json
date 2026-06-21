@@ -3,11 +3,53 @@
   "newCharacter": "New Character",
   "importCard": "Import character card",
   "loading": "Loading...",
+  "noDescription": "No description",
   "noCharacters": "No characters yet.",
   "characterMenu": "Character menu",
   "dismiss": "Dismiss",
   "contextMenu": {
-    "details": "Details"
+    "details": "Details",
+    "edit": "Edit",
+    "delete": "Delete",
+    "chat": "Chat"
+  },
+  "search": {
+    "open": "Open search",
+    "close": "Close search",
+    "placeholder": "Search character name, description, personality...",
+    "noResults": "No matching characters found",
+    "nameMatch": "Name Match",
+    "descMatch": "Description Match",
+    "personalityMatch": "Personality Match"
+  },
+  "view": {
+    "grid": "Grid",
+    "list": "List"
+  },
+  "create": {
+    "title": "Create New Character",
+    "description": "Choose creation method",
+    "traditional": "Traditional Form",
+    "traditionalDesc": "Manually fill in character information",
+    "builder": "Whale Builder",
+    "builderDesc": "Using Skill-based AI create character"
+  },
+  "sidebar": {
+    "title": "Character Details",
+    "startChat": "Start chatting with this character",
+    "noCharacterSelected": "Click a character to view details"
+  },
+  "modeDialog": {
+    "title": "Choose Chat Mode",
+    "description": "Start a new chat for \"{{name}}\".",
+    "normal": {
+      "label": "Normal Mode",
+      "desc": "Direct conversation based on the character card."
+    },
+    "agentic": {
+      "label": "Agentic Mode",
+      "desc": "Narrator-driven scenes with risk resolution and state tracking."
+    }
   },
   "dialog": {
     "editCharacter": "Edit Character",

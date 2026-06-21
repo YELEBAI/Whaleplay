@@ -8,6 +8,7 @@ interface CharacterAvatarTileProps {
   actions?: ReactNode;
   footerAction?: ReactNode;
   onClick?: () => void;
+  onDoubleClick?: () => void;
   onContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
@@ -17,6 +18,7 @@ export function CharacterAvatarTile({
   actions,
   footerAction,
   onClick,
+  onDoubleClick,
   onContextMenu,
 }: CharacterAvatarTileProps) {
   return (
@@ -24,6 +26,7 @@ export function CharacterAvatarTile({
       <button
         type="button"
         onClick={onClick}
+        onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
         className="focus-visible:ring-ring block w-full text-center focus-visible:ring-1 focus-visible:outline-none"
         title={character.name}
@@ -47,7 +50,7 @@ export function CharacterAvatarTile({
         <span
           className={cn(
             "mt-2 block truncate text-xs leading-5 font-medium",
-            selected ? "text-foreground" : "text-muted-foreground group-hover:text-foreground",
+            selected ? "text-foreground" : "text-foreground group-hover:text-foreground",
           )}
         >
           {character.name}

@@ -1,5 +1,17 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { vi, afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
+
+afterEach(() => {
+  cleanup();
+  // Radix Dialog may leave portal nodes in document.body between tests.
+  // Clear them explicitly so later tests don't see stale dialog content.
+  document.body.querySelectorAll("[data-radix-focus-guard]").forEach((el) => el.remove());
+  document.body.querySelectorAll("[data-radix-dialog-overlay]").forEach((el) => el.remove());
+  document.body.querySelectorAll('[role="dialog"]').forEach((el) => el.remove());
+  document.body.removeAttribute("data-scroll-locked");
+  document.body.style.pointerEvents = "";
+});
 
 // ── Mock Tauri APIs ──────────────────────────────────
 vi.mock("@tauri-apps/api/core", () => ({
