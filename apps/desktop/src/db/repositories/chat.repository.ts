@@ -11,6 +11,10 @@ async function saveAll(chats: Chat[]) {
   await data.setJson(dataKeys.chats, chats);
 }
 
+function normalizeEntryIds(ids: string[] | undefined): string[] {
+  return Array.from(new Set((ids ?? []).map((id) => id.trim()).filter(Boolean)));
+}
+
 export const chatRepository = {
   async list(): Promise<Chat[]> {
     return (await loadAll()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -32,6 +36,7 @@ export const chatRepository = {
       id: generateId(),
       characterId: input.characterId,
       title: input.title,
+      worldbookReferenceEntryIds: normalizeEntryIds(input.worldbookReferenceEntryIds),
       createdAt: now,
       updatedAt: now,
     };
@@ -46,6 +51,9 @@ export const chatRepository = {
     const idx = all.findIndex((c) => c.id === id);
     if (idx === -1) throw new Error(`Chat not found: ${id}`);
     if (input.title !== undefined) all[idx].title = input.title;
+    if (input.worldbookReferenceEntryIds !== undefined) {
+      all[idx].worldbookReferenceEntryIds = normalizeEntryIds(input.worldbookReferenceEntryIds);
+    }
     all[idx].updatedAt = new Date().toISOString();
     await saveAll(all);
     return all[idx];

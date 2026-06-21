@@ -13,6 +13,8 @@ export const prefKeys = {
   promptRecentTurns: "memory:prompt-recent-turns",
   memorySummaryMaxChars: "memory:summary-max-chars",
   memoryCompressorConfigId: "memory:compressor-config-id",
+  ragMemory: "rag:memory",
+  smartStreamingScrollEnabled: "chat:smart-streaming-scroll-enabled",
   imageGeneration: "image-generation",
   characterViewMode: "character:view-mode",
   characterSearchExpanded: "character:search-expanded",
@@ -70,6 +72,8 @@ const settingPrefs = new Map<string, string>([
   ["promptRecentTurns", prefKeys.promptRecentTurns],
   ["memorySummaryMaxChars", prefKeys.memorySummaryMaxChars],
   ["memoryCompressorConfigId", prefKeys.memoryCompressorConfigId],
+  ["ragMemory", prefKeys.ragMemory],
+  ["smartStreamingScrollEnabled", prefKeys.smartStreamingScrollEnabled],
   ["imageGeneration", prefKeys.imageGeneration],
 ]);
 

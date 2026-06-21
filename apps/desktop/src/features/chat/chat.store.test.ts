@@ -76,6 +76,9 @@ vi.mock("@/db/repositories", () => ({
     listRecentByChatId: vi.fn(async (chatId: string, limit: number) =>
       repositoryState.messages.filter((message) => message.chatId === chatId).slice(-limit),
     ),
+    listRecentTurnsByChatId: vi.fn(async (chatId: string) =>
+      repositoryState.messages.filter((message) => message.chatId === chatId),
+    ),
     create: vi.fn(async (input: CreateMessageInput) => {
       const message: Message = {
         id: `message-${repositoryState.nextMessageId++}`,

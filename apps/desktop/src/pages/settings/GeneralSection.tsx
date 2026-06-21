@@ -46,6 +46,8 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
   const dailyCostSpentCny = useSettingsStore((s) => s.dailyCostSpentCny);
   const setDailyCostWarningEnabled = useSettingsStore((s) => s.setDailyCostWarningEnabled);
   const setDailyCostWarningLimitCny = useSettingsStore((s) => s.setDailyCostWarningLimitCny);
+  const smartStreamingScrollEnabled = useSettingsStore((s) => s.smartStreamingScrollEnabled);
+  const setSmartStreamingScrollEnabled = useSettingsStore((s) => s.setSmartStreamingScrollEnabled);
   const webSearchProvider = useSettingsStore((s) => s.webSearchProvider);
   const tavilyApiKey = useSettingsStore((s) => s.tavilyApiKey);
   const tavilySearchDepth = useSettingsStore((s) => s.tavilySearchDepth);
@@ -116,6 +118,17 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
               {t("general.debugDetail")}
             </p>
           )}
+          <div className="setting-row">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">{t("general.smartStreamingScroll")}</p>
+              <p className="text-muted-foreground mt-1 text-xs">{t("general.smartStreamingScrollHint")}</p>
+            </div>
+            <SwitchButton
+              checked={smartStreamingScrollEnabled}
+              onClick={() => setSmartStreamingScrollEnabled(!smartStreamingScrollEnabled)}
+              label={t("general.toggleSmartStreamingScroll")}
+            />
+          </div>
           <div className="space-y-3 rounded-md border px-3 py-3">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">

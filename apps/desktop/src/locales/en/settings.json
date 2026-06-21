@@ -5,6 +5,7 @@
     "api": "DeepSeek API",
     "appearance": "Appearance",
     "context": "Context",
+    "rag": "RAG Memory",
     "image": "Image Generation",
     "regex": "Regex Rules"
   },
@@ -109,6 +110,9 @@
     "dailyCostLimitYuan": "Daily Cost Limit (¥)",
     "toggleDebug": "Toggle debug prompt saving",
     "toggleDailyCost": "Toggle daily cost warning",
+    "smartStreamingScroll": "Smart Streaming Scroll",
+    "smartStreamingScrollHint": "Pause sticky-bottom scrolling when you scroll up; after the AI reply finishes, jump to the start of that reply.",
+    "toggleSmartStreamingScroll": "Toggle smart streaming scroll",
     "autoUpdate": "Auto Update",
     "autoUpdateToggle": "Auto Update",
     "autoUpdateHint": "Automatically check and download updates on startup. Visit the About page to install.",
@@ -159,6 +163,12 @@
       "medium": "~8k words",
       "full": "Unlimited"
     }
+  },
+  "rag": {
+    "title": "RAG Memory",
+    "description": "Use the built-in local model or Ollama embeddings to manage character, worldbook, and long-term plot memory.",
+    "enable": "Enable RAG memory",
+    "enableHint": "Recalled results are inserted as bottom reference material for the current turn, with instructions to ignore irrelevant content."
   },
   "regex": {
     "title": "Regex Rules",

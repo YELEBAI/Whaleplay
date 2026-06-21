@@ -141,6 +141,15 @@ export const createModelConfigSlice = (set: any, get: any, _api?: any): ModelCon
         await settingsRepository.set("imageGeneration", JSON.stringify(next));
         set({ imageGeneration: next });
       }
+      if (get().ragMemory?.summarizerConfigId === id || get().ragMemory?.queryRewriteConfigId === id) {
+        const next = {
+          ...get().ragMemory,
+          summarizerConfigId: get().ragMemory?.summarizerConfigId === id ? null : get().ragMemory?.summarizerConfigId,
+          queryRewriteConfigId: get().ragMemory?.queryRewriteConfigId === id ? null : get().ragMemory?.queryRewriteConfigId,
+        };
+        await settingsRepository.set("ragMemory", JSON.stringify(next));
+        set({ ragMemory: next });
+      }
     } catch (err) {
       set({ error: (err as Error).message, loading: false });
       throw err;

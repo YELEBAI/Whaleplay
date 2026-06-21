@@ -2,6 +2,8 @@ import { generateId } from "@neo-tavern/shared";
 import type { Message, CreateMessageInput } from "@neo-tavern/shared";
 import { getBackend } from "@/platform";
 import { mergeMessagesByContent } from "@neo-tavern/core/tree";
+const EMBEDDED_IMAGE_SRC_PREFIX = "data:image/";
+const COMPACTED_EMBEDDED_IMAGE_ERROR = "旧版内嵌图片已清理，请重新生成。";
 import { data } from "../kv";
 import { dataKeys } from "../storage/keys";
 import { loadArray, readOptional } from "../storage/repository-helpers";
@@ -12,7 +14,115 @@ async function loadAll(): Promise<Message[]> {
   return loadArray<Message>(data, dataKeys.messages);
 }
 async function saveAll(msgs: Message[]) {
-  await data.setJson(dataKeys.messages, msgs);
+  await data.setJson(dataKeys.messages, compactMessagesForKeyValueStorage(msgs));
+}
+
+function compactMessagesForKeyValueStorage(messages: Message[]): Message[] {
+  return messages.map((message) => {
+    if (!message.images?.some((image) => image.src?.toLowerCase().startsWith(EMBEDDED_IMAGE_SRC_PREFIX))) {
+      return message;
+    }
+
+    return {
+      ...message,
+      images: message.images.map((image) => {
+        if (!image.src?.toLowerCase().startsWith(EMBEDDED_IMAGE_SRC_PREFIX)) return image;
+        return {
+          ...image,
+          status: "error" as const,
+          src: undefined,
+          error: image.error || COMPACTED_EMBEDDED_IMAGE_ERROR,
+        };
+      }),
+    };
+  });
+}
+
+function sortMessages(messages: Message[]) {
+  return [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+}
+
+function isPositiveRoundIndex(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+function inferMaxRoundIndex(messages: Message[]) {
+  const byTime = [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  let inferred = 0;
+  let max = 0;
+
+  for (const message of byTime) {
+    if (message.role !== "assistant") continue;
+    inferred += 1;
+    max = Math.max(max, isPositiveRoundIndex(message.roundIndex) ? message.roundIndex : inferred);
+  }
+
+  return max;
+}
+
+function ensureAssistantRoundIndexes(messages: Message[]) {
+  const byChat = new Map<string, Message[]>();
+  for (const message of messages) {
+    const list = byChat.get(message.chatId) ?? [];
+    list.push(message);
+    byChat.set(message.chatId, list);
+  }
+
+  const nextByChat = new Map<string, number>();
+  for (const [chatId, chatMessages] of byChat) {
+    nextByChat.set(chatId, 0);
+    chatMessages.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    for (const message of chatMessages) {
+      if (message.role !== "assistant") continue;
+      const current = nextByChat.get(chatId) ?? 0;
+      if (isPositiveRoundIndex(message.roundIndex)) {
+        nextByChat.set(chatId, Math.max(current, message.roundIndex));
+        continue;
+      }
+      const next = current + 1;
+      message.roundIndex = next;
+      nextByChat.set(chatId, next);
+    }
+  }
+
+  return messages;
+}
+
+function getRecentAssistantTurnStartIndex(messages: Message[], turnLimit: number) {
+  const limit = Math.max(1, Math.floor(turnLimit || 1));
+  const indexedAssistantMessages = messages.filter(
+    (message) => message.role === "assistant" && isPositiveRoundIndex(message.roundIndex),
+  );
+
+  if (indexedAssistantMessages.length > 0) {
+    const latestRoundIndex = Math.max(...indexedAssistantMessages.map((message) => message.roundIndex ?? 0));
+    if (latestRoundIndex <= limit) return 0;
+
+    const preserveFromRoundIndex = latestRoundIndex - limit + 1;
+    const firstAssistantToKeep = messages.findIndex(
+      (message) => message.role === "assistant" && (message.roundIndex ?? 0) >= preserveFromRoundIndex,
+    );
+    if (firstAssistantToKeep < 0) return 0;
+
+    let start = firstAssistantToKeep;
+    while (start > 0 && messages[start - 1].role !== "assistant") start -= 1;
+    return start;
+  }
+
+  const assistantIndexes: number[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].role === "assistant") assistantIndexes.push(i);
+  }
+  if (assistantIndexes.length <= limit) return 0;
+
+  let start = assistantIndexes[assistantIndexes.length - limit];
+  while (start > 0 && messages[start - 1].role !== "assistant") start -= 1;
+  return start;
+}
+
+function takeRecentAssistantTurns(messages: Message[], turnLimit: number) {
+  const sorted = sortMessages(messages);
+  return sorted.slice(getRecentAssistantTurnStartIndex(sorted, turnLimit));
 }
 
 function makeMessage(input: CreateMessageInput): Message {
@@ -30,6 +140,7 @@ function makeMessage(input: CreateMessageInput): Message {
     agenticOptions: input.agenticOptions,
     hidden: input.hidden,
     metadata: input.metadata,
+    roundIndex: input.role === "assistant" ? input.roundIndex : undefined,
     createdAt: new Date().toISOString(),
   };
 }
@@ -76,12 +187,14 @@ function makeRestoredMessages(chatId: string, messages: Message[]): Message[] {
   for (const m of messages) {
     idMap.set(m.id, generateId());
   }
-  return messages.map((message) => ({
-    ...message,
-    id: idMap.get(message.id) ?? message.id,
-    parentId: message.parentId ? (idMap.get(message.parentId) ?? message.parentId) : null,
-    chatId,
-  }));
+  return ensureAssistantRoundIndexes(
+    messages.map((message) => ({
+      ...message,
+      id: idMap.get(message.id) ?? message.id,
+      parentId: message.parentId ? (idMap.get(message.parentId) ?? message.parentId) : null,
+      chatId,
+    })),
+  );
 }
 
 async function canUseSqliteMessages() {
@@ -90,11 +203,11 @@ async function canUseSqliteMessages() {
       try {
         const legacyMessagesJson = await readOptional(data, dataKeys.messages);
         await getBackend().db.initMessages(legacyMessagesJson);
-        if (legacyMessagesJson) {
-          await data.remove(dataKeys.messages);
-        }
+        // Keep the canonical KV source until a later cleanup migration. This
+        // makes SQLite import retryable after interruption or partial failure.
         return true;
-      } catch {
+      } catch (error) {
+        console.warn("[messages] SQLite message store unavailable; falling back to key-value storage.", error);
         return false;
       }
     })();
@@ -136,8 +249,22 @@ export const messageRepository = {
       .slice(-cappedLimit);
   },
 
+  async listRecentTurnsByChatId(chatId: string, turnLimit: number): Promise<Message[]> {
+    const cappedTurnLimit = Math.max(1, Math.min(100, Math.floor(turnLimit || 1)));
+    if (await canUseSqliteMessages()) {
+      return getBackend().db.listRecentTurnMessages(chatId, cappedTurnLimit);
+    }
+    return takeRecentAssistantTurns(
+      (await loadAll()).filter((m) => m.chatId === chatId),
+      cappedTurnLimit,
+    );
+  },
+
   async create(input: CreateMessageInput): Promise<Message> {
     const msg = makeMessage(input);
+    if (msg.role === "assistant" && !isPositiveRoundIndex(msg.roundIndex)) {
+      msg.roundIndex = inferMaxRoundIndex(await this.listByChatId(input.chatId)) + 1;
+    }
     if (await canUseSqliteMessages()) {
       return getBackend().db.createMessage(msg);
     }
@@ -281,6 +408,24 @@ export const messageRepository = {
       }
     }
     if (changed) await saveAll(all);
+    return count;
+  },
+
+  async migrateRoundIndexes(): Promise<number> {
+    if (await canUseSqliteMessages()) {
+      return getBackend().db.migrateRoundIndexes();
+    }
+
+    const all = await loadAll();
+    const before = new Map(all.map((message) => [message.id, message.roundIndex]));
+    ensureAssistantRoundIndexes(all);
+    const count = all.filter(
+      (message) =>
+        message.role === "assistant" &&
+        isPositiveRoundIndex(message.roundIndex) &&
+        !isPositiveRoundIndex(before.get(message.id)),
+    ).length;
+    await saveAll(all);
     return count;
   },
 };

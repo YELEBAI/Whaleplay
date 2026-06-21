@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Dice5, MessageCircle, Plus, Save, Settings, Trash2 } from "lucide-react";
+import { BookOpen, Dice5, MessageCircle, Plus, Save, Settings, Trash2 } from "lucide-react";
 import {
   Button,
   Card,
@@ -237,7 +237,7 @@ export function HomePage() {
           className="bg-popover text-popover-foreground fixed z-50 min-w-44 overflow-hidden rounded-md border p-1 text-sm shadow-lg"
           style={{
             left: Math.min(contextMenu.x, window.innerWidth - 190),
-            top: Math.min(contextMenu.y, window.innerHeight - 160),
+            top: Math.min(contextMenu.y, window.innerHeight - 210),
           }}
           onClick={(event) => event.stopPropagation()}
         >
@@ -299,6 +299,18 @@ export function HomePage() {
               >
                 <Save className="h-4 w-4" />
                 存档
+              </button>
+              <button
+                type="button"
+                className="hover:bg-accent flex w-full items-center gap-2 rounded px-3 py-2 text-left"
+                onClick={() => {
+                  const chatId = contextMenu.chat.id;
+                  closeContextMenu();
+                  navigate(`/chat/${chatId}/worldbook-references`);
+                }}
+              >
+                <BookOpen className="h-4 w-4" />
+                {t("contextMenu.worldbookReferences")}
               </button>
               <button
                 type="button"

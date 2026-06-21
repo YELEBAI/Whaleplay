@@ -3,6 +3,7 @@ import type { ContextBlock, Message } from "@neo-tavern/shared";
 export const DEFAULT_LIGHTWEIGHT_MEMORY_ENABLED = true;
 export const DEFAULT_PROMPT_RECENT_TURNS = 12;
 export const DEFAULT_MEMORY_SUMMARY_MAX_CHARS = 4500;
+export const CONTEXT_COMPRESSION_PRESERVE_TURNS = 5;
 
 export interface PromptMemorySettings {
   lightweightMemoryEnabled: boolean;
@@ -64,6 +65,66 @@ export function getRecentMemoryTurnStartIndex(messages: Message[], turnLimit: nu
 
 export function splitMessagesByRecentTurns(messages: Message[], turnLimit: number) {
   const start = getRecentMemoryTurnStartIndex(messages, turnLimit);
+  if (start <= 0) {
+    return {
+      memoryMessages: [] as Message[],
+      recentMessages: messages,
+    };
+  }
+
+  return {
+    memoryMessages: messages.slice(0, start),
+    recentMessages: messages.slice(start),
+  };
+}
+
+export function getRecentAssistantTurnStartIndex(messages: Message[], turnLimit = CONTEXT_COMPRESSION_PRESERVE_TURNS) {
+  const limit = Math.max(1, Math.floor(turnLimit || CONTEXT_COMPRESSION_PRESERVE_TURNS));
+  const indexedAssistantMessages = messages.filter(
+    (message) => message.role === "assistant" && typeof message.roundIndex === "number" && message.roundIndex > 0,
+  );
+
+  if (indexedAssistantMessages.length > 0) {
+    const latestRoundIndex = Math.max(...indexedAssistantMessages.map((message) => message.roundIndex ?? 0));
+    if (latestRoundIndex <= limit) return 0;
+
+    const preserveFromRoundIndex = latestRoundIndex - limit + 1;
+    const firstAssistantToKeep = messages.findIndex(
+      (message) =>
+        message.role === "assistant" &&
+        typeof message.roundIndex === "number" &&
+        message.roundIndex >= preserveFromRoundIndex,
+    );
+
+    if (firstAssistantToKeep < 0) return 0;
+    let start = firstAssistantToKeep;
+    while (start > 0 && messages[start - 1].role !== "assistant") {
+      start -= 1;
+    }
+    return start;
+  }
+
+  const assistantIndexes: number[] = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].role === "assistant") assistantIndexes.push(i);
+  }
+
+  if (assistantIndexes.length <= limit) return 0;
+
+  const firstAssistantToKeep = assistantIndexes[assistantIndexes.length - limit];
+  let start = firstAssistantToKeep;
+  while (start > 0 && messages[start - 1].role !== "assistant") {
+    start -= 1;
+  }
+  return start;
+}
+
+export function splitMessagesByRecentAssistantTurns(
+  messages: Message[],
+  turnLimit = CONTEXT_COMPRESSION_PRESERVE_TURNS,
+) {
+  const start = getRecentAssistantTurnStartIndex(messages, turnLimit);
   if (start <= 0) {
     return {
       memoryMessages: [] as Message[],

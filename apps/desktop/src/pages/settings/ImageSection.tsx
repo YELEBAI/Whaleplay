@@ -215,24 +215,6 @@ export function ImageSection({ t }: ImageSectionProps) {
                     This profile writes image prompts. ComfyUI handles the final image generation.
                   </p>
                 </div>
-                <div className="setting-row">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{t("image.worldbookRef")}</p>
-                    <p className="text-muted-foreground mt-1 text-xs">
-                      When reply text matches world book keywords, send those entries to the secondary API for visual
-                      details.
-                    </p>
-                  </div>
-                  <SwitchButton
-                    checked={imageGeneration.worldbookReferenceEnabled}
-                    onClick={() =>
-                      updateImageGenerationSettings({
-                        worldbookReferenceEnabled: !imageGeneration.worldbookReferenceEnabled,
-                      })
-                    }
-                    label="Toggle world book references for image planning"
-                  />
-                </div>
               </div>
             </CardContent>
           </Card>

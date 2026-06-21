@@ -35,6 +35,7 @@ vi.mock("@/platform", () => ({
       initMessages: vi.fn().mockResolvedValue(undefined),
       listMessages: vi.fn().mockResolvedValue([]),
       listRecentMessages: vi.fn().mockResolvedValue([]),
+      listRecentTurnMessages: vi.fn().mockResolvedValue([]),
       listChildMessages: vi.fn().mockResolvedValue([]),
       createMessage: vi.fn().mockResolvedValue({}),
       updateMessage: vi.fn().mockResolvedValue({}),
@@ -44,6 +45,7 @@ vi.mock("@/platform", () => ({
       deleteByChatId: vi.fn().mockResolvedValue(undefined),
       replaceByChatId: vi.fn().mockResolvedValue([]),
       migrateParentIds: vi.fn().mockResolvedValue(0),
+      migrateRoundIndexes: vi.fn().mockResolvedValue(0),
       mergeFromSavepoint: vi.fn().mockResolvedValue([]),
     },
     agenticPlay: {
@@ -52,6 +54,13 @@ vi.mock("@/platform", () => ({
       upsert: vi.fn().mockResolvedValue({}),
       delete: vi.fn().mockResolvedValue(undefined),
       clearAll: vi.fn().mockResolvedValue(undefined),
+    },
+    rag: {
+      upsertChunks: vi.fn().mockResolvedValue(0),
+      listChunksByOwners: vi.fn().mockResolvedValue([]),
+      deleteChunksBySourceIds: vi.fn().mockResolvedValue(0),
+      deleteChunksByOwner: vi.fn().mockResolvedValue(0),
+      countChunksByOwner: vi.fn().mockResolvedValue(0),
     },
     file: {
       pickFolder: vi.fn().mockResolvedValue(null),
@@ -63,6 +72,11 @@ vi.mock("@/platform", () => ({
     },
     search: {
       webSearch: vi.fn().mockResolvedValue([]),
+    },
+    ollama: {
+      check: vi.fn().mockResolvedValue({ version: "test" }),
+      pull: vi.fn().mockResolvedValue({ status: "success" }),
+      embed: vi.fn().mockResolvedValue([]),
     },
     comfy: {
       getSystemStats: vi.fn().mockResolvedValue({}),

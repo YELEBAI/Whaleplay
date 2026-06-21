@@ -3,6 +3,7 @@ import { Layout } from "@/components";
 import { HomePage } from "@/pages/HomePage";
 import { CharacterPage } from "@/pages/character";
 import { ChatPage } from "@/pages/ChatPage";
+import { ChatWorldbookReferencesPage } from "@/pages/ChatWorldbookReferencesPage";
 import { SettingsPage } from "@/pages/settings";
 import { PresetPage } from "@/pages/PresetPage";
 import { WorldbookPage } from "@/pages/WorldbookPage";
@@ -19,6 +20,7 @@ export const router: ReturnType<typeof createBrowserRouter> = createBrowserRoute
       { path: "character", element: <CharacterPage /> },
       { path: "character-builder", element: <NeoBuilderPage /> },
       { path: "chat/:id", element: <ChatPage /> },
+      { path: "chat/:id/worldbook-references", element: <ChatWorldbookReferencesPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "preset", element: <PresetPage /> },
       { path: "worldbook", element: <WorldbookPage /> },

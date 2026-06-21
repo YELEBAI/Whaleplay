@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useChatStore } from "@/features/chat/chat.store";
 import { buildMessagePath } from "@/db/repositories";
 import type { Message } from "@neo-tavern/shared";
@@ -73,12 +74,21 @@ export function buildBranchSummaries(messages: Message[], activeLeafId: string |
 export function useBranchNavigation(chatId: string | undefined) {
   const messages = useChatStore((s) => s.messages);
   const activeLeafId = useChatStore((s) => s.activeLeafId);
-  const getActivePath = useChatStore((s) => s.getActivePath);
   const switchBranch = useChatStore((s) => s.switchBranch);
 
-  const chatMessages = chatId ? messages.filter((message) => message.chatId === chatId) : [];
-  const visibleMessages = chatId ? getActivePath(chatId).filter((message: Message) => !message.hidden) : [];
-  const branchSummaries = buildBranchSummaries(chatMessages, activeLeafId);
+  const chatMessages = useMemo(
+    () => (chatId ? messages.filter((message) => message.chatId === chatId) : []),
+    [chatId, messages],
+  );
+  const visibleMessages = useMemo(() => {
+    if (!chatId || chatMessages.length === 0) return [];
+    const leafId =
+      activeLeafId && chatMessages.some((message) => message.id === activeLeafId)
+        ? activeLeafId
+        : getDefaultLeafId(chatMessages);
+    return leafId ? buildMessagePath(chatMessages, leafId).filter((message: Message) => !message.hidden) : [];
+  }, [activeLeafId, chatId, chatMessages]);
+  const branchSummaries = useMemo(() => buildBranchSummaries(chatMessages, activeLeafId), [activeLeafId, chatMessages]);
   const effectiveActiveLeafId =
     branchSummaries.find((summary) => summary.isActive)?.leafId ?? activeLeafId ?? visibleMessages.at(-1)?.id ?? null;
 

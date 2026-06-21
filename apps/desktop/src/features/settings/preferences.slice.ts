@@ -16,6 +16,11 @@ import {
   saveDailyCostWarningEnabled,
   saveDailyCostWarningLimitCny,
 } from "@/features/billing/daily-cost";
+import {
+  DEFAULT_RAG_MEMORY_SETTINGS,
+  normalizeRagMemorySettings,
+  type RagMemorySettings,
+} from "@/features/rag/rag-settings";
 
 export interface PreferencesSlice {
   debugMode: boolean;
@@ -23,6 +28,7 @@ export interface PreferencesSlice {
   dailyCostWarningEnabled: boolean;
   dailyCostWarningLimitCny: number;
   dailyCostSpentCny: number;
+  smartStreamingScrollEnabled: boolean;
   webSearchProvider: "default" | "tavily";
   tavilyApiKey: string;
   tavilySearchDepth: "basic" | "advanced" | "fast" | "ultra-fast";
@@ -31,6 +37,7 @@ export interface PreferencesSlice {
   promptRecentTurns: number;
   memorySummaryMaxChars: number;
   memoryCompressorConfigId: string | null;
+  ragMemory: RagMemorySettings;
   imageGeneration: ImageGenerationSettings;
   personaName: string;
   personaDesc: string;
@@ -43,6 +50,8 @@ export interface PreferencesSlice {
   loadDailyCostSpent: () => Promise<void>;
   setDailyCostWarningEnabled: (enabled: boolean) => void;
   setDailyCostWarningLimitCny: (limitCny: number) => void;
+  loadSmartStreamingScrollEnabled: () => Promise<void>;
+  setSmartStreamingScrollEnabled: (enabled: boolean) => void;
   loadWebSearchSettings: () => Promise<void>;
   setWebSearchProvider: (provider: "default" | "tavily") => void;
   setTavilyApiKey: (key: string) => void;
@@ -54,6 +63,8 @@ export interface PreferencesSlice {
   setPromptRecentTurns: (turns: number) => void;
   setMemorySummaryMaxChars: (chars: number) => void;
   setMemoryCompressorConfigId: (id: string | null) => void;
+  loadRagMemorySettings: () => Promise<void>;
+  updateRagMemorySettings: (patch: Partial<RagMemorySettings>) => void;
   loadImageGenerationSettings: () => Promise<void>;
   updateImageGenerationSettings: (patch: Partial<ImageGenerationSettings>) => void;
   loadPersona: () => Promise<void>;
@@ -68,6 +79,7 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
   dailyCostWarningEnabled: false,
   dailyCostWarningLimitCny: DEFAULT_DAILY_COST_WARNING_LIMIT_CNY,
   dailyCostSpentCny: 0,
+  smartStreamingScrollEnabled: true,
   webSearchProvider: "default" as const,
   tavilyApiKey: "",
   tavilySearchDepth: "basic" as const,
@@ -76,6 +88,7 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
   promptRecentTurns: DEFAULT_PROMPT_RECENT_TURNS,
   memorySummaryMaxChars: DEFAULT_MEMORY_SUMMARY_MAX_CHARS,
   memoryCompressorConfigId: null,
+  ragMemory: DEFAULT_RAG_MEMORY_SETTINGS,
   imageGeneration: DEFAULT_IMAGE_GENERATION_SETTINGS,
   personaName: "User",
   personaDesc: "",
@@ -123,6 +136,16 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
       : DEFAULT_DAILY_COST_WARNING_LIMIT_CNY;
     void saveDailyCostWarningLimitCny(next);
     set({ dailyCostWarningLimitCny: next });
+  },
+
+  loadSmartStreamingScrollEnabled: async () => {
+    const raw = await settingsRepository.get("smartStreamingScrollEnabled");
+    if (raw !== null && raw !== undefined) set({ smartStreamingScrollEnabled: raw !== "0" });
+  },
+
+  setSmartStreamingScrollEnabled: (enabled: boolean) => {
+    void settingsRepository.set("smartStreamingScrollEnabled", enabled ? "1" : "0");
+    set({ smartStreamingScrollEnabled: enabled });
   },
 
   loadWebSearchSettings: async () => {
@@ -203,6 +226,25 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
     const next = id?.trim() || null;
     void settingsRepository.set("memoryCompressorConfigId", next ?? "");
     set({ memoryCompressorConfigId: next });
+  },
+
+  loadRagMemorySettings: async () => {
+    const raw = await settingsRepository.get("ragMemory");
+    if (!raw) {
+      set({ ragMemory: DEFAULT_RAG_MEMORY_SETTINGS });
+      return;
+    }
+    try {
+      set({ ragMemory: normalizeRagMemorySettings(JSON.parse(raw)) });
+    } catch {
+      set({ ragMemory: DEFAULT_RAG_MEMORY_SETTINGS });
+    }
+  },
+
+  updateRagMemorySettings: (patch: Partial<RagMemorySettings>) => {
+    const next = normalizeRagMemorySettings({ ..._get().ragMemory, ...patch });
+    void settingsRepository.set("ragMemory", JSON.stringify(next));
+    set({ ragMemory: next });
   },
 
   loadImageGenerationSettings: async () => {

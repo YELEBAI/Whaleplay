@@ -31,6 +31,7 @@ export interface Backend {
   db: {
     listMessages(chatId: string): Promise<Message[]>;
     listRecentMessages(chatId: string, limit: number): Promise<Message[]>;
+    listRecentTurnMessages(chatId: string, turnLimit: number): Promise<Message[]>;
     listChildMessages(parentId: string): Promise<Message[]>;
     createMessage(message: Message): Promise<Message>;
     updateMessage(id: string, content: string): Promise<Message>;
@@ -40,10 +41,9 @@ export interface Backend {
     deleteByChatId(chatId: string): Promise<void>;
     replaceByChatId(chatId: string, messages: Message[]): Promise<Message[]>;
     migrateParentIds(): Promise<number>;
+    migrateRoundIndexes(): Promise<number>;
     mergeFromSavepoint(messages: Message[]): Promise<Message[]>;
     initMessages(legacyJson: string | null): Promise<void>;
-    getVersion(): Promise<number>;
-    setVersion(version: number): Promise<void>;
   };
 
   // ── Agentic play state (sqlite_* Tauri commands) ──
@@ -53,6 +53,15 @@ export interface Backend {
     upsert(record: AgenticPlayStateRecord): Promise<AgenticPlayStateRecord>;
     delete(chatId: string): Promise<void>;
     clearAll(): Promise<void>;
+  };
+
+  // ── RAG memory chunks (sqlite_* Tauri commands) ──
+  rag: {
+    upsertChunks(chunks: unknown[]): Promise<number>;
+    listChunksByOwners(ownerIds: string[], embeddingModel?: string | null): Promise<unknown[]>;
+    deleteChunksBySourceIds(sourceIds: string[]): Promise<number>;
+    deleteChunksByOwner(scope: string, ownerId: string): Promise<number>;
+    countChunksByOwner(scope: string, ownerId: string): Promise<number>;
   };
 
   // ── File system (rfd + std::fs → file.rs) ──
@@ -68,6 +77,13 @@ export interface Backend {
   // ── Web search (DuckDuckGo / Tavily / Bing → search.rs) ──
   search: {
     webSearch(query: string, limit: number): Promise<NeoBuilderWebSearchResult[]>;
+  };
+
+  // ── Ollama local model management and embeddings ──
+  ollama: {
+    check(baseUrl: string): Promise<Record<string, unknown>>;
+    pull(baseUrl: string, model: string): Promise<Record<string, unknown>>;
+    embed(baseUrl: string, model: string, input: string[]): Promise<number[][]>;
   };
 
   // ── ComfyUI image generation (comfy.rs) ──
