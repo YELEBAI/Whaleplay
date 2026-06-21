@@ -40,7 +40,7 @@ test: test-core test-desktop
 test-core:
 	pnpm --filter @neo-tavern/core test
 
-test-destkop: test-react test-tauri
+test-desktop: test-react test-tauri
 
 test-react:
 	pnpm --filter @neo-tavern/desktop test
