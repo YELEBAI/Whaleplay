@@ -17,7 +17,7 @@
 
 - [ ] `pnpm lint` 或 `make lint` 通过
 - [ ] `pnpm build` 或 `make build` 通过
-- [ ] 手动测试通过
+- [ ] `pnpm test` 或 `make test` 或 手动测试 通过
 
 ## 截图（如有 UI 变更）
 
