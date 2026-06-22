@@ -105,6 +105,12 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
         working-directory: .
 
+      # Build necessary frontend dist for rust check
+      - uses: ./.github/actions/setup-js
+
+      - name: Build dist
+        run: pnpm build
+
       - name: Cache Cargo
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
