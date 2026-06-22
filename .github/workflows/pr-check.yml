@@ -40,7 +40,6 @@ jobs:
               - "apps/desktop/**"
               - "packages/**"
               - "package.json"
-              - ".node-version"
               - "pnpm-lock.yaml"
               - "pnpm-workspace.yaml"
               - "tsconfig*.json"
