@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { SlidersHorizontal, ShieldCheck } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, SwitchButton, cn } from "@neo-tavern/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, cn } from "@neo-tavern/ui";
 import { usePresetStore } from "@/features/preset/preset.store";
 import { isNsfwPresetItem, NSFW_PRESET_ID, type ContentMode } from "@/features/content-policy/content-policy";
 import { toast } from "@/utils/toast";
@@ -105,7 +105,7 @@ export function ContextSection({
               onChange={(e) => setContextTokens(parseInt(e.target.value))}
               className="bg-muted-foreground/20 [&::-webkit-slider-thumb]:bg-primary h-2 flex-1 cursor-pointer appearance-none rounded-full [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full"
             />
-            <span className="min-w-[70px] text-center text-2xl font-bold tabular-nums">
+            <span className="min-w-17.5 text-center text-2xl font-bold tabular-nums">
               {contextTokens === 0
                 ? "∞"
                 : contextTokens >= 1000
@@ -167,18 +167,7 @@ export function ContextSection({
                   contentMode === option.value ? "border-primary bg-primary/10" : "border-border hover:bg-accent/50",
                 )}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-medium">{option.label}</p>
-                  <SwitchButton
-                    checked={contentMode === option.value}
-                    label={option.label}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleSelectContentMode(option.value);
-                    }}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  />
-                </div>
+                <p className="text-sm font-medium">{option.label}</p>
                 <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{option.description}</p>
               </div>
             ))}

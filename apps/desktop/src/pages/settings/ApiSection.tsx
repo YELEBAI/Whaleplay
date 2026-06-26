@@ -272,9 +272,9 @@ export function ApiSection({ t }: ApiSectionProps) {
         <p className="text-muted-foreground mt-1 text-sm">{t("api.description")}</p>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 pt-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid gap-4 pt-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_20rem]">
         {/* ── Left: scrollable config ── */}
-        <div className="min-w-0 space-y-4 overflow-y-auto pr-1">
+        <div className="min-w-0 space-y-4 xl:overflow-y-auto xl:pr-1">
           {/* ── Card 1: Profile management ── */}
           <Card>
             <CardHeader>
@@ -284,44 +284,47 @@ export function ApiSection({ t }: ApiSectionProps) {
               </CardTitle>
               <CardDescription>{t("api.profileDescription")}</CardDescription>
             </CardHeader>
-            <CardContent className="pt-4">
-              <div className="flex items-end gap-3">
-                <div className="min-w-0 flex-1">
-                  <Label htmlFor="config-select" className="mb-1.5 block">
-                    {t("api.profiles")}
-                  </Label>
-                  <div className="flex gap-2">
-                    <select
-                      id="config-select"
-                      value={selectedId}
-                      onChange={(e) => applyConfigSelection(e.target.value)}
-                      className="border-input focus-visible:ring-ring h-9 min-w-0 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
-                    >
-                      <option value="__new__">{t("api.newProfile")}</option>
-                      {modelConfigs.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name || c.model || c.id.slice(0, 8)}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedId !== "__new__" && (
-                      <Button variant="ghost" size="icon" onClick={handleDelete} className="text-destructive shrink-0">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                  {selectedId !== "__new__" && activeConfigId === selectedId && (
-                    <p className="text-muted-foreground mt-1.5 flex items-center gap-1 text-xs">
-                      <CircleCheck className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                      {t("api.active")}
-                    </p>
+            <CardContent className="space-y-2 pt-4">
+              <Label htmlFor="config-select" className="block">
+                {t("api.profiles")}
+              </Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex min-w-0 flex-1 gap-2">
+                  <select
+                    id="config-select"
+                    value={selectedId}
+                    onChange={(e) => applyConfigSelection(e.target.value)}
+                    className="border-input focus-visible:ring-ring h-9 min-w-0 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
+                  >
+                    <option value="__new__">{t("api.newProfile")}</option>
+                    {modelConfigs.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name || c.model || c.id.slice(0, 8)}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedId !== "__new__" && (
+                    <Button variant="ghost" size="icon" onClick={handleDelete} className="text-destructive shrink-0">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   )}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => applyConfigSelection("__new__")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => applyConfigSelection("__new__")}
+                  className="shrink-0 sm:h-9"
+                >
                   <Plus className="mr-1.5 h-3.5 w-3.5" />
                   {t("api.newProfile")}
                 </Button>
               </div>
+              {selectedId !== "__new__" && activeConfigId === selectedId && (
+                <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                  <CircleCheck className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                  {t("api.active")}
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -486,7 +489,7 @@ export function ApiSection({ t }: ApiSectionProps) {
 
               {/* Actions */}
               <div className="bg-muted/30 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row">
-                <Button onClick={handleSave} disabled={saving} className="flex-[2]">
+                <Button onClick={handleSave} disabled={saving} className="sm:flex-2">
                   <Save className="mr-2 h-4 w-4" />
                   {saving ? t("api.saving") : t("api.saveProfile")}
                 </Button>
