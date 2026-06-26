@@ -1,7 +1,18 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Save, Plug, Trash2, KeyRound, Server, Zap, Wallet } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Input, Label, cn } from "@neo-tavern/ui";
+import { Save, Plug, Trash2, KeyRound, Server, Wallet, Plus, CircleCheck, SlidersHorizontal } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  Button,
+  Input,
+  Label,
+  SwitchButton,
+  cn,
+} from "@neo-tavern/ui";
 import { normalizeReasoningEffort, useSettingsStore } from "@/features/settings/settings.store";
 import { toast } from "@/utils/toast";
 import { fetchDeepSeekBalance, formatCnyCost, type DeepSeekBalanceResult } from "@/features/billing/deepseek-billing";
@@ -14,29 +25,6 @@ import {
   DEEPSEEK_MODEL_OPTIONS,
 } from "./types";
 
-function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-primary" : "bg-muted-foreground/30",
-      )}
-    >
-      <span
-        className={cn(
-          "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
-          checked ? "translate-x-5" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
-
 interface ApiSectionProps {
   t: (key: string, params?: Record<string, string>) => string;
 }
@@ -47,7 +35,6 @@ export function ApiSection({ t }: ApiSectionProps) {
   const activeConfigId = useSettingsStore((s) => s.activeConfigId);
   const saving = useSettingsStore((s) => s.saving);
   const testing = useSettingsStore((s) => s.testing);
-  const error = useSettingsStore((s) => s.error);
   const loadAllConfigs = useSettingsStore((s) => s.loadAllConfigs);
   const selectConfig = useSettingsStore((s) => s.selectConfig);
   const saveModelConfig = useSettingsStore((s) => s.saveModelConfig);
@@ -119,18 +106,21 @@ export function ApiSection({ t }: ApiSectionProps) {
     try {
       const temp = parseFloat(temperature) || 0.8;
       const tokens = parseInt(maxTokens) || 4096;
-      const re = normalizeReasoningEffort(reasoningEffort);
+      const re = reasoningEffort || undefined;
       const nextName = name.trim() || DEFAULT_DEEPSEEK_CONFIG_NAME;
       const nextBaseUrl = baseUrl.trim() || DEEPSEEK_BASE_URL;
       const nextApiKey = apiKey.trim();
       const nextModel = model.trim() || DEFAULT_DEEPSEEK_MODEL;
       const nextStreamingEnabled = streamingEnabled;
+
       if (!nextApiKey) {
         toast("error", tt("apiKeyRequired"));
         return;
       }
-      if (selectedId !== "__new__" && modelConfigs.some((c) => c.id === selectedId)) {
-        await updateModelConfig(selectedId, {
+
+      if (selectedId === "__new__") {
+        await saveModelConfig({
+          provider: "openai-compatible" as const,
           baseUrl: nextBaseUrl,
           apiKey: nextApiKey,
           model: nextModel,
@@ -140,32 +130,32 @@ export function ApiSection({ t }: ApiSectionProps) {
           reasoningEffort: re,
           streamingEnabled: nextStreamingEnabled,
         });
-        setName(nextName);
-        setBaseUrl(nextBaseUrl);
-        setApiKey(nextApiKey);
-        setModel(nextModel);
-        toast("success", tt("apiUpdated", { name: nextName }));
-      } else {
-        const cfg = await saveModelConfig({
-          provider: "openai-compatible",
-          baseUrl: nextBaseUrl,
-          apiKey: nextApiKey,
-          model: nextModel,
-          name: nextName,
-          temperature: temp,
-          maxTokens: tokens,
-          reasoningEffort: re,
-          streamingEnabled: nextStreamingEnabled,
-        });
-        setName(nextName);
-        setBaseUrl(nextBaseUrl);
-        setApiKey(nextApiKey);
-        setModel(nextModel);
-        setSelectedId(cfg.id);
         toast("success", tt("apiSaved", { name: nextName }));
+        const state = useSettingsStore.getState();
+        const created = state.modelConfigs.at(-1);
+        if (created) {
+          fillForm(created);
+          setSelectedId(created.id);
+        }
+      } else {
+        const cfg = modelConfigs.find((c) => c.id === selectedId);
+        if (!cfg) return;
+        await updateModelConfig(selectedId, {
+          provider: "openai-compatible" as const,
+          baseUrl: nextBaseUrl,
+          apiKey: nextApiKey,
+          model: nextModel,
+          name: nextName,
+          temperature: temp,
+          maxTokens: tokens,
+          reasoningEffort: re,
+          streamingEnabled: nextStreamingEnabled,
+        });
+        toast("success", tt("apiUpdated", { name: nextName }));
+        setSelectedId(selectedId);
       }
-    } catch {
-      toast("error", error || tt("apiSaveFailed"));
+    } catch (err) {
+      toast("error", (err as Error).message || tt("apiSaveFailed"));
     }
   };
 
@@ -175,49 +165,45 @@ export function ApiSection({ t }: ApiSectionProps) {
     if (!cfg) return;
     try {
       await deleteModelConfigFromStore(selectedId);
-      const state = useSettingsStore.getState();
-      if (state.modelConfig) {
-        fillForm(state.modelConfig);
-        setSelectedId(state.modelConfig.id);
-      } else {
-        resetDeepSeekForm();
-        setSelectedId("__new__");
-      }
-      toast("info", tt("apiDeleted", { name: cfg.name || "Configuration" }));
-    } catch {
-      toast("error", error || tt("apiDeleteFailed"));
+      toast("info", tt("apiDeleted", { name: cfg.name }));
+      setSelectedId("__new__");
+      resetDeepSeekForm();
+    } catch (err) {
+      toast("error", (err as Error).message || tt("apiDeleteFailed"));
     }
   };
 
   const handleTestConnection = async () => {
-    const nextBaseUrl = baseUrl.trim() || DEEPSEEK_BASE_URL;
-    const nextApiKey = apiKey.trim();
-    const nextModel = model.trim() || DEFAULT_DEEPSEEK_MODEL;
-    if (!nextApiKey) {
+    if (!apiKey.trim()) {
       toast("error", tt("apiKeyRequired"));
       return;
     }
-    setBaseUrl(nextBaseUrl);
-    setModel(nextModel);
-    const result = await testConnection(nextBaseUrl, nextApiKey, nextModel);
-    if (result.ok) toast("success", result.message);
-    else toast("error", result.message);
+    const result = await testConnection(
+      baseUrl.trim() || DEEPSEEK_BASE_URL,
+      apiKey.trim(),
+      model.trim() || DEFAULT_DEEPSEEK_MODEL,
+    );
+    toast(result.ok ? "success" : "error", result.message);
   };
 
   const handleFetchBalance = async () => {
-    const nextBaseUrl = baseUrl.trim() || DEEPSEEK_BASE_URL;
-    const nextApiKey = apiKey.trim();
-    if (!nextApiKey) {
+    if (!apiKey.trim()) {
       toast("error", tt("apiKeyRequired"));
       return;
     }
-    setBaseUrl(nextBaseUrl);
     setCheckingBalance(true);
     try {
-      const result = await fetchDeepSeekBalance({ baseUrl: nextBaseUrl, apiKey: nextApiKey });
+      const result = await fetchDeepSeekBalance({
+        baseUrl: baseUrl.trim() || DEEPSEEK_BASE_URL,
+        apiKey: apiKey.trim(),
+      });
       setDeepSeekBalance(result);
-      const cny = result.balances.find((item) => item.currency === "CNY");
-      toast("success", cny ? tt("apiBalance", { balance: formatCnyCost(cny.totalBalance) }) : tt("apiBalanceLoaded"));
+      if (result.isAvailable) {
+        const cny = result.balances.find((item) => item.currency === "CNY");
+        toast("success", cny ? tt("apiBalance", { balance: formatCnyCost(cny.totalBalance) }) : tt("apiBalanceLoaded"));
+      } else {
+        toast("error", tt("apiBalanceUnavailable"));
+      }
     } catch (err) {
       toast("error", tt("apiBalanceFailed", { message: (err as Error).message }));
     } finally {
@@ -248,134 +234,113 @@ export function ApiSection({ t }: ApiSectionProps) {
   }, [loadAllConfigs]);
 
   const isLegacyDeepSeekModel = DEEPSEEK_LEGACY_MODELS.includes(model);
-  const selectedProfile = selectedId === "__new__" ? null : (modelConfigs.find((c) => c.id === selectedId) ?? null);
-  const selectedProfileName = selectedProfile?.name || selectedProfile?.model || "New profile";
-  const displayBaseUrl = baseUrl.trim() || DEEPSEEK_BASE_URL;
-  const temperatureLocked = isDeepSeekProModel(model) || reasoningEffort !== "";
+  const isProModel = isDeepSeekProModel(model);
+  const temperatureLocked = isProModel || reasoningEffort !== "";
+
+  const reasoningLabel =
+    reasoningEffort === "max"
+      ? t("api.reasoningMax")
+      : reasoningEffort === "high"
+        ? t("api.reasoningHigh")
+        : t("api.reasoningOff");
+
+  if (!loaded) {
+    return (
+      <div className="space-y-4">
+        <div className="border-b pb-4">
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <Plug className="h-6 w-6" />
+            {t("api.deepseekConnection")}
+          </h1>
+          <p className="text-muted-foreground mt-1 text-sm">{t("api.description")}</p>
+        </div>
+        <p className="text-muted-foreground animate-pulse text-sm">{t("api.loading")}</p>
+      </div>
+    );
+  }
+
+  const sectionHeader = "text-muted-foreground text-xs font-semibold uppercase tracking-wide";
 
   return (
-    <div className="max-w-5xl space-y-4">
-      <div className="border-b pb-5">
-        <div className="space-y-2">
-          <div className="border-primary/30 bg-primary/10 text-primary inline-flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium">
-            <span className="bg-primary h-2 w-2 rounded-full" />
-            {t("api.deepseekDedicated")}
-          </div>
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-normal">
-              <Plug className="h-6 w-6" />
-              {t("api.deepseekConnection")}
-            </h1>
-            <p className="text-muted-foreground mt-1 text-sm">{t("api.description")}</p>
-          </div>
-        </div>
+    <div className="flex h-full min-h-0 flex-col">
+      {/* ── Header ── */}
+      <div className="shrink-0 border-b pb-4">
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <Plug className="h-6 w-6" />
+          {t("api.deepseekConnection")}
+        </h1>
+        <p className="text-muted-foreground mt-1 text-sm">{t("api.description")}</p>
       </div>
 
-      {!loaded && <p className="text-muted-foreground animate-pulse text-sm">{t("api.loading")}</p>}
-
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="card-title-row">
-              <KeyRound className="h-5 w-5" />
-              {t("api.connectionProfile")}
-            </CardTitle>
-            <CardDescription>{t("api.profileDescription")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-              <div className="space-y-2">
-                <Label htmlFor="api-key">{t("api.apiKey")}</Label>
-                <Input
-                  id="api-key"
-                  type="password"
-                  value={apiKey}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="font-mono"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="config-select">{t("api.profiles")}</Label>
-                <div className="flex gap-2">
-                  <select
-                    id="config-select"
-                    value={selectedId}
-                    onChange={(e) => applyConfigSelection(e.target.value)}
-                    className="border-input focus-visible:ring-ring h-9 min-w-0 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
-                  >
-                    <option value="__new__">{t("api.newProfile")}</option>
-                    {modelConfigs.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name || c.model || c.id.slice(0, 8)}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedId !== "__new__" && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleDelete}
-                      className="text-destructive hover:text-destructive shrink-0"
+      <div className="grid min-h-0 flex-1 gap-4 pt-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* ── Left: scrollable config ── */}
+        <div className="min-w-0 space-y-4 overflow-y-auto pr-1">
+          {/* ── Card 1: Profile management ── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="card-title-row">
+                <KeyRound className="h-5 w-5" />
+                {t("api.connectionProfile")}
+              </CardTitle>
+              <CardDescription>{t("api.profileDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="flex items-end gap-3">
+                <div className="min-w-0 flex-1">
+                  <Label htmlFor="config-select" className="mb-1.5 block">
+                    {t("api.profiles")}
+                  </Label>
+                  <div className="flex gap-2">
+                    <select
+                      id="config-select"
+                      value={selectedId}
+                      onChange={(e) => applyConfigSelection(e.target.value)}
+                      className="border-input focus-visible:ring-ring h-9 min-w-0 flex-1 rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <option value="__new__">{t("api.newProfile")}</option>
+                      {modelConfigs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name || c.model || c.id.slice(0, 8)}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedId !== "__new__" && (
+                      <Button variant="ghost" size="icon" onClick={handleDelete} className="text-destructive shrink-0">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {selectedId !== "__new__" && activeConfigId === selectedId && (
+                    <p className="text-muted-foreground mt-1.5 flex items-center gap-1 text-xs">
+                      <CircleCheck className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                      {t("api.active")}
+                    </p>
                   )}
                 </div>
-                {selectedId !== "__new__" && activeConfigId === selectedId && (
-                  <p className="text-xs text-green-600 dark:text-green-400">{t("api.active")}</p>
-                )}
+                <Button variant="outline" size="sm" onClick={() => applyConfigSelection("__new__")}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  {t("api.newProfile")}
+                </Button>
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            <div className="space-y-2">
-              <Label>{t("api.model")}</Label>
-              <div className="grid gap-2 md:grid-cols-2">
-                {DEEPSEEK_MODEL_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => {
-                      setModel(option.id);
-                      if (!name.trim() || name.startsWith("DeepSeek")) setName(option.label);
-                    }}
-                    className={cn(
-                      "rounded-md border p-3 text-left transition-colors",
-                      model === option.id
-                        ? "border-primary bg-primary/10 text-foreground"
-                        : "border-border hover:bg-accent/50",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{t("api.models." + option.id + ".label")}</span>
-                      <span
-                        className={cn(
-                          "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          model === option.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {t("api.models." + option.id + ".badge")}
-                      </span>
-                    </div>
-                    <p className="text-muted-foreground mt-1 font-mono text-[11px]">{option.id}</p>
-                    <p className="text-muted-foreground mt-2 text-xs">
-                      {t("api.models." + option.id + ".description")}
-                    </p>
-                  </button>
-                ))}
-              </div>
-              {isLegacyDeepSeekModel && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Legacy alias. Switch to a V4 model before July 24, 2026.
-                </p>
-              )}
-            </div>
+          {/* ── Card 2: Connection info ── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="card-title-row">
+                <SlidersHorizontal className="h-5 w-5" />
+                {t("api.connectionDetails")}
+              </CardTitle>
+              <CardDescription>{t("api.connectionDetailsDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* 连接配置 */}
+              <div className="space-y-4">
+                <h3 className={sectionHeader}>{t("api.credentials")}</h3>
 
-            <details className="rounded-md border">
-              <summary className="cursor-pointer px-3 py-3 text-sm font-medium">{t("api.advancedOptions")}</summary>
-              <div className="space-y-4 border-t p-3">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                  <div className="space-y-1.5">
                     <Label htmlFor="config-name">{t("api.profileName")}</Label>
                     <Input
                       id="config-name"
@@ -384,35 +349,111 @@ export function ApiSection({ t }: ApiSectionProps) {
                       placeholder={DEFAULT_DEEPSEEK_CONFIG_NAME}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="model">{t("api.modelId")}</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="api-key">{t("api.apiKey")}</Label>
                     <Input
-                      id="model"
-                      value={model}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModel(e.target.value)}
-                      placeholder={DEFAULT_DEEPSEEK_MODEL}
-                      className="font-mono text-xs"
+                      id="api-key"
+                      type="password"
+                      value={apiKey}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
+                      placeholder="sk-..."
+                      className="font-mono"
                     />
                   </div>
                 </div>
 
-                <div>
+                <div className="space-y-1.5">
                   <Label htmlFor="base-url">{t("api.baseUrl")}</Label>
                   <div className="relative">
                     <Server className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
                     <Input
                       id="base-url"
-                      value={baseUrl}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBaseUrl(e.target.value)}
-                      placeholder={DEEPSEEK_BASE_URL}
-                      className="pl-9 font-mono text-xs"
+                      value={baseUrl || DEEPSEEK_BASE_URL}
+                      readOnly
+                      className="text-muted-foreground bg-muted/50 pl-9 font-mono text-xs"
                     />
                   </div>
+                  <p className="text-muted-foreground/60 text-[10px]">{t("api.officialBase")} — api.deepseek.com</p>
                 </div>
 
-                <div className={cn("grid gap-4", temperatureLocked ? "md:grid-cols-2" : "md:grid-cols-3")}>
+                <div className="space-y-2">
+                  <Label>{t("api.model")}</Label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {DEEPSEEK_MODEL_OPTIONS.map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => {
+                          setModel(option.id);
+                          if (!name.trim() || name === DEFAULT_DEEPSEEK_CONFIG_NAME) setName(option.label);
+                        }}
+                        className={cn(
+                          "rounded-md border p-3 text-left transition-colors",
+                          model === option.id
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "border-border hover:bg-accent/50",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium">{t("api.models." + option.id + ".label")}</span>
+                          <span
+                            className={cn(
+                              "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                              model === option.id
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {t("api.models." + option.id + ".badge")}
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground mt-1 font-mono text-[11px]">
+                          {t("api.modelId")}: {option.id}
+                        </p>
+                        <p className="text-muted-foreground mt-2 text-xs">
+                          {t("api.models." + option.id + ".description")}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                  {isLegacyDeepSeekModel && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">{t("api.legacyWarning")}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* 生成参数 */}
+              <div className="space-y-4">
+                <h3 className={sectionHeader}>{t("api.generationDefaults")}</h3>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="reasoning-effort">{t("api.reasoningEffort")}</Label>
+                    <select
+                      id="reasoning-effort"
+                      value={reasoningEffort}
+                      onChange={(e) => setReasoningEffort(e.target.value)}
+                      className="border-input focus-visible:ring-ring h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
+                    >
+                      <option value="">{t("api.reasoningOff")}</option>
+                      <option value="high">{t("api.reasoningHigh")}</option>
+                      <option value="max">{t("api.reasoningMax")}</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="max-tokens">{t("api.maxTokens")}</Label>
+                    <Input
+                      id="max-tokens"
+                      value={maxTokens}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxTokens(e.target.value)}
+                      placeholder="4096"
+                      type="number"
+                      min="1"
+                      max="384000"
+                    />
+                  </div>
                   {!temperatureLocked && (
-                    <div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="temperature">{t("api.temperature")}</Label>
                       <Input
                         id="temperature"
@@ -426,125 +467,108 @@ export function ApiSection({ t }: ApiSectionProps) {
                       />
                     </div>
                   )}
-                  <div>
-                    <Label htmlFor="max-tokens">{t("api.maxTokens")}</Label>
-                    <Input
-                      id="max-tokens"
-                      value={maxTokens}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxTokens(e.target.value)}
-                      placeholder="4096"
-                      type="number"
-                      min="1"
-                      max="384000"
+                </div>
+
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{t("api.streaming")}</p>
+                      <p className="text-muted-foreground mt-1 text-xs">{t("api.streamingHint")}</p>
+                    </div>
+                    <SwitchButton
+                      checked={streamingEnabled}
+                      onClick={() => setStreamingEnabled(!streamingEnabled)}
+                      label={t("api.toggleStreaming")}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="reasoning-effort">{t("api.reasoningEffort")}</Label>
-                    <select
-                      id="reasoning-effort"
-                      value={reasoningEffort}
-                      onChange={(e) => setReasoningEffort(e.target.value)}
-                      className="border-input focus-visible:ring-ring h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:ring-1 focus-visible:outline-none"
-                    >
-                      <option value="">{t("api.reasoningOff")}</option>
-                      <option value="high">{t("api.reasoningHigh")}</option>
-                      <option value="max">{t("api.reasoningMax")}</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="setting-row">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{t("api.streaming")}</p>
-                    <p className="text-muted-foreground mt-1 text-xs">{t("api.streamingHint")}</p>
-                  </div>
-                  <SwitchButton
-                    checked={streamingEnabled}
-                    onClick={() => setStreamingEnabled(!streamingEnabled)}
-                    label="Toggle live text display"
-                  />
                 </div>
               </div>
-            </details>
 
-            <div className="bg-accent/30 flex flex-col gap-2 rounded-md border p-3 sm:flex-row">
-              <Button onClick={handleSave} disabled={saving} className="flex-1">
-                <Save className="mr-2 h-4 w-4" />
-                {saving ? t("api.saving") : t("api.saveProfile")}
-              </Button>
-              <Button variant="outline" onClick={handleTestConnection} disabled={testing} className="sm:min-w-[120px]">
-                <Plug className="mr-2 h-4 w-4" />
-                {testing ? t("api.testing") : t("api.testConnection")}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleFetchBalance}
-                disabled={checkingBalance}
-                className="sm:min-w-[120px]"
-              >
-                <Wallet className="mr-2 h-4 w-4" />
-                {checkingBalance ? t("api.balanceChecking") : t("api.balance")}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              {/* Actions */}
+              <div className="bg-muted/30 flex flex-col gap-2 rounded-lg border p-3 sm:flex-row">
+                <Button onClick={handleSave} disabled={saving} className="flex-[2]">
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? t("api.saving") : t("api.saveProfile")}
+                </Button>
+                <Button variant="outline" onClick={handleTestConnection} disabled={testing} className="flex-1">
+                  <Plug className="mr-2 h-4 w-4" />
+                  {testing ? t("api.testing") : t("api.testConnection")}
+                </Button>
+                <Button variant="outline" onClick={handleFetchBalance} disabled={checkingBalance} className="flex-1">
+                  <Wallet className="mr-2 h-4 w-4" />
+                  {checkingBalance ? t("api.balanceChecking") : t("api.balance")}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="card-title-row">
-              <Zap className="h-5 w-5" />
-              {t("api.currentDefault")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{t("api.profiles")}</p>
-              <p className="mt-1 truncate font-medium">
-                {selectedId === "__new__" ? "New profile" : selectedProfileName}
-              </p>
-            </div>
-            <div className="rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{t("api.model")}</p>
-              <p className="mt-1 truncate font-mono text-xs">{model || DEFAULT_DEEPSEEK_MODEL}</p>
-            </div>
-            <div className="rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{t("api.endpoint")}</p>
-              <p className="mt-1 truncate font-mono text-xs">{displayBaseUrl}</p>
-            </div>
-            <div className="rounded-md border px-3 py-2">
-              <p className="text-muted-foreground text-xs">{t("api.balance")}</p>
-              {deepSeekBalance ? (
-                <div className="mt-1 space-y-1">
-                  {deepSeekBalance.balances.map((balance) => (
-                    <p key={balance.currency} className="tabular-nums">
-                      <span className="font-medium">{balance.currency}</span>{" "}
-                      {balance.currency === "CNY"
-                        ? formatCnyCost(balance.totalBalance)
-                        : balance.totalBalance.toFixed(4)}
-                    </p>
-                  ))}
+        {/* ── Right: summary ── */}
+        <div className="min-w-0 xl:sticky xl:top-0 xl:self-start">
+          <Card className="bg-card/80">
+            <CardHeader className="pb-3">
+              <CardTitle className="card-title-row text-sm">
+                <CircleCheck className="h-4 w-4" />
+                {t("api.currentDefault")}
+              </CardTitle>
+              <CardDescription>{t("api.currentDefaultDescription")}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-md border px-3 py-2">
+                <p className="text-muted-foreground text-xs">{t("api.profileName")}</p>
+                <p className="mt-1 truncate text-sm font-medium">
+                  {selectedId === "__new__" ? t("api.newProfile") : name || model || "—"}
+                </p>
+              </div>
+              <div className="rounded-md border px-3 py-2">
+                <p className="text-muted-foreground text-xs">{t("api.model")}</p>
+                <p className="mt-1 truncate font-mono text-xs">{model || DEFAULT_DEEPSEEK_MODEL}</p>
+              </div>
+              <div className="rounded-md border px-3 py-2">
+                <p className="text-muted-foreground text-xs">{t("api.endpoint")}</p>
+                <p className="text-muted-foreground mt-1 truncate font-mono text-[11px]">
+                  {baseUrl || DEEPSEEK_BASE_URL}
+                </p>
+              </div>
+              <div className="rounded-md border px-3 py-2">
+                <p className="text-muted-foreground text-xs">{t("api.reasoningEffort")}</p>
+                <p className="mt-1 text-sm">{reasoningLabel}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-muted-foreground text-xs">{t("api.maxTokens")}</p>
+                  <p className="mt-1 text-sm font-medium tabular-nums">{maxTokens || "—"}</p>
                 </div>
-              ) : (
-                <p className="text-muted-foreground mt-1">Not checked</p>
+                <div className="rounded-md border px-3 py-2">
+                  <p className="text-muted-foreground text-xs">{t("api.streaming")}</p>
+                  <p className="mt-1 text-sm font-medium">{streamingEnabled ? t("api.enabled") : t("api.disabled")}</p>
+                </div>
+              </div>
+              <div className="rounded-md border px-3 py-2">
+                <p className="text-muted-foreground text-xs">{t("api.balance")}</p>
+                {deepSeekBalance ? (
+                  <div className="mt-1 space-y-0.5">
+                    {deepSeekBalance.balances.map((balance) => (
+                      <p key={balance.currency} className="text-sm tabular-nums">
+                        <span className="font-medium">{balance.currency}</span>{" "}
+                        {balance.currency === "CNY"
+                          ? formatCnyCost(balance.totalBalance)
+                          : balance.totalBalance.toFixed(4)}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground mt-1 text-xs">—</p>
+                )}
+              </div>
+              {deepSeekBalance && !deepSeekBalance.isAvailable && (
+                <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-xs">
+                  Balance unavailable
+                </p>
               )}
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-md border px-3 py-2">
-                <p className="text-muted-foreground">{t("sections.context")}</p>
-                <p className="mt-1 font-semibold">1M</p>
-              </div>
-              <div className="rounded-md border px-3 py-2">
-                <p className="text-muted-foreground">Output</p>
-                <p className="mt-1 font-semibold">384K</p>
-              </div>
-            </div>
-            {deepSeekBalance && !deepSeekBalance.isAvailable && (
-              <p className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-xs">
-                Balance is unavailable for API calls.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

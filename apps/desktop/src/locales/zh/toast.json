@@ -33,6 +33,7 @@
   "apiDeleteFailed": "删除失败。",
   "apiBalance": "DeepSeek 余额：{{balance}}",
   "apiBalanceLoaded": "DeepSeek 余额已加载",
+  "apiBalanceUnavailable": "余额不可用于 API 调用。",
   "apiBalanceFailed": "余额查询失败：{{message}}",
   "worldbookSaved": "已保存",
   "worldbookFailed": "保存失败",

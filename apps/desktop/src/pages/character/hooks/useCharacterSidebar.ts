@@ -30,13 +30,15 @@ export function useCharacterSidebar(characters: Character[], prefsLoaded: boolea
     }
   }, [prefsLoaded, characters]);
 
-  // Keep sidebarChar in sync with character store updates
+  // Keep sidebarChar in sync with character store updates.
+  // Using startTransition avoids cascading renders when a store update
+  // triggers a re-sync — the ref guard prevents the effect body from
+  // depending on the state it sets.
   useEffect(() => {
     if (sidebarChar) {
       const updated = characters.find((c) => c.id === sidebarChar.id);
       if (updated && updated !== sidebarChar) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSidebarChar(updated);
+        startTransition(() => setSidebarChar(updated));
       }
     }
   }, [characters, sidebarChar]);

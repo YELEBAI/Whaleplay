@@ -1,8 +1,17 @@
 import { Sun, Moon, Eye, Monitor, CheckCircle2, Waves } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@neo-tavern/ui";
 import { useThemeStore, type Theme } from "@/app/theme.store";
+import { changeLocale, type Locale } from "@/i18n";
 
-export function AppearanceSection({ t }: { t: (key: string, params?: Record<string, string>) => string }) {
+export function AppearanceSection({
+  t,
+  locale,
+  setLocale,
+}: {
+  t: (key: string, params?: Record<string, string>) => string;
+  locale: Locale;
+  setLocale: (l: Locale) => void;
+}) {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const resolvedTheme = useThemeStore((s) => s.resolvedTheme);
@@ -68,6 +77,27 @@ export function AppearanceSection({ t }: { t: (key: string, params?: Record<stri
                       ? t("appearance.dark")
                       : t("appearance.light"),
           })}
+        </div>
+
+        <div className="rounded-md border px-3 py-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">{t("appearance.language")}</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{t("appearance.languageHint")}</p>
+            </div>
+            <select
+              value={locale}
+              onChange={(e) => {
+                const next = e.target.value as Locale;
+                setLocale(next);
+                changeLocale(next);
+              }}
+              className="border-input focus-visible:ring-ring h-8 rounded-md border bg-transparent px-2 py-0.5 text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none"
+            >
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+          </div>
         </div>
       </CardContent>
     </Card>

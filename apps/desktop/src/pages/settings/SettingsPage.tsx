@@ -117,9 +117,9 @@ export function SettingsPage() {
       />
 
       <div className="flex-1 overflow-auto p-6">
-        {section === "general" && <GeneralSection locale={locale} setLocale={setLocale} t={t} />}
+        {section === "general" && <GeneralSection t={t} />}
         {section === "api" && <ApiSection t={t} />}
-        {section === "appearance" && <AppearanceSection t={t} />}
+        {section === "appearance" && <AppearanceSection t={t} locale={locale} setLocale={setLocale} />}
         {section === "context" && (
           <ContextSection
             contextTokens={contextTokens}

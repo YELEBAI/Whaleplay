@@ -42,5 +42,6 @@
   "apiDeleteFailed": "Failed to delete.",
   "apiBalance": "DeepSeek balance: {{balance}}",
   "apiBalanceLoaded": "DeepSeek balance loaded",
+  "apiBalanceUnavailable": "Balance is unavailable for API calls.",
   "apiBalanceFailed": "Balance failed: {{message}}"
 }

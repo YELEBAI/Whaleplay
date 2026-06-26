@@ -26,6 +26,7 @@ import {
   DialogTitle,
   Input,
   ScrollArea,
+  SwitchButton,
   Textarea,
 } from "@neo-tavern/ui";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
@@ -93,30 +94,6 @@ function CountPill({ label, value }: { label: string; value: number }) {
       <div className="text-base leading-none font-semibold">{value}</div>
       <div className="text-muted-foreground mt-1 text-[10px] font-medium tracking-wide uppercase">{label}</div>
     </div>
-  );
-}
-
-function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-        checked ? "bg-primary" : "bg-muted-foreground/30"
-      }`}
-    >
-      <span
-        className={`bg-background inline-block h-4 w-4 rounded-full shadow-sm transition-transform ${
-          checked ? "translate-x-4" : "translate-x-0.5"
-        }`}
-      />
-    </button>
   );
 }
 
@@ -574,8 +551,12 @@ export function WorldbookPage() {
                         >
                           <div className="flex items-start gap-3">
                             <SwitchButton
+                              size="sm"
                               checked={entry.enabled}
-                              onClick={() => handleToggleEntry(entry.id)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleToggleEntry(entry.id);
+                              }}
                               label={`${entry.enabled ? "Disable" : "Enable"} ${entry.title}`}
                             />
                             <div className="min-w-0 flex-1 space-y-3">
@@ -833,6 +814,7 @@ export function WorldbookPage() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground text-xs">Case sensitive</span>
                         <SwitchButton
+                          size="sm"
                           checked={entryCaseSensitive}
                           onClick={() => setEntryCaseSensitive(!entryCaseSensitive)}
                           label="Toggle case sensitive"
@@ -841,6 +823,7 @@ export function WorldbookPage() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground text-xs">Whole words</span>
                         <SwitchButton
+                          size="sm"
                           checked={entryMatchWholeWords}
                           onClick={() => setEntryMatchWholeWords(!entryMatchWholeWords)}
                           label="Toggle whole word matching"
@@ -849,6 +832,7 @@ export function WorldbookPage() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-muted-foreground text-xs">Use probability</span>
                         <SwitchButton
+                          size="sm"
                           checked={entryUseProbability}
                           onClick={() => setEntryUseProbability(!entryUseProbability)}
                           label="Toggle probability"
@@ -944,6 +928,7 @@ export function WorldbookPage() {
                         </span>
                         <div className="flex h-9 items-center">
                           <SwitchButton
+                            size="sm"
                             checked={entryEnabled}
                             onClick={() => setEntryEnabled(!entryEnabled)}
                             label="Toggle entry enabled"

@@ -10,6 +10,7 @@ import {
   CardTitle,
   CardDescription,
   Textarea,
+  SwitchButton,
   cn,
 } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
@@ -24,29 +25,6 @@ import {
 } from "@/features/image-generation/image-generation";
 import { toast } from "@/utils/toast";
 import type { ImageSectionProps } from "./types";
-
-function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-primary" : "bg-muted-foreground/30",
-      )}
-    >
-      <span
-        className={cn(
-          "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
-          checked ? "translate-x-5" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
 
 export function ImageSection({ t }: ImageSectionProps) {
   const imageGeneration = useSettingsStore((s) => s.imageGeneration);

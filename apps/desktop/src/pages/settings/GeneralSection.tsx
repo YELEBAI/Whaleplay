@@ -1,44 +1,29 @@
 import { useState, useEffect } from "react";
 import { Bell, Bug, Globe, RefreshCw } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Input, Label, Button, cn } from "@neo-tavern/ui";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  Input,
+  Label,
+  Button,
+  SwitchButton,
+  cn,
+} from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { secret, sys } from "@/db/kv";
 import { secretKeys, sysKeys } from "@/db/storage/keys";
 import { readOptional } from "@/db/storage/repository-helpers";
-import { changeLocale, type Locale } from "@/i18n";
 import { formatCnyCost, formatCnyExact } from "@/features/billing/deepseek-billing";
 import { DAILY_COST_WARNING_RATIO } from "@/features/billing/daily-cost";
 
-function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-primary" : "bg-muted-foreground/30",
-      )}
-    >
-      <span
-        className={cn(
-          "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
-          checked ? "translate-x-5" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
-
 interface GeneralSectionProps {
-  locale: Locale;
-  setLocale: (l: Locale) => void;
   t: (key: string, params?: Record<string, string>) => string;
 }
 
-export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
+export function GeneralSection({ t }: GeneralSectionProps) {
   const debugMode = useSettingsStore((s) => s.debugMode);
   const setDebugMode = useSettingsStore((s) => s.setDebugMode);
   const dailyCostWarningEnabled = useSettingsStore((s) => s.dailyCostWarningEnabled);
@@ -167,60 +152,23 @@ export function GeneralSection({ locale, setLocale, t }: GeneralSectionProps) {
               />
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Language + LAN */}
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <div className="rounded-md border px-3 py-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">{t("appearance.language")}</p>
-                <p className="text-muted-foreground mt-0.5 text-xs">{t("appearance.languageHint")}</p>
-              </div>
-              <select
-                value={locale}
-                onChange={(e) => {
-                  const next = e.target.value as Locale;
-                  setLocale(next);
-                  changeLocale(next);
-                }}
-                className="border-input focus-visible:ring-ring h-8 rounded-md border bg-transparent px-2 py-0.5 text-xs shadow-sm focus-visible:ring-1 focus-visible:outline-none"
-              >
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-              </select>
-            </div>
-          </div>
-
+          {/* ── LAN Sharing ── */}
           <div className="space-y-3 rounded-md border px-3 py-3">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium">{t("appearance.lanServer")}</p>
                 <p className="text-muted-foreground mt-0.5 text-xs">{t("appearance.lanEnable")}</p>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={lanEnabled}
+              <SwitchButton
+                checked={lanEnabled}
+                label={t("appearance.lanServer")}
                 onClick={async () => {
                   const next = !lanEnabled;
                   setLanEnabled(next);
                   await sys.set(sysKeys.lanEnabled, String(next));
                 }}
-                className={cn(
-                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-                  lanEnabled ? "bg-primary" : "bg-muted-foreground/30",
-                )}
-              >
-                <span
-                  className={cn(
-                    "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
-                    lanEnabled ? "translate-x-5" : "translate-x-0.5",
-                  )}
-                />
-              </button>
+              />
             </div>
             {lanEnabled && (
               <>

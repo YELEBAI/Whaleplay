@@ -6,12 +6,18 @@ import type { SearchMatches, ViewMode } from "../types";
 
 /**
  * Manages search state, filtering, and view-mode preferences.
+ *
+ * searchExpanded is derived during render from the user's explicit
+ * preference (loaded from prefs) falling back to an auto-expand
+ * heuristic — no effect-level setState needed.
  */
 export function useCharacterSearch(characters: Character[]) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchExpanded, setSearchExpanded] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  // null = not yet loaded from prefs → fall back to heuristic
+  const [userExpanded, setUserExpanded] = useState<boolean | null>(null);
 
   // Load view mode and search expanded preferences on first mount
   useEffect(() => {
@@ -19,19 +25,14 @@ export function useCharacterSearch(characters: Character[]) {
       const mode = await prefs.getJson<ViewMode>(prefKeys.characterViewMode);
       const expanded = await prefs.getJson<boolean>(prefKeys.characterSearchExpanded);
       setViewMode(mode.status === "valid" ? (mode.value === "list" ? "list" : "grid") : "grid");
-      setSearchExpanded(expanded.status === "valid" ? expanded.value : false);
+      setUserExpanded(expanded.status === "valid" ? expanded.value : null);
       setPrefsLoaded(true);
     })();
   }, []);
 
-  // Auto-expand search when many characters exist
-  useEffect(() => {
-    if (prefsLoaded && !searchExpanded && characters.length > 20) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSearchExpanded(true);
-      void prefs.setJson(prefKeys.characterSearchExpanded, true);
-    }
-  }, [prefsLoaded, characters.length, searchExpanded]);
+  // Derived during render: user's explicit choice wins; otherwise
+  // auto-expand when there are many characters.
+  const searchExpanded = userExpanded !== null ? userExpanded : prefsLoaded && characters.length > 20;
 
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
@@ -39,12 +40,10 @@ export function useCharacterSearch(characters: Character[]) {
   };
 
   const handleSearchToggle = () => {
-    setSearchExpanded((prev) => {
-      const next = !prev;
-      void prefs.setJson(prefKeys.characterSearchExpanded, next);
-      if (!next) setSearchQuery("");
-      return next;
-    });
+    const next = !searchExpanded;
+    setUserExpanded(next);
+    void prefs.setJson(prefKeys.characterSearchExpanded, next);
+    if (!next) setSearchQuery("");
   };
 
   // Single-pass search with priority: name > description > personality

@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
+  SwitchButton,
   cn,
 } from "@neo-tavern/ui";
 import { useSettingsStore } from "@/features/settings/settings.store";
@@ -294,43 +295,21 @@ export function RegexSection({ t }: RegexSectionProps) {
                 />
                 <div className="flex items-center gap-3">
                   <label className="flex cursor-pointer items-center gap-1.5">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={regexEnabled}
+                    <SwitchButton
+                      size="xs"
+                      checked={regexEnabled}
                       onClick={() => setRegexEnabled(!regexEnabled)}
-                      className={cn(
-                        "relative inline-flex h-4 w-7 items-center rounded-full transition-colors",
-                        regexEnabled ? "bg-primary" : "bg-muted-foreground/30",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
-                          regexEnabled ? "translate-x-[14px]" : "translate-x-[2px]",
-                        )}
-                      />
-                    </button>
+                      label={t("regex.toggle")}
+                    />
                     <span className="text-[10px]">{t("regex.on")}</span>
                   </label>
                   <label className="flex cursor-pointer items-center gap-1.5">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={regexStrip}
+                    <SwitchButton
+                      size="xs"
+                      checked={regexStrip}
                       onClick={() => setRegexStrip(!regexStrip)}
-                      className={cn(
-                        "relative inline-flex h-4 w-7 items-center rounded-full transition-colors",
-                        regexStrip ? "bg-primary" : "bg-muted-foreground/30",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
-                          regexStrip ? "translate-x-[14px]" : "translate-x-[2px]",
-                        )}
-                      />
-                    </button>
+                      label={t("regex.strip")}
+                    />
                     <span className="text-[10px]">{t("regex.strip")}</span>
                   </label>
                 </div>
@@ -390,23 +369,12 @@ export function RegexSection({ t }: RegexSectionProps) {
                       !rule.enabled ? "opacity-40" : "hover:bg-accent/50",
                     )}
                   >
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={rule.enabled}
+                    <SwitchButton
+                      size="xs"
+                      checked={rule.enabled}
                       onClick={() => handleToggleRule(rule.id)}
-                      className={cn(
-                        "relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors",
-                        rule.enabled ? "bg-primary" : "bg-muted-foreground/30",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block h-3 w-3 transform rounded-full bg-white transition-transform",
-                          rule.enabled ? "translate-x-[14px]" : "translate-x-[2px]",
-                        )}
-                      />
-                    </button>
+                      label={t("regex.toggle")}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="truncate text-xs font-medium">{rule.name}</span>
