@@ -63,5 +63,8 @@
   "dragToReorder": "拖动以重新排序",
   "enable": "启用",
   "disable": "禁用",
-  "dragReorder": "拖动排序"
+  "dragReorder": "拖动排序",
+  "healthyConflictTitle": "健康模式冲突",
+  "healthyConflictDesc": "当前已启用健康模式，与 NSFW 内容互斥。是否关闭健康模式并启用此条目？",
+  "healthyConflictConfirm": "关闭健康模式并启用"
 }

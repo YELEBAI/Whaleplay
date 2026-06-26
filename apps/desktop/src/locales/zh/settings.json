@@ -157,6 +157,25 @@
       "short": "~2k 词",
       "medium": "~8k 词",
       "full": "无限制"
+    },
+    "healthyMode": {
+      "title": "健康模式",
+      "description": "启用内容安全护栏，自动拦截露骨内容和重复刷屏。与 NSFW 预设互斥。",
+      "enable": "启用健康模式",
+      "enableHint": "开启后将注入安全提示词、检测色情内容和防止刷屏。",
+      "nsfwDisabled": "已自动关闭 NSFW 预设项",
+      "features": {
+        "title": "已启用的防护",
+        "prompt": "安全提示词：指导 AI 避免生成 R18 内容",
+        "explicit": "色情检测：检测到明晃晃的色情内容时终止输出",
+        "flood": "防刷屏：检测到相似度 90%+ 的内容重复 5 次时终止"
+      },
+      "conflict": {
+        "title": "健康模式与 NSFW 冲突",
+        "description": "当前已启用 NSFW 写作预设项，与健康模式互斥。是否关闭 NSFW 并启用健康模式？",
+        "cancel": "取消",
+        "confirm": "关闭 NSFW 并启用"
+      }
     }
   },
   "regex": {

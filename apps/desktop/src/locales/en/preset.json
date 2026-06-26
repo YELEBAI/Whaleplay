@@ -63,5 +63,8 @@
   "dragToReorder": "Drag to reorder",
   "enable": "Enable",
   "disable": "Disable",
-  "dragReorder": "Drag to reorder"
+  "dragReorder": "Drag to reorder",
+  "healthyConflictTitle": "Healthy Mode Conflict",
+  "healthyConflictDesc": "Healthy Mode is currently enabled, which is mutually exclusive with NSFW content. Disable Healthy Mode and enable this item?",
+  "healthyConflictConfirm": "Disable Healthy Mode & Enable"
 }

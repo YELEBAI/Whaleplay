@@ -854,18 +854,14 @@ export async function seedWritingPreset() {
   const wp = existing.find((p) => p.id === WRITING_PRESET_ID);
 
   if (wp) {
+    // Only enforce structural defaults on existing presets — never override the
+    // user's `enabled` choice (they may have deliberately turned NSFW on).
     let changed = false;
     const now = new Date().toISOString();
     for (const item of wp.items) {
-      if (item.name === "NSFW 温柔风格") {
-        if (!item.hidden) {
-          item.hidden = true;
-          changed = true;
-        }
-        if (item.enabled) {
-          item.enabled = false;
-          changed = true;
-        }
+      if (item.name === "NSFW 温柔风格" && !item.hidden) {
+        item.hidden = true;
+        changed = true;
       }
     }
     if (changed) {

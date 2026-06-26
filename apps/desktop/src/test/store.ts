@@ -58,6 +58,7 @@ export function setupTestStores() {
     webSearchProvider: "default" as const,
     tavilyApiKey: "",
     tavilySearchDepth: "basic" as const,
+    healthyMode: false,
   });
 
   const character = useCharacterStore;

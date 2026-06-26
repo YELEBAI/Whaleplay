@@ -35,6 +35,8 @@ import type { Preset, PresetItem } from "@neo-tavern/shared";
 import { sessionSync } from "@/db/kv";
 import { getBackend } from "@/platform";
 import { toast } from "@/utils/toast";
+import { useSettingsStore } from "@/features/settings/settings.store";
+import { NSFW_ITEM_NAME } from "@/features/healthy-mode/healthy-mode";
 
 function sortPresetItems(items: PresetItem[]) {
   return [...items].sort(
@@ -575,6 +577,8 @@ export function PresetPage() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sourceItemKey, setSourceItemKey] = useState("");
+  const [healthyConflictOpen, setHealthyConflictOpen] = useState(false);
+  const pendingNsfwToggleIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -721,7 +725,23 @@ export function PresetPage() {
 
   const handleToggleItem = async (item: PresetItem) => {
     if (!selected) return;
+    // Bidirectional mutex: enabling NSFW while healthy mode is on → warn
+    if (!item.enabled && item.name === NSFW_ITEM_NAME && useSettingsStore.getState().healthyMode) {
+      pendingNsfwToggleIdRef.current = item.id;
+      setHealthyConflictOpen(true);
+      return;
+    }
     await store.toggleItem(selected.id, item.id);
+  };
+
+  const handleConfirmDisableHealthyMode = () => {
+    const itemId = pendingNsfwToggleIdRef.current;
+    const presetId = selected?.id;
+    if (!itemId || !presetId) return;
+    useSettingsStore.getState().setHealthyMode(false);
+    void store.toggleItem(presetId, itemId);
+    setHealthyConflictOpen(false);
+    pendingNsfwToggleIdRef.current = null;
   };
 
   const handleMoveItem = async (itemId: string, direction: -1 | 1) => {
@@ -1110,6 +1130,28 @@ export function PresetPage() {
         t={t}
         tc={tc}
       />
+
+      {/* Healthy mode conflict dialog */}
+      <Dialog open={healthyConflictOpen} onOpenChange={setHealthyConflictOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("healthyConflictTitle")}</DialogTitle>
+            <DialogDescription>{t("healthyConflictDesc")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setHealthyConflictOpen(false);
+                pendingNsfwToggleIdRef.current = null;
+              }}
+            >
+              {tc("cancel")}
+            </Button>
+            <Button onClick={handleConfirmDisableHealthyMode}>{t("healthyConflictConfirm")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

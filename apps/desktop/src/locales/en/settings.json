@@ -158,6 +158,25 @@
       "short": "~2k words",
       "medium": "~8k words",
       "full": "Unlimited"
+    },
+    "healthyMode": {
+      "title": "Healthy Mode",
+      "description": "Enable content safety guardrails. Automatically intercepts explicit content and repetition flooding. Mutually exclusive with NSFW preset.",
+      "enable": "Enable Healthy Mode",
+      "enableHint": "Injects a safety prompt, detects explicit content, and prevents flooding.",
+      "nsfwDisabled": "NSFW preset item disabled automatically",
+      "features": {
+        "title": "Active protections",
+        "prompt": "Safety prompt: guides AI to avoid R18 content",
+        "explicit": "Explicit detection: terminates output when blatant sexual content is detected",
+        "flood": "Anti-flood: terminates when 90%+ similar content repeats 5 times"
+      },
+      "conflict": {
+        "title": "Healthy Mode conflicts with NSFW",
+        "description": "The NSFW writing preset is currently enabled, which is mutually exclusive with Healthy Mode. Disable NSFW and enable Healthy Mode?",
+        "cancel": "Cancel",
+        "confirm": "Disable NSFW & Enable"
+      }
     }
   },
   "regex": {

@@ -49,6 +49,16 @@ import type { Character, BuiltPrompt, ContextBlock, GenerateMessage, Message, Mo
 import type { ChatMemory, ChatMemorySegment } from "@/db/repositories";
 import type { GenerationPhase } from "../chat.types";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
+import {
+  createHealthyModeContextBlock,
+  checkHealthyModeOutput,
+  detectExplicitContent,
+  detectFlood,
+  filterNsfwItems,
+  NSFW_ITEM_NAME,
+  HEALTHY_MODE_BLOCKED_PLACEHOLDER,
+  HEALTHY_MODE_FLOOD_PLACEHOLDER,
+} from "@/features/healthy-mode/healthy-mode";
 
 interface UseSendMessageOptions {
   character: Character | undefined;
@@ -1163,6 +1173,17 @@ export function useSendMessage({
         beginSending(chatId);
         setChatError(chatId, null);
 
+        // Healthy mode: block explicit user input before sending
+        const healthyMode = useSettingsStore.getState().healthyMode;
+        if (healthyMode) {
+          const explicitMatch = detectExplicitContent(trimmedContent);
+          if (explicitMatch) {
+            setChatError(chatId, "健康模式：检测到不当输入，消息已被拦截。");
+            finishSending(chatId);
+            return;
+          }
+        }
+
         try {
           const activePath = getActivePath(chatId);
           const lastMessageId = activePath.length > 0 ? activePath[activePath.length - 1].id : null;
@@ -1188,6 +1209,7 @@ export function useSendMessage({
             if (preset) {
               presetItems = preset.items
                 .filter((i) => i.enabled)
+                .filter((i) => !useSettingsStore.getState().healthyMode || i.name !== NSFW_ITEM_NAME)
                 .map((i) => ({
                   role: i.role,
                   content: i.content,
@@ -1207,6 +1229,10 @@ export function useSendMessage({
           const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
             Boolean,
           ) as ContextBlock[];
+          // Healthy mode: inject high-priority safety prompt
+          if (useSettingsStore.getState().healthyMode) {
+            contextBlocks.push(createHealthyModeContextBlock());
+          }
           const effectivePresetItems = agenticRecord ? await getAgenticPlayPresetItems() : presetItems;
 
           const built = buildChatPrompt({
@@ -1270,6 +1296,24 @@ export function useSendMessage({
           if (!isCurrent() || !isGenerationActive(controller)) {
             await removeEmptyStreamingDraft(assistant.id);
             return;
+          }
+          // Healthy mode: check AI output for violations
+          if (useSettingsStore.getState().healthyMode) {
+            const violation = checkHealthyModeOutput(finalContent, recentMessages);
+            if (violation) {
+              const placeholder =
+                violation.type === "flood" ? HEALTHY_MODE_FLOOD_PLACEHOLDER : HEALTHY_MODE_BLOCKED_PLACEHOLDER;
+              await patchMessage(assistant.id, { content: placeholder, reasoningContent: undefined });
+              setChatError(
+                chatId,
+                violation.type === "flood"
+                  ? "健康模式：检测到输出重复异常，已终止。"
+                  : "健康模式：检测到不当内容，回复已被拦截。",
+              );
+              void notifyAssistantOutputComplete(character.name);
+              await removeEmptyStreamingDraft(assistant.id);
+              return;
+            }
           }
           void notifyAssistantOutputComplete(character.name);
           void processImageGeneration(chatId, assistant.id, finalContent);
@@ -1361,6 +1405,7 @@ export function useSendMessage({
           if (preset) {
             presetItems = preset.items
               .filter((i) => i.enabled)
+              .filter((i) => !useSettingsStore.getState().healthyMode || i.name !== NSFW_ITEM_NAME)
               .map((i) => ({ role: i.role, content: i.content, injectionOrder: i.injectionOrder }));
           }
         }
@@ -1376,6 +1421,10 @@ export function useSendMessage({
         const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
           Boolean,
         ) as ContextBlock[];
+        // Healthy mode: inject high-priority safety prompt
+        if (useSettingsStore.getState().healthyMode) {
+          contextBlocks.push(createHealthyModeContextBlock());
+        }
         const effectivePresetItems = agenticRecord ? await getAgenticPlayPresetItems() : presetItems;
 
         const built = buildChatPrompt({
@@ -1429,6 +1478,24 @@ export function useSendMessage({
         if (!isCurrent() || !isGenerationActive(controller)) {
           await removeEmptyStreamingDraft(assistant.id);
           return;
+        }
+        // Healthy mode: check AI output for violations
+        if (useSettingsStore.getState().healthyMode) {
+          const violation = checkHealthyModeOutput(finalContent, messagesForPrompt);
+          if (violation) {
+            const placeholder =
+              violation.type === "flood" ? HEALTHY_MODE_FLOOD_PLACEHOLDER : HEALTHY_MODE_BLOCKED_PLACEHOLDER;
+            await patchMessage(assistant.id, { content: placeholder, reasoningContent: undefined });
+            setChatError(
+              chatId,
+              violation.type === "flood"
+                ? "健康模式：检测到输出重复异常，已终止。"
+                : "健康模式：检测到不当内容，回复已被拦截。",
+            );
+            void notifyAssistantOutputComplete(character.name);
+            await removeEmptyStreamingDraft(assistant.id);
+            return;
+          }
         }
         void notifyAssistantOutputComplete(character.name);
         void processImageGeneration(chatId, assistant.id, finalContent);

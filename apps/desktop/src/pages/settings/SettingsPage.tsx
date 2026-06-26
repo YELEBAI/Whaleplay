@@ -52,6 +52,8 @@ export function SettingsPage() {
 
   const contextTokens = useSettingsStore((s) => s.contextTokens);
   const setContextTokens = useSettingsStore((s) => s.setContextTokens);
+  const healthyMode = useSettingsStore((s) => s.healthyMode);
+  const setHealthyMode = useSettingsStore((s) => s.setHealthyMode);
   const loadAllConfigs = useSettingsStore((s) => s.loadAllConfigs);
   const loadRegexRules = useSettingsStore((s) => s.loadRegexRules);
   const loadMemorySettings = useSettingsStore((s) => s.loadMemorySettings);
@@ -116,7 +118,13 @@ export function SettingsPage() {
         {section === "api" && <ApiSection t={t} />}
         {section === "appearance" && <AppearanceSection t={t} />}
         {section === "context" && (
-          <ContextSection contextTokens={contextTokens} setContextTokens={setContextTokens} t={t} />
+          <ContextSection
+            contextTokens={contextTokens}
+            setContextTokens={setContextTokens}
+            healthyMode={healthyMode}
+            setHealthyMode={setHealthyMode}
+            t={t}
+          />
         )}
         {section === "image" && <ImageSection t={t} />}
         {section === "regex" && <RegexSection t={t} />}

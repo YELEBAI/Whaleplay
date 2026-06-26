@@ -58,6 +58,7 @@ function AppContent() {
         useSettingsStore.getState().loadPersona(),
         useSettingsStore.getState().loadDailyCostWarningSettings(),
         useSettingsStore.getState().loadDailyCostSpent(),
+        useSettingsStore.getState().loadHealthyMode(),
         useWorldbookStore.getState().loadWorldbooks(),
       ]);
 

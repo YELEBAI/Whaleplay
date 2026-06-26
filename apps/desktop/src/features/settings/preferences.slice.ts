@@ -34,6 +34,7 @@ export interface PreferencesSlice {
   imageGeneration: ImageGenerationSettings;
   personaName: string;
   personaDesc: string;
+  healthyMode: boolean;
 
   loadDebugMode: () => Promise<void>;
   setDebugMode: (enabled: boolean) => void;
@@ -58,6 +59,8 @@ export interface PreferencesSlice {
   updateImageGenerationSettings: (patch: Partial<ImageGenerationSettings>) => void;
   loadPersona: () => Promise<void>;
   savePersona: (name: string, desc: string) => void;
+  loadHealthyMode: () => Promise<void>;
+  setHealthyMode: (enabled: boolean) => void;
   clearError: () => void;
 }
 
@@ -79,6 +82,7 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
   imageGeneration: DEFAULT_IMAGE_GENERATION_SETTINGS,
   personaName: "User",
   personaDesc: "",
+  healthyMode: false,
 
   loadDebugMode: async () => {
     const raw = await settingsRepository.get("debugMode");
@@ -232,6 +236,16 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
   savePersona: (name: string, desc: string) => {
     void settingsRepository.savePersona({ name, desc });
     set({ personaName: name, personaDesc: desc });
+  },
+
+  loadHealthyMode: async () => {
+    const raw = await settingsRepository.get("healthyMode");
+    set({ healthyMode: raw === "1" });
+  },
+
+  setHealthyMode: (enabled: boolean) => {
+    void settingsRepository.set("healthyMode", enabled ? "1" : "0");
+    set({ healthyMode: enabled });
   },
 
   clearError: () => set({ error: null }),
