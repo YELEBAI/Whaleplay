@@ -16,6 +16,7 @@ import {
   saveDailyCostWarningEnabled,
   saveDailyCostWarningLimitCny,
 } from "@/features/billing/daily-cost";
+import { DEFAULT_CONTENT_MODE, normalizeContentMode, type ContentMode } from "@/features/content-policy/content-policy";
 
 export interface PreferencesSlice {
   debugMode: boolean;
@@ -34,6 +35,7 @@ export interface PreferencesSlice {
   imageGeneration: ImageGenerationSettings;
   personaName: string;
   personaDesc: string;
+  contentMode: ContentMode;
   healthyMode: boolean;
 
   loadDebugMode: () => Promise<void>;
@@ -59,6 +61,8 @@ export interface PreferencesSlice {
   updateImageGenerationSettings: (patch: Partial<ImageGenerationSettings>) => void;
   loadPersona: () => Promise<void>;
   savePersona: (name: string, desc: string) => void;
+  loadContentMode: () => Promise<void>;
+  setContentMode: (mode: ContentMode) => void;
   loadHealthyMode: () => Promise<void>;
   setHealthyMode: (enabled: boolean) => void;
   clearError: () => void;
@@ -82,6 +86,7 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
   imageGeneration: DEFAULT_IMAGE_GENERATION_SETTINGS,
   personaName: "User",
   personaDesc: "",
+  contentMode: DEFAULT_CONTENT_MODE,
   healthyMode: false,
 
   loadDebugMode: async () => {
@@ -238,14 +243,34 @@ export const createPreferencesSlice = (set: any, _get: any, _api?: any): Prefere
     set({ personaName: name, personaDesc: desc });
   },
 
+  loadContentMode: async () => {
+    const raw = await settingsRepository.get("contentMode");
+    const legacyHealthyRaw = await settingsRepository.get("healthyMode");
+    const mode = normalizeContentMode(raw) ?? (legacyHealthyRaw === "1" ? "healthy" : DEFAULT_CONTENT_MODE);
+    set({ contentMode: mode, healthyMode: mode === "healthy" });
+
+    // Best-effort repair for users who already wrote the legacy healthyMode key
+    // before contentMode existed.
+    if (!normalizeContentMode(raw) && legacyHealthyRaw != null) {
+      void settingsRepository.set("contentMode", mode);
+    }
+  },
+
+  setContentMode: (mode: ContentMode) => {
+    const next = normalizeContentMode(mode) ?? DEFAULT_CONTENT_MODE;
+    void Promise.all([
+      settingsRepository.set("contentMode", next),
+      settingsRepository.set("healthyMode", next === "healthy" ? "1" : "0"),
+    ]);
+    set({ contentMode: next, healthyMode: next === "healthy" });
+  },
+
   loadHealthyMode: async () => {
-    const raw = await settingsRepository.get("healthyMode");
-    set({ healthyMode: raw === "1" });
+    await _get().loadContentMode();
   },
 
   setHealthyMode: (enabled: boolean) => {
-    void settingsRepository.set("healthyMode", enabled ? "1" : "0");
-    set({ healthyMode: enabled });
+    _get().setContentMode(enabled ? "healthy" : "normal");
   },
 
   clearError: () => set({ error: null }),

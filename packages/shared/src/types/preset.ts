@@ -4,6 +4,7 @@ export interface PresetItem {
   name: string;
   enabled: boolean;
   hidden?: boolean;
+  builtinKind?: string;
   role: "system" | "user";
   content: string;
   injectionOrder: number;
@@ -37,6 +38,7 @@ export interface CreatePresetItemInput {
   name: string;
   enabled: boolean;
   hidden?: boolean;
+  builtinKind?: string;
   role: "system" | "user";
   content: string;
   injectionOrder: number;
@@ -45,6 +47,8 @@ export interface CreatePresetItemInput {
 export interface UpdatePresetItemInput {
   name?: string;
   enabled?: boolean;
+  hidden?: boolean;
+  builtinKind?: string;
   role?: "system" | "user";
   content?: string;
   injectionOrder?: number;

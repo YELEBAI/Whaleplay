@@ -159,17 +159,29 @@
       "medium": "~8k words",
       "full": "Unlimited"
     },
+    "contentMode": {
+      "title": "Content Mode",
+      "description": "Choose the local generation policy. This state is persisted and is the single source of truth for generation.",
+      "normal": "Normal",
+      "normalDesc": "No strict safety interception and no built-in NSFW writing item. Best for most everyday roleplay.",
+      "healthy": "Healthy",
+      "healthyDesc": "Injects the safety prompt, blocks explicit input/output, and filters the NSFW writing item.",
+      "adultLimited": "Limited NSFW",
+      "adultLimitedDesc": "Enables the built-in gentle NSFW writing item without Healthy Mode's hard interception.",
+      "adultLimitedActive": "Limited NSFW is enabled: chats use the built-in gentle NSFW writing item, while still following platform and model-provider rules.",
+      "adultEnabled": "Switched to Limited NSFW mode"
+    },
     "healthyMode": {
       "title": "Healthy Mode",
-      "description": "Enable content safety guardrails. Automatically intercepts explicit content and repetition flooding. Mutually exclusive with NSFW preset.",
+      "description": "Enable content safety guardrails. Automatically intercepts explicit content. Mutually exclusive with NSFW preset.",
       "enable": "Enable Healthy Mode",
-      "enableHint": "Injects a safety prompt, detects explicit content, and prevents flooding.",
+      "enableHint": "Injects a safety prompt and detects explicit content.",
       "nsfwDisabled": "NSFW preset item disabled automatically",
       "features": {
         "title": "Active protections",
         "prompt": "Safety prompt: guides AI to avoid R18 content",
         "explicit": "Explicit detection: terminates output when blatant sexual content is detected",
-        "flood": "Anti-flood: terminates when 90%+ similar content repeats 5 times"
+        "nsfw": "NSFW preset filtering: the built-in NSFW writing item is not sent during generation"
       },
       "conflict": {
         "title": "Healthy Mode conflicts with NSFW",

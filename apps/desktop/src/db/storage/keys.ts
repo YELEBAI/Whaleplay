@@ -14,6 +14,8 @@ export const prefKeys = {
   memorySummaryMaxChars: "memory:summary-max-chars",
   memoryCompressorConfigId: "memory:compressor-config-id",
   imageGeneration: "image-generation",
+  contentMode: "content-mode",
+  healthyMode: "safety:healthy-mode",
   characterViewMode: "character:view-mode",
   characterSearchExpanded: "character:search-expanded",
 } as const;
@@ -71,6 +73,8 @@ const settingPrefs = new Map<string, string>([
   ["memorySummaryMaxChars", prefKeys.memorySummaryMaxChars],
   ["memoryCompressorConfigId", prefKeys.memoryCompressorConfigId],
   ["imageGeneration", prefKeys.imageGeneration],
+  ["contentMode", prefKeys.contentMode],
+  ["healthyMode", prefKeys.healthyMode],
 ]);
 
 export function resolveSettingStorageTarget(key: string): SettingStorageTarget {

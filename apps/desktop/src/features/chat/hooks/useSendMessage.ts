@@ -45,20 +45,28 @@ import {
   stripPromptContent,
   WorldbookContributor,
 } from "@neo-tavern/core";
-import type { Character, BuiltPrompt, ContextBlock, GenerateMessage, Message, ModelConfig } from "@neo-tavern/shared";
+import type {
+  Character,
+  BuiltPrompt,
+  ContextBlock,
+  GenerateMessage,
+  Message,
+  ModelConfig,
+  PresetItem,
+} from "@neo-tavern/shared";
 import type { ChatMemory, ChatMemorySegment } from "@/db/repositories";
 import type { GenerationPhase } from "../chat.types";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
 import {
   createHealthyModeContextBlock,
-  checkHealthyModeOutput,
   detectExplicitContent,
-  detectFlood,
-  filterNsfwItems,
-  NSFW_ITEM_NAME,
   HEALTHY_MODE_BLOCKED_PLACEHOLDER,
-  HEALTHY_MODE_FLOOD_PLACEHOLDER,
 } from "@/features/healthy-mode/healthy-mode";
+import {
+  createContentPolicySnapshot,
+  filterNsfwItems,
+  type ContentPolicySnapshot,
+} from "@/features/content-policy/content-policy";
 
 interface UseSendMessageOptions {
   character: Character | undefined;
@@ -98,6 +106,8 @@ const EMPTY_ASSISTANT_RETRY_MESSAGE = [
   "如果当前预设要求使用 <content></content>，请把完整正文写在这个标签内。",
   "不要解释重试原因，不要输出道歉，只输出符合当前角色与预设格式的回复。",
 ].join("\n");
+
+type PromptPresetItem = { role: "system" | "user"; content: string; injectionOrder: number };
 
 type DebugPromptTrigger = "send" | "continue" | "regenerate" | "retry";
 
@@ -193,6 +203,16 @@ function finishImageGeneration(messageId: string, token: string) {
   if (activeImageGenerations.get(messageId)?.token === token) {
     activeImageGenerations.delete(messageId);
   }
+}
+
+function buildPolicyPresetItems(items: PresetItem[], policy: ContentPolicySnapshot): PromptPresetItem[] {
+  const enabledItems = items.filter((item) => item.enabled);
+  const policyItems = policy.filterNsfwPresetItems ? filterNsfwItems(enabledItems) : enabledItems;
+  return policyItems.map((item) => ({
+    role: item.role,
+    content: item.content,
+    injectionOrder: item.injectionOrder,
+  }));
 }
 
 async function notifyAssistantOutputComplete(characterName?: string) {
@@ -1172,10 +1192,10 @@ export function useSendMessage({
         let assistantId: string | null = null;
         beginSending(chatId);
         setChatError(chatId, null);
+        const contentPolicy = createContentPolicySnapshot(useSettingsStore.getState().contentMode);
 
-        // Healthy mode: block explicit user input before sending
-        const healthyMode = useSettingsStore.getState().healthyMode;
-        if (healthyMode) {
+        // Strict healthy mode: block explicit user input before sending.
+        if (contentPolicy.blockExplicitInput) {
           const explicitMatch = detectExplicitContent(trimmedContent);
           if (explicitMatch) {
             setChatError(chatId, "健康模式：检测到不当输入，消息已被拦截。");
@@ -1203,18 +1223,11 @@ export function useSendMessage({
           const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
 
           const activePresetId = await presetRepository.getActivePresetId();
-          let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
+          let presetItems: PromptPresetItem[] | undefined;
           if (activePresetId) {
             const preset = await presetRepository.getById(activePresetId);
             if (preset) {
-              presetItems = preset.items
-                .filter((i) => i.enabled)
-                .filter((i) => !useSettingsStore.getState().healthyMode || i.name !== NSFW_ITEM_NAME)
-                .map((i) => ({
-                  role: i.role,
-                  content: i.content,
-                  injectionOrder: i.injectionOrder,
-                }));
+              presetItems = buildPolicyPresetItems(preset.items, contentPolicy);
             }
           }
 
@@ -1229,8 +1242,7 @@ export function useSendMessage({
           const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
             Boolean,
           ) as ContextBlock[];
-          // Healthy mode: inject high-priority safety prompt
-          if (useSettingsStore.getState().healthyMode) {
+          if (contentPolicy.injectHealthyPrompt) {
             contextBlocks.push(createHealthyModeContextBlock());
           }
           const effectivePresetItems = agenticRecord ? await getAgenticPlayPresetItems() : presetItems;
@@ -1297,19 +1309,14 @@ export function useSendMessage({
             await removeEmptyStreamingDraft(assistant.id);
             return;
           }
-          // Healthy mode: check AI output for violations
-          if (useSettingsStore.getState().healthyMode) {
-            const violation = checkHealthyModeOutput(finalContent, recentMessages);
-            if (violation) {
-              const placeholder =
-                violation.type === "flood" ? HEALTHY_MODE_FLOOD_PLACEHOLDER : HEALTHY_MODE_BLOCKED_PLACEHOLDER;
-              await patchMessage(assistant.id, { content: placeholder, reasoningContent: undefined });
-              setChatError(
-                chatId,
-                violation.type === "flood"
-                  ? "健康模式：检测到输出重复异常，已终止。"
-                  : "健康模式：检测到不当内容，回复已被拦截。",
-              );
+          if (contentPolicy.checkExplicitOutput) {
+            const explicitMatch = detectExplicitContent(finalContent);
+            if (explicitMatch) {
+              await patchMessage(assistant.id, {
+                content: HEALTHY_MODE_BLOCKED_PLACEHOLDER,
+                reasoningContent: undefined,
+              });
+              setChatError(chatId, "健康模式：检测到不当内容，回复已被拦截。");
               void notifyAssistantOutputComplete(character.name);
               await removeEmptyStreamingDraft(assistant.id);
               return;
@@ -1365,6 +1372,7 @@ export function useSendMessage({
       const character = targetCharacter;
       beginSending(chatId);
       setChatError(chatId, null);
+      const contentPolicy = createContentPolicySnapshot(useSettingsStore.getState().contentMode);
       let assistantId: string | null = null;
 
       try {
@@ -1399,14 +1407,11 @@ export function useSendMessage({
         const contextTokens = useSettingsStore.getState().contextTokens ?? 64000;
 
         const activePresetId = await presetRepository.getActivePresetId();
-        let presetItems: { role: "system" | "user"; content: string; injectionOrder: number }[] | undefined;
+        let presetItems: PromptPresetItem[] | undefined;
         if (activePresetId) {
           const preset = await presetRepository.getById(activePresetId);
           if (preset) {
-            presetItems = preset.items
-              .filter((i) => i.enabled)
-              .filter((i) => !useSettingsStore.getState().healthyMode || i.name !== NSFW_ITEM_NAME)
-              .map((i) => ({ role: i.role, content: i.content, injectionOrder: i.injectionOrder }));
+            presetItems = buildPolicyPresetItems(preset.items, contentPolicy);
           }
         }
 
@@ -1421,8 +1426,7 @@ export function useSendMessage({
         const contextBlocks = [memoryPlan.memoryBlock, agenticBlock, ...worldbookBlocks].filter(
           Boolean,
         ) as ContextBlock[];
-        // Healthy mode: inject high-priority safety prompt
-        if (useSettingsStore.getState().healthyMode) {
+        if (contentPolicy.injectHealthyPrompt) {
           contextBlocks.push(createHealthyModeContextBlock());
         }
         const effectivePresetItems = agenticRecord ? await getAgenticPlayPresetItems() : presetItems;
@@ -1479,19 +1483,14 @@ export function useSendMessage({
           await removeEmptyStreamingDraft(assistant.id);
           return;
         }
-        // Healthy mode: check AI output for violations
-        if (useSettingsStore.getState().healthyMode) {
-          const violation = checkHealthyModeOutput(finalContent, messagesForPrompt);
-          if (violation) {
-            const placeholder =
-              violation.type === "flood" ? HEALTHY_MODE_FLOOD_PLACEHOLDER : HEALTHY_MODE_BLOCKED_PLACEHOLDER;
-            await patchMessage(assistant.id, { content: placeholder, reasoningContent: undefined });
-            setChatError(
-              chatId,
-              violation.type === "flood"
-                ? "健康模式：检测到输出重复异常，已终止。"
-                : "健康模式：检测到不当内容，回复已被拦截。",
-            );
+        if (contentPolicy.checkExplicitOutput) {
+          const explicitMatch = detectExplicitContent(finalContent);
+          if (explicitMatch) {
+            await patchMessage(assistant.id, {
+              content: HEALTHY_MODE_BLOCKED_PLACEHOLDER,
+              reasoningContent: undefined,
+            });
+            setChatError(chatId, "健康模式：检测到不当内容，回复已被拦截。");
             void notifyAssistantOutputComplete(character.name);
             await removeEmptyStreamingDraft(assistant.id);
             return;

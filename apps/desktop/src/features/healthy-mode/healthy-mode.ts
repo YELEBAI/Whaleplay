@@ -1,33 +1,17 @@
 /**
- * Healthy Mode — content safety guardrails.
+ * Healthy Mode — explicit content safety guardrails.
  *
- * When enabled, injects a high-priority safety prompt and runs two detection
- * layers on both user input and AI output:
+ * When the content policy is in `healthy` mode, the runtime injects a
+ * high-priority safety prompt and runs explicit-content detection on user input
+ * and AI output.
  *
- * 1. Explicit content detection — regex matching blatant sexual content →
- *    the message is blocked (user) or replaced (AI).
- * 2. Flood detection — detects near-duplicate (≥90% similarity) content
- *    repeated 5+ times across recent assistant turns → generation terminated.
- *
- * The healthy mode toggle is mutually exclusive with the NSFW writing preset
- * item: enabling healthy mode prompts the user to disable NSFW.
+ * NSFW preset visibility and the normal / healthy / adult-limited state live in
+ * `features/content-policy`. Flood detection is a generation quality guard, not
+ * a healthy-mode rule; keep it detached until a streaming-aware output hook can
+ * abort SSE generation early.
  */
 
 import type { ContextBlock } from "@neo-tavern/shared";
-
-// ── NSFW preset identification (shared constants) ────────────────────
-
-export const NSFW_PRESET_ID = "_neo_seed_writing_style";
-export const NSFW_ITEM_NAME = "NSFW 温柔风格";
-
-/**
- * Filter out the NSFW preset item from prompt-bound items when healthy mode
- * is active. This is the runtime safety net — even if the UI toggles are
- * inconsistent, NSFW content never reaches the model.
- */
-export function filterNsfwItems<T extends { name: string }>(items: T[]): T[] {
-  return items.filter((item) => item.name !== NSFW_ITEM_NAME);
-}
 
 // ── Safety prompt (injected as a context block) ──────────────────────
 
@@ -86,7 +70,10 @@ export function detectExplicitContent(text: string): string | null {
   return match ? match[0] : null;
 }
 
-// ── Layer 2: Flood detection ─────────────────────────────────────────
+// ── Flood detection helper ───────────────────────────────────────────
+//
+// TODO: move this into an output-quality module when the generation pipeline
+// has a streaming-aware hook that can inspect chunks and abort SSE early.
 
 /**
  * Compute similarity between two strings using character-bigram Jaccard index.
@@ -159,8 +146,7 @@ export function detectFlood(
 
 export type HealthyModeViolation =
   | { type: "explicit-input"; matched: string }
-  | { type: "explicit-output"; matched: string }
-  | { type: "flood"; count: number };
+  | { type: "explicit-output"; matched: string };
 
 /**
  * Placeholder content shown when AI output is intercepted by healthy mode.
@@ -168,32 +154,17 @@ export type HealthyModeViolation =
 export const HEALTHY_MODE_BLOCKED_PLACEHOLDER =
   "「该回复因触发健康模式内容过滤已被拦截。如需调整，可在设置 → 上下文中关闭健康模式。」";
 
-export const HEALTHY_MODE_FLOOD_PLACEHOLDER =
-  "「检测到输出内容重复异常，已自动终止以防止刷屏。请尝试修改输入或检查角色卡设定。」";
-
-// ── Combined output check ────────────────────────────────────────────
+// ── Healthy output check ─────────────────────────────────────────────
 
 /**
- * Check AI output against both detection layers.
+ * Check AI output against healthy-mode explicit content rules.
  *
  * @param output The AI's generated content
- * @param recentMessages Recent messages (used for flood detection — extracts prior assistant contents)
  */
-export function checkHealthyModeOutput(
-  output: string,
-  recentMessages: { role: string; content: string }[],
-): HealthyModeViolation | null {
+export function checkHealthyModeOutput(output: string): HealthyModeViolation | null {
   const explicitMatch = detectExplicitContent(output);
   if (explicitMatch) {
     return { type: "explicit-output", matched: explicitMatch };
-  }
-  const priorAssistantContents = recentMessages
-    .filter((m) => m.role === "assistant")
-    .map((m) => m.content)
-    .filter(Boolean);
-  const flood = detectFlood(priorAssistantContents, output);
-  if (flood.flooded) {
-    return { type: "flood", count: flood.count };
   }
   return null;
 }

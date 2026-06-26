@@ -32,11 +32,11 @@ import { usePresetStore } from "@/features/preset/preset.store";
 import { AGENTIC_PLAY_PRESET_ID, ensureAgenticPlayPreset } from "@/features/agentic-play/agentic-preset";
 import { forwardRef } from "react";
 import type { Preset, PresetItem } from "@neo-tavern/shared";
-import { sessionSync } from "@/db/kv";
+import { deviceSync } from "@/db/kv";
 import { getBackend } from "@/platform";
 import { toast } from "@/utils/toast";
 import { useSettingsStore } from "@/features/settings/settings.store";
-import { NSFW_ITEM_NAME } from "@/features/healthy-mode/healthy-mode";
+import { isNsfwPresetItem } from "@/features/content-policy/content-policy";
 
 function sortPresetItems(items: PresetItem[]) {
   return [...items].sort(
@@ -577,8 +577,6 @@ export function PresetPage() {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sourceItemKey, setSourceItemKey] = useState("");
-  const [healthyConflictOpen, setHealthyConflictOpen] = useState(false);
-  const pendingNsfwToggleIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -595,7 +593,7 @@ export function PresetPage() {
   useEffect(() => {
     let cancelled = false;
     const refreshSecret = () => {
-      if (!cancelled) setSecretUnlocked(sessionSync.get("secret-unlocked") === "1");
+      if (!cancelled) setSecretUnlocked(deviceSync.get("secret-unlocked") === "1");
     };
     refreshSecret();
     window.addEventListener("neotavern-secret-changed", refreshSecret);
@@ -725,23 +723,12 @@ export function PresetPage() {
 
   const handleToggleItem = async (item: PresetItem) => {
     if (!selected) return;
-    // Bidirectional mutex: enabling NSFW while healthy mode is on → warn
-    if (!item.enabled && item.name === NSFW_ITEM_NAME && useSettingsStore.getState().healthyMode) {
-      pendingNsfwToggleIdRef.current = item.id;
-      setHealthyConflictOpen(true);
+    if (isNsfwPresetItem(item)) {
+      await store.toggleItem(selected.id, item.id);
+      useSettingsStore.getState().setContentMode(item.enabled ? "normal" : "adultLimited");
       return;
     }
     await store.toggleItem(selected.id, item.id);
-  };
-
-  const handleConfirmDisableHealthyMode = () => {
-    const itemId = pendingNsfwToggleIdRef.current;
-    const presetId = selected?.id;
-    if (!itemId || !presetId) return;
-    useSettingsStore.getState().setHealthyMode(false);
-    void store.toggleItem(presetId, itemId);
-    setHealthyConflictOpen(false);
-    pendingNsfwToggleIdRef.current = null;
   };
 
   const handleMoveItem = async (itemId: string, direction: -1 | 1) => {
@@ -930,6 +917,7 @@ export function PresetPage() {
         name: sourceItem.name,
         enabled: true,
         hidden: sourceItem.hidden,
+        builtinKind: sourceItem.builtinKind,
         role: sourceItem.role,
         content: sourceItem.content,
         injectionOrder: nextOrder,
@@ -1130,28 +1118,6 @@ export function PresetPage() {
         t={t}
         tc={tc}
       />
-
-      {/* Healthy mode conflict dialog */}
-      <Dialog open={healthyConflictOpen} onOpenChange={setHealthyConflictOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("healthyConflictTitle")}</DialogTitle>
-            <DialogDescription>{t("healthyConflictDesc")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setHealthyConflictOpen(false);
-                pendingNsfwToggleIdRef.current = null;
-              }}
-            >
-              {tc("cancel")}
-            </Button>
-            <Button onClick={handleConfirmDisableHealthyMode}>{t("healthyConflictConfirm")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

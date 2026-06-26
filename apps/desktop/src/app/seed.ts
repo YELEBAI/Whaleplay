@@ -1,4 +1,5 @@
 import { characterRepository, settingsRepository, worldbookRepository, presetRepository } from "@/db/repositories";
+import { isNsfwPresetItem, NSFW_ITEM_KIND } from "@/features/content-policy/content-policy";
 import { generateId } from "@neo-tavern/shared";
 import type {
   Character,
@@ -808,6 +809,7 @@ const WRITING_PRESET_ITEMS: Omit<PresetItem, "id" | "presetId" | "createdAt" | "
     name: "NSFW 温柔风格",
     enabled: false,
     hidden: true,
+    builtinKind: NSFW_ITEM_KIND,
     role: "system",
     content: `涉及亲密场景时：要温柔，不许有任何粗暴、过度激烈的行为。生理反应要弱化，避免身体反弓、剧烈颤抖、尖叫、痉挛。在没有用户要求时，不结束亲密场景，而是将回复停止在亲密中途。台词用温柔、亲密的风格，融入自然的呻吟和喘息，适当描述自身身体感受和情感反应。注意保持角色人设和说话方式，避免硬凹温柔导致角色崩坏。`,
     injectionOrder: 20,
@@ -859,8 +861,9 @@ export async function seedWritingPreset() {
     let changed = false;
     const now = new Date().toISOString();
     for (const item of wp.items) {
-      if (item.name === "NSFW 温柔风格" && !item.hidden) {
+      if (isNsfwPresetItem(item) && (!item.hidden || item.builtinKind !== NSFW_ITEM_KIND)) {
         item.hidden = true;
+        item.builtinKind = NSFW_ITEM_KIND;
         changed = true;
       }
     }

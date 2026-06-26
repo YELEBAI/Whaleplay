@@ -128,32 +128,19 @@ describe("healthy-mode", () => {
 
   describe("checkHealthyModeOutput", () => {
     it("detects explicit content in AI output", () => {
-      const result = checkHealthyModeOutput("他用力插入她的体内", []);
+      const result = checkHealthyModeOutput("他用力插入她的体内");
       expect(result).not.toBeNull();
       expect(result?.type).toBe("explicit-output");
     });
 
-    it("detects flooding in AI output", () => {
+    it("does not mix flood detection into healthy output checks", () => {
       const repeated = "她走到窗前看着雨，心中很惆怅。";
-      const recent = [
-        { role: "assistant", content: repeated },
-        { role: "assistant", content: repeated },
-        { role: "assistant", content: repeated },
-        { role: "assistant", content: repeated },
-        { role: "assistant", content: repeated },
-      ];
-      const result = checkHealthyModeOutput(repeated, recent);
-      expect(result).not.toBeNull();
-      expect(result?.type).toBe("flood");
+      expect(detectFlood(Array(5).fill(repeated), repeated).flooded).toBe(true);
+      expect(checkHealthyModeOutput(repeated)).toBeNull();
     });
 
     it("returns null for clean, diverse output", () => {
-      const recent = [
-        { role: "assistant", content: "你好！" },
-        { role: "user", content: "在吗？" },
-        { role: "assistant", content: "在的，有什么事？" },
-      ];
-      const result = checkHealthyModeOutput("今天天气不错呢。", recent);
+      const result = checkHealthyModeOutput("今天天气不错呢。");
       expect(result).toBeNull();
     });
   });

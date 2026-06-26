@@ -1,91 +1,58 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { SlidersHorizontal, ShieldCheck } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  cn,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@neo-tavern/ui";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, SwitchButton, cn } from "@neo-tavern/ui";
 import { usePresetStore } from "@/features/preset/preset.store";
-import { useSettingsStore } from "@/features/settings/settings.store";
-import { NSFW_PRESET_ID, NSFW_ITEM_NAME } from "@/features/healthy-mode/healthy-mode";
+import { isNsfwPresetItem, NSFW_PRESET_ID, type ContentMode } from "@/features/content-policy/content-policy";
 import { toast } from "@/utils/toast";
-
-function SwitchButton({ checked, onClick, label }: { checked: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={onClick}
-      className={cn(
-        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors",
-        checked ? "bg-primary" : "bg-muted-foreground/30",
-      )}
-    >
-      <span
-        className={cn(
-          "bg-background inline-block h-5 w-5 rounded-full shadow-sm transition-transform",
-          checked ? "translate-x-5" : "translate-x-0.5",
-        )}
-      />
-    </button>
-  );
-}
 
 interface ContextSectionProps {
   contextTokens: number;
   setContextTokens: (v: number) => void;
-  healthyMode: boolean;
-  setHealthyMode: (v: boolean) => void;
+  contentMode: ContentMode;
+  setContentMode: (mode: ContentMode) => void;
   t: (key: string, params?: Record<string, string>) => string;
 }
 
 export function ContextSection({
   contextTokens,
   setContextTokens,
-  healthyMode,
-  setHealthyMode,
+  contentMode,
+  setContentMode,
   t,
 }: ContextSectionProps) {
   const presets = usePresetStore((s) => s.presets);
-  const [conflictOpen, setConflictOpen] = useState(false);
+  const loadPresets = usePresetStore((s) => s.loadPresets);
+
+  useEffect(() => {
+    void loadPresets();
+  }, [loadPresets]);
 
   const isNsfwEnabled = (() => {
     const writingPreset = presets.find((p) => p.id === NSFW_PRESET_ID);
     if (!writingPreset) return false;
-    return writingPreset.items.some((item) => item.name === NSFW_ITEM_NAME && item.enabled);
+    return writingPreset.items.some((item) => isNsfwPresetItem(item) && item.enabled);
   })();
 
-  const handleToggleHealthyMode = () => {
-    if (!healthyMode && isNsfwEnabled) {
-      setConflictOpen(true);
-      return;
-    }
-    setHealthyMode(!healthyMode);
-  };
-
-  const handleConfirmDisableNsfw = async () => {
+  const setBuiltinNsfwEnabled = async (enabled: boolean) => {
     const writingPreset = presets.find((p) => p.id === NSFW_PRESET_ID);
     if (writingPreset) {
-      const nsfwItem = writingPreset.items.find((item) => item.name === NSFW_ITEM_NAME);
-      if (nsfwItem?.enabled) {
-        await usePresetStore.getState().updateItem(writingPreset.id, nsfwItem.id, { enabled: false });
+      const nsfwItem = writingPreset.items.find(isNsfwPresetItem);
+      if (nsfwItem && nsfwItem.enabled !== enabled) {
+        await usePresetStore.getState().updateItem(writingPreset.id, nsfwItem.id, { enabled });
       }
     }
-    setHealthyMode(true);
-    setConflictOpen(false);
-    toast("success", t("context.healthyMode.nsfwDisabled"));
+  };
+
+  const handleSelectContentMode = async (mode: ContentMode) => {
+    if (mode === contentMode) return;
+    if (mode === "adultLimited") {
+      await setBuiltinNsfwEnabled(true);
+      toast("info", t("context.contentMode.adultEnabled"));
+    } else {
+      await setBuiltinNsfwEnabled(false);
+      if (isNsfwEnabled) toast("info", t("context.healthyMode.nsfwDisabled"));
+    }
+    setContentMode(mode);
   };
 
   const contextPresets = [
@@ -93,6 +60,28 @@ export function ContextSection({
     { label: t("context.presets.short"), value: 8192, desc: t("context.presetDescs.short") },
     { label: t("context.presets.medium"), value: 32768, desc: t("context.presetDescs.medium") },
     { label: t("context.presets.full"), value: 0, desc: t("context.presetDescs.full") },
+  ];
+
+  const contentModeOptions: Array<{
+    value: ContentMode;
+    label: string;
+    description: string;
+  }> = [
+    {
+      value: "normal",
+      label: t("context.contentMode.normal"),
+      description: t("context.contentMode.normalDesc"),
+    },
+    {
+      value: "healthy",
+      label: t("context.contentMode.healthy"),
+      description: t("context.contentMode.healthyDesc"),
+    },
+    {
+      value: "adultLimited",
+      label: t("context.contentMode.adultLimited"),
+      description: t("context.contentMode.adultLimitedDesc"),
+    },
   ];
 
   return (
@@ -153,50 +142,66 @@ export function ContextSection({
         <CardHeader>
           <CardTitle className="card-title-row">
             <ShieldCheck className="h-5 w-5" />
-            {t("context.healthyMode.title")}
+            {t("context.contentMode.title")}
           </CardTitle>
-          <CardDescription>{t("context.healthyMode.description")}</CardDescription>
+          <CardDescription>{t("context.contentMode.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="setting-row">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">{t("context.healthyMode.enable")}</p>
-              <p className="text-muted-foreground mt-1 text-xs">{t("context.healthyMode.enableHint")}</p>
-            </div>
-            <SwitchButton
-              checked={healthyMode}
-              onClick={handleToggleHealthyMode}
-              label={t("context.healthyMode.enable")}
-            />
+          <div className="grid gap-2 md:grid-cols-3">
+            {contentModeOptions.map((option) => (
+              <div
+                key={option.value}
+                role="button"
+                tabIndex={0}
+                aria-pressed={contentMode === option.value}
+                onClick={() => void handleSelectContentMode(option.value)}
+                onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    void handleSelectContentMode(option.value);
+                  }
+                }}
+                className={cn(
+                  "focus-visible:ring-ring cursor-pointer rounded-lg border p-3 text-left transition-colors focus-visible:ring-1 focus-visible:outline-none",
+                  contentMode === option.value ? "border-primary bg-primary/10" : "border-border hover:bg-accent/50",
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium">{option.label}</p>
+                  <SwitchButton
+                    checked={contentMode === option.value}
+                    label={option.label}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleSelectContentMode(option.value);
+                    }}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  />
+                </div>
+                <p className="text-muted-foreground mt-2 text-xs leading-relaxed">{option.description}</p>
+              </div>
+            ))}
           </div>
 
-          {healthyMode && (
+          {contentMode === "healthy" && (
             <div className="border-border space-y-2 rounded-lg border p-3">
               <p className="text-sm font-medium">{t("context.healthyMode.features.title")}</p>
               <ul className="text-muted-foreground space-y-1.5 text-xs">
                 <li>• {t("context.healthyMode.features.prompt")}</li>
                 <li>• {t("context.healthyMode.features.explicit")}</li>
-                <li>• {t("context.healthyMode.features.flood")}</li>
+                <li>• {t("context.healthyMode.features.nsfw")}</li>
               </ul>
+            </div>
+          )}
+
+          {contentMode === "adultLimited" && (
+            <div className="border-primary/20 bg-primary/5 text-muted-foreground rounded-lg border p-3 text-xs">
+              {t("context.contentMode.adultLimitedActive")}
             </div>
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={conflictOpen} onOpenChange={setConflictOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("context.healthyMode.conflict.title")}</DialogTitle>
-            <DialogDescription>{t("context.healthyMode.conflict.description")}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConflictOpen(false)}>
-              {t("context.healthyMode.conflict.cancel")}
-            </Button>
-            <Button onClick={handleConfirmDisableNsfw}>{t("context.healthyMode.conflict.confirm")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

@@ -86,6 +86,8 @@ export const presetRepository = {
       presetId,
       name: input.name,
       enabled: input.enabled,
+      hidden: input.hidden,
+      builtinKind: input.builtinKind,
       role: input.role,
       content: input.content,
       injectionOrder: input.injectionOrder,
@@ -107,6 +109,8 @@ export const presetRepository = {
     const item = all[pIdx].items[iIdx];
     if (input.name !== undefined) item.name = input.name;
     if (input.enabled !== undefined) item.enabled = input.enabled;
+    if (input.hidden !== undefined) item.hidden = input.hidden;
+    if (input.builtinKind !== undefined) item.builtinKind = input.builtinKind;
     if (input.role !== undefined) item.role = input.role;
     if (input.content !== undefined) item.content = input.content;
     if (input.injectionOrder !== undefined) item.injectionOrder = input.injectionOrder;
