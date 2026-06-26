@@ -503,10 +503,8 @@ export function useSendMessage({
     finishSending(chatId);
   }, [chatId, finishSending]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const isGenerationActive = (controller: AbortController) => !controller.signal.aborted;
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const stripMessages = (msgs: Message[]): Message[] => {
     const rules = useSettingsStore.getState().getActiveRegexRules() ?? [];
     return msgs.map((m) => (m.role === "assistant" ? { ...m, content: stripPromptContent(m.content, rules) } : m));
