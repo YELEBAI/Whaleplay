@@ -9,6 +9,7 @@
   "saving": "Saving...",
   "inputPlaceholder": "Type a message...",
   "inputPlaceholderWithChar": "Message {{name}}...",
+  "inputPlaceholderAgenticWithChar": "Act in {{name}}'s scene...",
   "sendTitle": "Send",
   "sendQueuedTitle": "Add to pending send",
   "savepointTitle": "Create savepoint",
@@ -24,6 +25,22 @@
   "cancel": "Cancel",
   "save": "Save",
   "copy": "Copy",
+  "messageList": {
+    "loading": "Loading...",
+    "assistantFallback": "AI"
+  },
+  "choicePanel": {
+    "agenticTitle": "What do you do next?",
+    "agenticTitleWithCharacter": "What action do you take in {{name}}'s scene?",
+    "successRate": "Success Rate {{rate}}%"
+  },
+  "agentic": {
+    "openingLabel": "Opening options",
+    "customActionLabel": "Custom action"
+  },
+  "imageGeneration": {
+    "manualPlanningLabel": "Manual Image Planning"
+  },
   "deleteBtn": "Delete",
   "contextUsage": {
     "title": "{{current}} / {{limit}} current conversation context tokens",
@@ -34,6 +51,9 @@
     "edit": "Edit",
     "viewFullPrompt": "View full prompt",
     "viewReasoning": "View reasoning",
+    "copied": "Copied",
+    "generateImage": "Generate image",
+    "generatingImage": "Generating image",
     "regenerate": "Regenerate",
     "delete": "Delete"
   },
@@ -111,9 +131,12 @@
     },
     "noDataMain": "No main API usage data yet. Send a message to see stats.",
     "noDataSecondary": "No secondary API usage data yet. It appears after memory compression or image planning uses a secondary model.",
+    "secondaryCallsTitle": "{{count}} secondary API calls",
     "cacheHint": "⚠ Cache hit data unavailable — your API may not support prompt caching (Ollama/vLLM most instances do not). Supported by DeepSeek, OpenAI recent models, Anthropic."
   },
   "generationStatus": {
+    "retrying": "Empty response, rewriting",
+    "retryingDetail": "The previous draft had no visible content, so the scene is being rebuilt",
     "writing": "Writing response",
     "writingTag": "writing",
     "writingDetail": "Crafting the character's reply",
@@ -136,7 +159,19 @@
     "messagesDeleted": "Messages deleted",
     "messageDeleted": "Message deleted",
     "deleteFailed": "Failed to delete",
-    "copied": "Copied"
+    "copied": "Copied",
+    "imageGenerationEnableRequired": "Enable image generation in Image Gen settings first",
+    "imageGenerationTriggerRequired": "Images / Trigger cannot be 0",
+    "imageGenerationWorkflowRequired": "Import a ComfyUI workflow JSON in Image Gen settings first",
+    "imagePlanningApiRequired": "Select a Secondary API for Image Planning in Image Gen settings first",
+    "imagePlanningNoScene": "The secondary API did not find a visible scene suitable for image generation",
+    "imageGenerationComplete": "Image generation complete",
+    "imageGenerationFailed": "Image generation failed",
+    "imageDeleted": "Image deleted",
+    "imagePromptEmpty": "Image prompt is empty",
+    "imageRegenerated": "Image regenerated",
+    "imageRegenerateFailed": "Failed to regenerate image",
+    "imagePromptUpdated": "Image prompt updated"
   },
   "regenerateDialog": {
     "title": "Regenerate",
@@ -150,6 +185,35 @@
   "oldMessages": {
     "collapse": "Collapse older messages, keep recent {{limit}} turns",
     "show": "Show older messages: {{count}} turns / {{messages}} messages"
+  },
+  "sidebar": {
+    "expand": "Expand chat history",
+    "collapse": "Collapse chat history",
+    "chatHistory": "Chat History",
+    "untitledChat": "Untitled Chat",
+    "unknownCharacter": "Unknown character",
+    "empty": "No chat history yet"
+  },
+  "activity": {
+    "elapsed": "Task time {{duration}}",
+    "thinking": "Thinking",
+    "thinkingComplete": "Thinking complete",
+    "replyComplete": "Reply generated"
+  },
+  "imageBlock": {
+    "status": {
+      "deleted": "Image deleted",
+      "error": "Image generation failed",
+      "generating": "Generating in ComfyUI",
+      "pending": "Image not generated yet"
+    },
+    "actions": {
+      "editPrompt": "Edit image prompt",
+      "regenerate": "Regenerate image",
+      "regenerating": "Regenerating image",
+      "delete": "Delete image"
+    },
+    "promptSummary": "Image prompt"
   },
   "rightPanel": {
     "dice": {

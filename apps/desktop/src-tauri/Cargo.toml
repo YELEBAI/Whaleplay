@@ -19,8 +19,8 @@ tauri-plugin-notification = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-store = "2"
-rfd = "0.15"
-rand = "0.8"
+rfd = "0.17"
+rand = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 actix-web = "4"
@@ -28,7 +28,7 @@ actix-files = "0.6"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 base64 = "0.22"
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 [features]
 default = ["custom-protocol"]

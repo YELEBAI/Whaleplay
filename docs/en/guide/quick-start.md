@@ -1,119 +1,100 @@
 # Quick Start
 
-This walkthrough will take you from a fresh install to your very first AI character roleplay chat. You don't need any technical background — just follow the steps below.
+This page keeps only the steps required for a first successful Whale Play session: install, configure an API, create a character, and start chatting. Use the linked guides for details.
 
 ---
 
-## Step 1: Launch the App
+## 1. Download And Launch
 
-After completing the [installation](./installation.md), start Whale Play:
+Use the prebuilt installer for normal use. You do not need Node.js, pnpm, or Rust.
+
+1. Open the [GitHub Releases](https://github.com/YELEBAI/Whaleplay/releases) page.
+2. Download the latest Windows installer, such as `Whale-Play_<version>_x64-setup.exe` or `Whale-Play_<version>_x64.msi`.
+3. Run the installer.
+4. Start **Whale Play** from the Start menu or desktop shortcut.
+
+If the installer, system dependencies, or permissions fail, see the [installation guide](./installation.md).
+
+<details>
+<summary>Need unreleased features or want to contribute? Run from source</summary>
+
+Running from source is for testing the latest changes, contributing, or debugging. Normal users do not need this path.
+
+```bash
+git clone https://github.com/YELEBAI/Whaleplay.git
+cd Whaleplay
+pnpm install
+pnpm tauri dev
+```
+
+For quick React UI debugging only, you can run:
 
 ```bash
 pnpm dev
 ```
 
-Once the dev server is ready, the terminal will show a URL — **open it in your browser**:
+Then open the `http://localhost:1420` URL shown in the terminal.
 
-```
-➜  Local:   http://localhost:1420/
-➜  Network: http://192.168.x.x:1420/
-```
-
-Click the link or paste `http://localhost:1420` into your browser's address bar. You should see the Whale Play home screen.
-
-> **If you used a prebuilt binary:** just double-click the Whale Play icon on your desktop or Start menu. The app opens as a normal window — no need for a terminal.
+</details>
 
 ---
 
-## Step 2: Configure Your API Key
+## 2. Configure A Model API
 
-Whale Play uses the DeepSeek API to power the AI responses. You'll need to add your own API key.
+Whale Play needs an API key from a model provider. The default path is still DeepSeek-first.
 
-### Get a DeepSeek API Key
+1. Open **Settings**.
+2. In the API / model configuration area, fill in `baseUrl`, API key, and model name.
+3. Save the profile.
+4. Click the connection test and confirm that the success toast appears.
+
+If you use DeepSeek first-party service:
 
 1. Go to [platform.deepseek.com](https://platform.deepseek.com/) and sign up or log in.
-2. Navigate to the **API Keys** section.
-3. Click **Create new API key**, give it a name (e.g., "Whale Play"), and copy the key.
-
-### Add the Key to Whale Play
-
-1. In the app, look at the **left sidebar** — click the **gear icon** ⚙️ (Settings).
-2. Scroll down to the **"DeepSeek API"** section.
-3. **Paste your API key** into the text field.
-4. Click **"Save DeepSeek Profile"** — you should see a success message.
-5. Click **"Test Connection"** to verify everything works. A green checkmark ✅ means you're good to go.
-
-![API settings page](../../images/settings-api.png)
-
-> **📸 Screenshot needed:** After entering your API key, capture the Settings page showing the DeepSeek API section with the key filled in. Save the image as `docs/images/settings-api.png`.
+2. Create an API key.
+3. Paste it into Whale Play's Settings page with the model configuration.
 
 ---
 
-## Step 3: Create a Character
+## 3. Create Your First Character
 
-Now it's time to build your first character — the personality the AI will roleplay as.
+1. Open the **Characters** page.
+2. Click **New Character**.
+3. Fill in at least:
 
-1. In the **left sidebar**, click the **person icon** 👤 (Characters).
-2. You'll see an empty character list. Click **"New Character"**.
-3. Fill in the character details:
+| Field         | What it means  | Example                                                        |
+| ------------- | -------------- | -------------------------------------------------------------- |
+| Name          | Character name | Luna                                                           |
+| Description   | Short summary  | A forest spirit guarding an ancient library                    |
+| Personality   | Key traits     | wise, curious, gentle                                          |
+| First Message | Opening line   | "Welcome, traveler. The pages have already seen your arrival." |
 
-   | Field | What to put | Example |
-   |---|---|---|
-   | **Name** | Your character's name | Luna |
-   | **Description** | A short summary | A mysterious forest spirit who guards an ancient library |
-   | **Personality** | Key traits (comma-separated) | wise, curious, gentle, playful |
-   | **First Message** | The opening line your character will say | *"Welcome, traveler. I've been expecting you. The books have whispered your name for days."* |
-
-4. Click **"Create"** at the bottom of the form.
-
-Your character now appears in the list. You can create as many as you like — each one has its own unique personality.
-
-![Character creation dialog](../../images/character-create.png)
-
-> **📸 Screenshot needed:** Fill in the character creation form with example data (like "Luna" above) and capture the dialog. Save as `docs/images/character-create.png`.
+4. Save the character.
 
 ---
 
-## Step 4: Start Chatting
+## 4. Start Chatting
 
-Your character is ready. Let's talk to them.
+1. Return to Home or the Characters page.
+2. Click the character card to open chat.
+3. Type a message at the bottom, then press Enter or click Send.
+4. If a reply is empty, repeats itself, or is blocked by healthy mode, Whale Play shows a toast; you can regenerate or stop the current generation.
 
-1. In the **left sidebar**, click the **house icon** 🏠 (Home).
-2. You should see your new character's **avatar card** on the home screen.
-3. **Click on the avatar** or the character's name — this opens the chat view.
-4. Type a message in the text box at the bottom and press **Enter** (or click the send button).
+Common chat actions:
 
-The AI will respond based on the character card you created. Every response will reflect the personality, tone, and backstory you gave them.
-
-![Chat interface with first message](../../images/chat-first-message.png)
-
-> **📸 Screenshot needed:** Send a greeting to your character (e.g., *"Hello! What's this place?"*) and capture the chat view showing both your message and the AI's response. Save as `docs/images/chat-first-message.png`.
-
----
-
-## Step 5: Explore More
-
-You're up and running! Here are a few things to try next:
-
-### Chat Actions
-- **Right-click** (or long-press on mobile) a chat message to see options:
-  - **Savepoint** — bookmark a moment in the conversation to return to later.
-  - **Delete** — remove a message or prune the chat history.
-  - **Copy** — copy a message to your clipboard.
-
-### More Characters
-- Create characters with different personalities and see how the AI adapts.
-- Experiment with longer or more detailed character cards for richer responses.
-
-### Settings
-- Adjust the **temperature** and **max tokens** in Settings to control how creative or focused the AI is.
-- Lower temperature (0.3–0.5) = more predictable responses.
-- Higher temperature (0.8–1.2) = more creative, surprising responses.
-
-### Next Steps
-- Check the other guides in this documentation for advanced features, prompt injection, and agentic play mechanics.
-- Join the project community to share characters and get tips.
+- Regenerate: delete the current AI reply and generate again from the previous user message.
+- Stop: abort the current streaming response.
+- Right-click a message: copy, delete, create savepoint, and more.
+- Agentic Play: switch into a host-like mode with structured choices, dice rolls, and state updates.
 
 ---
 
-**Happy roleplaying! 🐋**
+## Next Steps
+
+- [Chat guide](./chat.md): message actions, regenerate, branches, and savepoints.
+- [Agentic Play](./agentic-play.md): structured choices, dice, and game state.
+- [Characters](./characters.md): character fields, import/export, and creation tips.
+- [Settings](./settings.md): model params, healthy mode, regex, image generation.
+- [Image generation](./image-generation.md): ComfyUI, auto images, and prompt editing.
+
+Happy roleplaying.

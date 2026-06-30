@@ -51,12 +51,12 @@ desktop (@neo-tavern/desktop)
 
 ### 包
 
-| 包 | 依赖 | 用途 |
-|---------|-------------|---------|
-| `@neo-tavern/shared` | — | 纯 TypeScript 类型、接口和小型工具。零运行时依赖。 |
-| `@neo-tavern/core` | `shared` | 提示词构建、正则规则处理、世界书解析、长期记忆、token 估算。无 DOM 或 UI 依赖。可在 Node 中用 `vitest` 测试。 |
-| `@neo-tavern/ui` | `shared`、Radix 基础组件 | 可复用的组件库：按钮、卡片、对话框、文本域、滚动区域、通知。 |
-| `@neo-tavern/desktop` | `core`、`shared`、`ui` | Tauri 应用——通过 Tauri IPC 连接的 React 前端、功能 store、页面组件和仓库。 |
+| 包                    | 依赖                     | 用途                                                                                                                                                |
+| --------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@neo-tavern/shared`  | —                        | 纯 TypeScript 类型、接口和小型工具。零运行时依赖。                                                                                                  |
+| `@neo-tavern/core`    | `shared`                 | 提示词构建、chat-engine、插件注册表、flood guard、正则规则处理、世界书解析、长期记忆、token 估算。无 DOM 或 UI 依赖。可在 Node 中用 `vitest` 测试。 |
+| `@neo-tavern/ui`      | `shared`、Radix 基础组件 | 可复用的组件库：按钮、卡片、对话框、文本域、滚动区域、通知。                                                                                        |
+| `@neo-tavern/desktop` | `core`、`shared`、`ui`   | Tauri 应用——通过 Tauri IPC 连接的 React 前端、功能 store、页面组件和仓库。                                                                          |
 
 ### 关键规则
 
@@ -89,3 +89,47 @@ apps/desktop/src/db/repositories/
 ```
 
 页面是精简的组件，负责组合功能 store 和仓库函数。
+
+## Chat 功能分层
+
+聊天功能拆成两层：
+
+- `apps/desktop/src/pages/chat/`：页面和 UI 组件，负责布局、消息渲染、输入框、右侧栏、图片块、Agentic 选项等用户界面。
+- `apps/desktop/src/features/chat/`：桌面端 chat 逻辑，负责 store、消息生命周期、上下文组装、生成、记忆、图片任务和 worldbook 适配。
+
+`features/chat` 里的关键文件：
+
+| 文件                       | 责任                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| `hooks/useSendMessage.ts`  | React facade。只处理发送/重新生成命令、store callback 和 UI 入口参数。               |
+| `assistant-turn-runner.ts` | 一轮 assistant 回复的公共生命周期：组装上下文、创建草稿、生成、收尾。                |
+| `context-assembler.ts`     | 将 preset、memory、worldbook、Agentic 状态、健康模式和 flood hook 组合成模型上下文。 |
+| `generation-runner.ts`     | 普通/Agentic 生成、stream/non-stream 处理、debug prompt、空回复 retry、usage 记录。  |
+| `memory-planner.ts`        | 长期记忆摘要和缓存复用；后续 RAG / 新压缩策略应优先接在这里。                        |
+| `auto-image-runner.ts`     | assistant 回复完成后的自动图片规划和 ComfyUI 生成。                                  |
+| `turn-finalizer.ts`        | 健康模式输出拦截、通知、自动图片触发、错误文案映射。                                 |
+| `turn-runtime.ts`          | 单 chat 生成任务互斥、abort 和 Zustand 生成状态。                                    |
+| `worldbook-context.ts`     | 统一角色绑定 worldbook 优先于全局 active worldbook 的选择规则。                      |
+
+这个边界的目标是：页面不关心模型调用细节，生成 runner 不关心 React，未来 RAG、压缩或插件能力可以接入 context/memory/chat-engine 层，而不是继续扩大 `ChatPage` 或 `useSendMessage`。
+
+## Chat Engine 与插件雏形
+
+`packages/core/src/chat-engine/` 提供跨平台的 turn engine、事件、strategy 和 plugin registry。当前 desktop 仍有一层适配逻辑，但 core 已有最小插件雏形：
+
+```typescript
+import { ChatPluginRegistry, createFloodGuardPlugin } from "@neo-tavern/core";
+
+const registry = new ChatPluginRegistry();
+registry.register(createFloodGuardPlugin());
+```
+
+插件可以挂在这些点上：
+
+- `onBeforePromptBuild`：prompt 组装前调整 turn context。
+- `onContextBlocks`：追加、过滤或排序上下文块。
+- `onContentDelta` / `onReasoningDelta`：观察流式输出。
+- `inspectOutput`：检查累计输出，可用于 flood guard 这类中止型插件。
+- `onAfterTurn`：生成完成后的统计、日志或副作用。
+
+短期内，插件系统用于内置能力的结构化接入；不要把它当成完整插件市场或第三方沙箱。`flood guard` 是第一个示例插件。

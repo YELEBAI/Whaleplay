@@ -29,7 +29,7 @@ export function ImagePromptDialog({
   onSave: () => void;
   onSaveAndRegenerate: () => void;
 }) {
-  const { t } = useTranslation("chat");
+  const { t } = useTranslation(["chat", "common"]);
   const disabled = !draft.trim();
 
   return (
@@ -48,7 +48,7 @@ export function ImagePromptDialog({
         />
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            {t("cancel")}
+            {t("common:actions.cancel")}
           </Button>
           <Button variant="outline" onClick={onSave} disabled={disabled}>
             {t("imagePromptDialog.savePrompt")}

@@ -30,11 +30,10 @@ describe("content policy", () => {
     expect(filterNsfwItems(items)).toEqual([{ name: "safe", builtinKind: undefined }]);
   });
 
-  it("keeps flood detection outside the healthy content policy", () => {
+  it("keeps generation-quality guards outside the content policy", () => {
     const healthy = createContentPolicySnapshot("healthy");
     expect(healthy.blockExplicitInput).toBe(true);
     expect(healthy.checkExplicitOutput).toBe(true);
-    expect(healthy.checkFloodOutput).toBe(false);
 
     const adult = createContentPolicySnapshot("adultLimited");
     expect(adult.filterNsfwPresetItems).toBe(false);

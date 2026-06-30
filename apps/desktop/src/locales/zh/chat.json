@@ -6,9 +6,9 @@
   "previewPrompt": "预览提示词",
   "continue": "隐藏发送续写请求",
   "continueLabel": "续写",
-  "saving": "保存中……",
   "inputPlaceholder": "输入消息……",
   "inputPlaceholderWithChar": "给 {{name}} 发消息……",
+  "inputPlaceholderAgenticWithChar": "在 {{name}} 的场景里行动……",
   "sendTitle": "发送",
   "sendQueuedTitle": "添加到待发送队列",
   "savepointTitle": "创建当前聊天存档",
@@ -19,12 +19,23 @@
   "noCharSelected": "选择一个角色开始聊天",
   "startConversation": "开始与 {{name}} 的对话",
   "noPromptPreview": "输入消息查看提示词预览",
-  "dismiss": "关闭",
-  "close": "关闭",
-  "cancel": "取消",
-  "save": "保存",
   "copy": "复制",
-  "deleteBtn": "删除",
+  "messageList": {
+    "loading": "加载中……",
+    "assistantFallback": "AI"
+  },
+  "choicePanel": {
+    "agenticTitle": "你下一步要怎么做？",
+    "agenticTitleWithCharacter": "你要在 {{name}} 的场景里采取什么行动？",
+    "successRate": "成功率 {{rate}}%"
+  },
+  "agentic": {
+    "openingLabel": "开局选项",
+    "customActionLabel": "自定义行动"
+  },
+  "imageGeneration": {
+    "manualPlanningLabel": "手动图片规划"
+  },
   "contextUsage": {
     "title": "当前对话上下文 Token：{{current}} / {{limit}}",
     "noData": "暂无上下文使用数据"
@@ -34,12 +45,11 @@
     "edit": "编辑",
     "viewFullPrompt": "查看完整提示词",
     "viewReasoning": "查看创作过程",
+    "copied": "已复制",
+    "generateImage": "生成图片",
+    "generatingImage": "图片生成中",
     "regenerate": "重新生成",
     "delete": "删除"
-  },
-  "editing": {
-    "cancel": "取消",
-    "save": "保存 (Ctrl+Enter)"
   },
   "deleteMessage": {
     "title": "删除消息",
@@ -92,15 +102,7 @@
       "calls": "调用次数",
       "cost": "费用 (RMB)"
     },
-    "tableHeaders": [
-      "#",
-      "Prompt",
-      "Completion",
-      "总计",
-      "🔥 命中",
-      "📉 未命中",
-      "命中率"
-    ],
+    "tableHeaders": ["#", "Prompt", "Completion", "总计", "🔥 命中", "📉 未命中", "命中率"],
     "tabs": {
       "main": "主 API",
       "secondary": "辅助 API"
@@ -119,9 +121,12 @@
     },
     "noDataMain": "暂无主 API 用量数据。发送消息后可查看统计。",
     "noDataSecondary": "暂无辅助 API 用量数据。当记忆压缩或图片规划使用辅助模型后会出现。",
+    "secondaryCallsTitle": "{{count}} 次辅助 API 调用",
     "cacheHint": "⚠ 缓存命中数据不可用——你的 API 可能不支持提示缓存（Ollama/vLLM 大多数实例不支持）。受 DeepSeek、OpenAI 最新模型、Anthropic 支持。"
   },
   "generationStatus": {
+    "retrying": "正文空白，重写中",
+    "retryingDetail": "上一版没有可显示正文，正在重新整理剧情并补写角色回复",
     "writing": "正文落笔中",
     "writingTag": "writing",
     "writingDetail": "正在把这一幕写成角色回复",
@@ -144,20 +149,52 @@
     "messagesDeleted": "消息已删除",
     "messageDeleted": "消息已删除",
     "deleteFailed": "删除失败",
-    "copied": "已复制"
-  },
-  "regenerateDialog": {
-    "title": "重新生成",
-    "description": "将删除当前 AI 回复，并根据上一条用户消息重新生成。",
-    "replace": {
-      "label": "替换当前回复",
-      "description": "丢弃当前回复并重新生成。旧的回复将被永久删除。"
-    },
-    "replaceRegenerate": "替换重新生成"
+    "copied": "已复制",
+    "imageGenerationEnableRequired": "请先在 Image Gen 设置里开启生图功能",
+    "imageGenerationTriggerRequired": "Images / Trigger 不能为 0",
+    "imageGenerationWorkflowRequired": "请先在 Image Gen 设置里导入 ComfyUI workflow JSON",
+    "imagePlanningApiRequired": "请先在 Image Gen 设置里选择 Secondary API for Image Planning",
+    "imagePlanningNoScene": "副 API 没有找到适合生图的可见画面",
+    "imageGenerationComplete": "图片生成完成",
+    "imageGenerationFailed": "图片生成失败",
+    "imageDeleted": "图片已删除",
+    "imagePromptEmpty": "图片提示词为空",
+    "imageRegenerated": "图片已重新生成",
+    "imageRegenerateFailed": "图片重新生成失败",
+    "imagePromptUpdated": "图片提示词已更新"
   },
   "oldMessages": {
     "collapse": "收起较早消息，保留最近 {{limit}} 轮",
     "show": "显示较早消息：{{count}} 轮 / {{messages}} 条"
+  },
+  "sidebar": {
+    "expand": "展开会话记录",
+    "collapse": "收纳会话记录",
+    "chatHistory": "会话记录",
+    "untitledChat": "未命名会话",
+    "unknownCharacter": "未知角色卡",
+    "empty": "暂无会话记录"
+  },
+  "activity": {
+    "elapsed": "任务耗时 {{duration}}",
+    "thinking": "正在思考",
+    "thinkingComplete": "已完成思考",
+    "replyComplete": "回复已生成"
+  },
+  "imageBlock": {
+    "status": {
+      "deleted": "图片已删除",
+      "error": "图片生成失败",
+      "generating": "ComfyUI 生图中",
+      "pending": "图片尚未生成"
+    },
+    "actions": {
+      "editPrompt": "修改图片提示词",
+      "regenerate": "重新生成图片",
+      "regenerating": "正在重新生成图片",
+      "delete": "删除图片"
+    },
+    "promptSummary": "图片提示词"
   },
   "rightPanel": {
     "dice": {
@@ -184,13 +221,13 @@
       "expand": "展开运行概览",
       "collapse": "收纳运行概览",
       "messages": "消息",
-      "messageCount": "{{count}} messages",
+      "messageCount": "{{count}} 条消息",
       "viewBranches": "点击查看分支",
       "tokenUsage": "Token 用量",
       "viewDetails": "查看详细 →",
       "tokenStats": "P:{{prompt}} C:{{completion}} | cache {{rate}}%",
       "noStats": "暂无统计",
-      "context": "Context"
+      "context": "上下文"
     },
     "agentic": {
       "sceneStatus": "场景状态",

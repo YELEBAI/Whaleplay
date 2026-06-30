@@ -13,7 +13,7 @@ export function ThinkingDialog({
   onOpenChange: (open: boolean) => void;
   reasoningContent: string | undefined;
 }) {
-  const { t } = useTranslation("chat");
+  const { t } = useTranslation(["chat", "common"]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -31,7 +31,7 @@ export function ThinkingDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("close")}
+            {t("common:actions.close")}
           </Button>
           <Button
             variant="outline"
@@ -41,7 +41,7 @@ export function ThinkingDialog({
             }}
           >
             <Copy className={iconSm} />
-            {t("copy")}
+            {t("common:actions.copy")}
           </Button>
         </DialogFooter>
       </DialogContent>

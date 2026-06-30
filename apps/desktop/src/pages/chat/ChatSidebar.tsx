@@ -1,6 +1,7 @@
 import { ArrowLeft, ChevronLeft, ChevronRight, MessageSquare } from "lucide-react";
-import { Avatar } from "@/pages/chat/ChatDisplay";
+import { useTranslation } from "react-i18next";
 import type { Character, Chat } from "@neo-tavern/shared";
+import { Avatar } from "./ChatDisplay";
 
 interface ChatSidebarProps {
   chats: Chat[];
@@ -32,6 +33,8 @@ export function ChatSidebar({
   onSelectChat,
   onToggleCollapsed,
 }: ChatSidebarProps) {
+  const { t } = useTranslation("chat");
+
   if (collapsed) {
     return (
       <aside className="app-sidebar-gradient flex min-h-0 min-w-0 flex-col items-center gap-2 overflow-hidden rounded-lg border px-2 py-3">
@@ -39,8 +42,8 @@ export function ChatSidebar({
           type="button"
           onClick={onToggleCollapsed}
           className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-          title="展开会话记录"
-          aria-label="展开会话记录"
+          title={t("sidebar.expand")}
+          aria-label={t("sidebar.expand")}
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -48,8 +51,8 @@ export function ChatSidebar({
           type="button"
           onClick={onBack}
           className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-          title="Back"
-          aria-label="Back"
+          title={t("back")}
+          aria-label={t("back")}
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -70,14 +73,14 @@ export function ChatSidebar({
             className="text-muted-foreground hover:text-foreground flex min-w-0 flex-1 items-center gap-1 text-sm transition-colors"
           >
             <ArrowLeft className="h-4 w-4 shrink-0" />
-            <span className="truncate">Back</span>
+            <span className="truncate">{t("back")}</span>
           </button>
           <button
             type="button"
             onClick={onToggleCollapsed}
             className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
-            title="收纳会话记录"
-            aria-label="收纳会话记录"
+            title={t("sidebar.collapse")}
+            aria-label={t("sidebar.collapse")}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -87,14 +90,14 @@ export function ChatSidebar({
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         <div className="text-muted-foreground mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase">
           <MessageSquare className="h-3.5 w-3.5" />
-          会话记录
+          {t("sidebar.chatHistory")}
         </div>
         <div className="space-y-1">
           {chats.length > 0 ? (
             chats.map((chat) => {
               const active = chat.id === currentChatId;
               const chatCharacter = characters.find((item) => item.id === chat.characterId);
-              const title = chat.title || chatCharacter?.name || "未命名会话";
+              const title = chat.title || chatCharacter?.name || t("sidebar.untitledChat");
               return (
                 <button
                   key={chat.id}
@@ -111,7 +114,7 @@ export function ChatSidebar({
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{title}</div>
                       <div className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1 text-xs">
-                        <span className="truncate">{chatCharacter?.name ?? "未知角色卡"}</span>
+                        <span className="truncate">{chatCharacter?.name ?? t("sidebar.unknownCharacter")}</span>
                         <span className="shrink-0">·</span>
                         <span className="shrink-0">{formatChatTime(chat.updatedAt)}</span>
                       </div>
@@ -121,7 +124,7 @@ export function ChatSidebar({
               );
             })
           ) : (
-            <p className="text-muted-foreground px-1 py-2 text-xs">暂无会话记录</p>
+            <p className="text-muted-foreground px-1 py-2 text-xs">{t("sidebar.empty")}</p>
           )}
         </div>
       </div>

@@ -5,3 +5,4 @@ export * from "./memory";
 export * from "./regex";
 export * from "./tree";
 export * from "./sync";
+export * from "./chat-engine";

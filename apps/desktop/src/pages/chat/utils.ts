@@ -69,14 +69,28 @@ export function getGenerationStatus(phase: GenerationPhase | null) {
   if (phase === "retrying") {
     return {
       label: "正文空白，重写中",
+      labelKey: "generationStatus.retrying",
       tag: "retrying",
       detail: "上一版没有可显示正文，正在重新整理剧情并补写角色回复",
+      detailKey: "generationStatus.retryingDetail",
     };
   }
   if (phase === "writing") {
-    return { label: "正文落笔中", tag: "writing", detail: "正在把这一幕写成角色回复" };
+    return {
+      label: "正文落笔中",
+      labelKey: "generationStatus.writing",
+      tag: "writing",
+      detail: "正在把这一幕写成角色回复",
+      detailKey: "generationStatus.writingDetail",
+    };
   }
-  return { label: "剧情构思中", tag: "thinking", detail: "正在整理角色动机、场景节奏与下一步推进" };
+  return {
+    label: "剧情构思中",
+    labelKey: "generationStatus.thinking",
+    tag: "thinking",
+    detail: "正在整理角色动机、场景节奏与下一步推进",
+    detailKey: "generationStatus.thinkingDetail",
+  };
 }
 
 export function replaceUserPlaceholders(content: string, userName: string) {

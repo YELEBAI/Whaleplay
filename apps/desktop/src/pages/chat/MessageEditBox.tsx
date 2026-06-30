@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button, Textarea } from "@neo-tavern/ui";
 import { Check, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function MessageEditBox({
   initialContent,
@@ -13,6 +14,7 @@ export function MessageEditBox({
   onCancel: () => void;
   onSave: (content: string) => Promise<void>;
 }) {
+  const { t } = useTranslation("common");
   const [draft, setDraft] = useState(initialContent);
   const [saving, setSaving] = useState(false);
   const [prevInitial, setPrevInitial] = useState(initialContent);
@@ -56,11 +58,11 @@ export function MessageEditBox({
       <div className="mt-2 flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onCancel}>
           <X className="mr-1 h-3.5 w-3.5" />
-          Cancel
+          {t("actions.cancel")}
         </Button>
         <Button size="sm" onClick={() => void save()} disabled={saving || !draft.trim()}>
           <Check className="mr-1 h-3.5 w-3.5" />
-          {saving ? "Saving..." : "Save (Ctrl+Enter)"}
+          {saving ? t("actions.saving") : t("actions.save")}
         </Button>
       </div>
     </div>

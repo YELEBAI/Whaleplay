@@ -1,4 +1,5 @@
 import { Pencil, RotateCcw, Trash2, Check, X, Image as ImageIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button, cn } from "@neo-tavern/ui";
 import { generateId, type MessageImage, type ModelConfig } from "@neo-tavern/shared";
 import { useSettingsStore } from "@/features/settings/settings.store";
@@ -26,16 +27,17 @@ export function ImageDisplayBlockView({
   onEditPrompt: () => void;
   onRegenerate: () => void;
 }) {
+  const { t } = useTranslation("chat");
   const displayPrompt = image?.prompt?.trim() || prompt;
   const isGenerating = image?.status === "generating";
   const isDeleted = image?.status === "deleted";
   const statusText = isDeleted
-    ? "图片已删除"
+    ? t("imageBlock.status.deleted")
     : image?.status === "error"
-      ? "图片生成失败"
+      ? t("imageBlock.status.error")
       : isGenerating
-        ? "ComfyUI 生图中"
-        : "图片尚未生成";
+        ? t("imageBlock.status.generating")
+        : t("imageBlock.status.pending");
 
   return (
     <div className="group border-primary/20 bg-primary/5 relative rounded-lg border p-2">
@@ -45,7 +47,8 @@ export function ImageDisplayBlockView({
           size="icon"
           className="bg-background/90 h-7 w-7 shadow-sm backdrop-blur"
           onClick={onEditPrompt}
-          title="修改图片提示词"
+          title={t("imageBlock.actions.editPrompt")}
+          aria-label={t("imageBlock.actions.editPrompt")}
         >
           <Pencil className="h-3.5 w-3.5" />
         </Button>
@@ -55,7 +58,8 @@ export function ImageDisplayBlockView({
           className="bg-background/90 h-7 w-7 shadow-sm backdrop-blur"
           onClick={onRegenerate}
           disabled={isGenerating}
-          title="重新生成图片"
+          title={isGenerating ? t("imageBlock.actions.regenerating") : t("imageBlock.actions.regenerate")}
+          aria-label={isGenerating ? t("imageBlock.actions.regenerating") : t("imageBlock.actions.regenerate")}
         >
           <RotateCcw className={cn("h-3.5 w-3.5", isGenerating && "animate-spin")} />
         </Button>
@@ -65,7 +69,8 @@ export function ImageDisplayBlockView({
           className="bg-background/90 text-destructive hover:text-destructive h-7 w-7 shadow-sm backdrop-blur"
           onClick={onDelete}
           disabled={isDeleted}
-          title="删除图片"
+          title={t("imageBlock.actions.delete")}
+          aria-label={t("imageBlock.actions.delete")}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
@@ -85,7 +90,7 @@ export function ImageDisplayBlockView({
         </div>
       )}
       <details className="text-muted-foreground mt-2">
-        <summary className="cursor-pointer text-xs">Image prompt</summary>
+        <summary className="cursor-pointer text-xs">{t("imageBlock.promptSummary")}</summary>
         <p className="mt-1 text-xs whitespace-pre-wrap" style={{ fontSize: `${Math.max(11, fontSize - 3)}px` }}>
           {displayPrompt}
         </p>

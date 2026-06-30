@@ -1,112 +1,80 @@
 # 安装
 
-欢迎！本指南将帮助你在自己的机器上安装并运行 Whale Play。你可以选择最适合自己的方式。
-
-## 部署方式
-
-本程序目前提供三种部署方式：
-
-- 一键脚本（Windows)
-- 手动运行
-- 预编译程序包 (Windows)
+Whale Play 的推荐安装方式是下载预构建桌面安装包。只有在需要未发布功能、参与开发或排查问题时，才建议从源码启动。
 
 ---
 
-## 系统要求
+## 方式一：下载预构建安装包（推荐）
 
-在开始之前，请确保你的系统满足以下最低要求：
+适合绝大多数用户。无需安装 Node.js、pnpm、Rust，也不需要打开终端。
 
-| 要求         | 详情                                                                              |
-| ------------ | --------------------------------------------------------------------------------- |
-| **操作系统** | Windows 10+、macOS 12+ 或 Linux（Debian/Ubuntu 需要 `webkit2gtk-4.1` 或同等依赖） |
-| **Node.js**  | 版本 18 或更高。[从 nodejs.org 下载](https://nodejs.org/)                         |
-| **pnpm**     | 版本 9 或更高。使用以下命令安装：`npm install -g pnpm`                            |
-
-如果你希望以原生 Tauri 桌面应用方式运行，还需要：
-
-- **Rust**（稳定工具链）[从 rustup.rs 安装](https://rustup.rs/)。
-
----
-
-## 方式一：一键脚本（Windows）
-
-在 Windows 上最快捷的启动方式——双击即可运行。
-
-1. **打开项目文件夹**（克隆或下载源代码后）。
-2. **运行以下任一脚本：**
-   - **PowerShell** — 右键点击 `setup.ps1`，选择"使用 PowerShell 运行"；或者在文件夹中打开 PowerShell 并执行：
-     ```powershell
-     .\setup.ps1
-     ```
-   - **批处理文件** — 双击 `一键安装启动.bat`（或 `yi-jian-an-zhuang-qi-dong.bat`）。
-
-两个脚本都会：
-
-- 检查 Node.js 和 pnpm（如果缺失则自动安装）。
-- 可选安装 Rust（用于 Tauri 桌面模式）。
-- 使用 `pnpm install` 安装所有项目依赖。
-- 自动启动开发服务器（如有 Rust 则运行 `pnpm tauri dev`，否则在浏览器中运行 `pnpm dev`）。
-
-> **提示：** 如果脚本执行完毕但未看到窗口，请检查终端输出中的 URL（通常为 `http://localhost:1420`），手动在浏览器中打开。
-
----
-
-## 方式二：手动安装
-
-如果你希望逐步手动安装，或者你使用的是 macOS/Linux：
-
-```bash
-# 克隆仓库
-git clone https://github.com/YELEBAI/Whaleplay.git
-
-# 进入项目目录
-cd Whaleplay
-
-# 安装依赖
-pnpm install
-
-# 启动开发服务器
-pnpm dev
-```
-
-运行 `pnpm dev` 后，在终端中查找类似 `http://localhost:1420` 的 URL —— 在浏览器中打开即可看到 Whale Play。
-
-![安装终端输出](../../images/installation-terminal.png)
-
-当然你也可以在 `pnpm install` 后，运行命令 `pnpm tauri dev` 来打开一个桌面应用，界面和功能都与浏览器中的一致。
-
-这会编译 Rust 后端，并将 Whale Play 作为独立桌面应用程序打开，具备完整的原生集成（系统通知、文件对话框等）。
-
-### 浏览器模式 vs. 桌面模式
-
-| 命令             | 作用                                                           | 适用场景                               |
-| ---------------- | -------------------------------------------------------------- | -------------------------------------- |
-| `pnpm dev`       | 仅启动 Vite 开发服务器——在浏览器中打开 `http://localhost:1420` | 快速 UI 迭代、样式调整、React 组件开发 |
-| `pnpm tauri dev` | 启动 Vite 开发服务器 + 编译 Rust 后端——打开原生窗口            | 测试 Tauri API、原生功能或最终打包体验 |
-
----
-
-## 方式三：下载预构建安装包
-
-如果你只想使用 Whale Play，不想安装任何开发工具：
-
-1. 前往项目的 [GitHub Releases 页面](https://github.com/YELEBAI/Whaleplay/releases)。
+1. 打开项目的 [GitHub Releases 页面](https://github.com/YELEBAI/Whaleplay/releases)。
 2. 找到最新版本。
 3. 下载适用于你平台的安装包：
    - **Windows**：`Whale-Play_<版本号>_x64-setup.exe` 或 `Whale-Play_<版本号>_x64.msi`
-4. 运行安装程序，按照屏幕提示完成安装。
+4. 运行安装程序，按提示完成安装。
+5. 从开始菜单或桌面图标启动 **Whale Play**。
 
-> **注意：** 预构建安装包由项目维护者构建和签名，可能不包含最新功能和修复。如果你需要最新的未发布功能，请使用方式一或方式二。
+> 预构建安装包可能滞后于当前开发分支。如果你需要刚合入但尚未发布的功能，请使用下面的源码启动方式。
 
-### 构建桌面安装包
+---
 
-要创建可分发的安装包：
+## 方式二：从源码启动（最新功能 / 开发调试）
+
+源码启动适合开发者、测试者，或需要使用未发布功能的用户。
+
+### 系统要求
+
+| 要求     | 详情                                                                              |
+| -------- | --------------------------------------------------------------------------------- |
+| 操作系统 | Windows 10+、macOS 12+ 或 Linux（Debian/Ubuntu 需要 `webkit2gtk-4.1` 或同等依赖） |
+| Node.js  | 版本 24 或更高                                                                    |
+| pnpm     | 使用 `npm install -g pnpm` 安装                                                   |
+| Rust     | 运行 Tauri 桌面窗口或打包时需要稳定工具链                                         |
+
+### 启动桌面开发版
+
+```bash
+git clone https://github.com/YELEBAI/Whaleplay.git
+cd Whaleplay
+pnpm install
+pnpm tauri dev
+```
+
+`pnpm tauri dev` 会启动 Vite、编译 Rust 后端，并打开原生桌面窗口。它最接近正式安装包的行为，适合测试系统通知、文件对话框、SQLite、Tauri IPC 等功能。
+
+### 只调试前端 UI
+
+```bash
+pnpm dev
+```
+
+运行后在浏览器打开终端显示的 `http://localhost:1420`。这个模式适合快速调试 React UI，但不完全等同于正式桌面应用。
+
+### Windows 一键脚本
+
+如果你已经下载了源码，也可以运行仓库内的脚本：
+
+- PowerShell：右键 `setup.ps1`，选择“使用 PowerShell 运行”；或执行 `.\setup.ps1`
+- 批处理：双击 `一键安装启动.bat` 或 `yi-jian-an-zhuang-qi-dong.bat`
+
+脚本会检查 Node.js / pnpm，并尝试安装依赖和启动开发环境。它主要用于源码开发，不是普通用户的首选安装路径。
+
+---
+
+## 方式三：自己构建安装包
+
+如果你需要基于本地源码生成可分发安装包：
 
 ```bash
 pnpm build:desktop
 ```
 
-安装包将生成在 `apps/desktop/src-tauri/target/release/bundle/` 目录下。
+安装包会生成在：
+
+```text
+apps/desktop/src-tauri/target/release/bundle/
+```
 
 ---
 
@@ -114,16 +82,14 @@ pnpm build:desktop
 
 ### `pnpm install` 因网络错误失败
 
-尝试设置不同的镜像源：
-
 ```bash
 pnpm config set registry https://registry.npmmirror.com
 pnpm install
 ```
 
-### 找不到 `webkit2gtk`（Linux）
+### Linux 找不到 `webkit2gtk`
 
-在 Debian/Ubuntu 上：
+Debian/Ubuntu：
 
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
@@ -131,7 +97,7 @@ sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev
 
 ### macOS/Linux 权限错误
 
-某些命令在全局安装时可能需要 `sudo`：
+全局安装 pnpm 时可能需要：
 
 ```bash
 sudo npm install -g pnpm
@@ -139,4 +105,4 @@ sudo npm install -g pnpm
 
 ### 仍有问题？
 
-在 [GitHub](https://github.com/YELEBAI/Whaleplay/issues) 上提交 Issue，或在项目的讨论区中提问。
+在 [GitHub Issues](https://github.com/YELEBAI/Whaleplay/issues) 提交问题，并附上系统版本、安装方式和错误截图。

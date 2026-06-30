@@ -566,4 +566,92 @@ describe("Agentic Play", () => {
     expect(streamed.join("")).toBe(result.content);
     expect(provider.streamGenerate).toHaveBeenCalledTimes(2);
   });
+
+  it("does not expose tool-round reasoning when reasoning capture is disabled", async () => {
+    const streamed: string[] = [];
+    const reasoning: string[] = [];
+    const provider: ModelProvider = {
+      id: "fake-disabled-tool-reasoning",
+      name: "Fake Disabled Tool Reasoning",
+      generate: vi.fn(),
+      streamGenerate: vi.fn(async function* () {
+        yield { reasoningContentDelta: "内部计划：先组织选项。" };
+        yield {
+          toolCallDeltas: [
+            {
+              index: 0,
+              id: "options-disabled-reasoning",
+              type: "function" as const,
+              function: {
+                name: "present_player_options",
+                arguments: JSON.stringify({
+                  scene_text: "露娜停在书架旁，等你选择。",
+                  question: "你要怎么做？",
+                  options: [1, 2, 3, 4, 5].map((index) => ({
+                    label: `选择 ${index}`,
+                    action: `执行选择 ${index}`,
+                    success_probability: 70,
+                    difficulty: 7,
+                  })),
+                }),
+              },
+            },
+          ],
+        };
+      }),
+    };
+
+    const result = await generateAgenticPlayTurn({
+      provider,
+      modelConfig,
+      builtPrompt,
+      character,
+      gameState: createInitialAgenticGameState(character),
+      captureReasoning: false,
+      onContentDelta: (delta) => {
+        streamed.push(delta);
+      },
+      onReasoningDelta: (delta) => {
+        reasoning.push(delta);
+      },
+    });
+
+    expect(streamed).toEqual([]);
+    expect(reasoning).toEqual([]);
+    expect(result.reasoningContent).toBeUndefined();
+    expect(result.content).toBe("露娜停在书架旁，等你选择。");
+  });
+
+  it("falls back final reasoning-channel text to visible content when reasoning capture is disabled", async () => {
+    const streamed: string[] = [];
+    const reasoning: string[] = [];
+    const provider: ModelProvider = {
+      id: "fake-disabled-final-reasoning",
+      name: "Fake Disabled Final Reasoning",
+      generate: vi.fn(),
+      streamGenerate: vi.fn(async function* () {
+        yield { reasoningContentDelta: "### 场景\n露娜把书递给你。" };
+      }),
+    };
+
+    const result = await generateAgenticPlayTurn({
+      provider,
+      modelConfig,
+      builtPrompt,
+      character,
+      gameState: createInitialAgenticGameState(character),
+      captureReasoning: false,
+      onContentDelta: (delta) => {
+        streamed.push(delta);
+      },
+      onReasoningDelta: (delta) => {
+        reasoning.push(delta);
+      },
+    });
+
+    expect(result.content).toBe("### 场景\n露娜把书递给你。");
+    expect(result.reasoningContent).toBeUndefined();
+    expect(streamed.join("")).toBe(result.content);
+    expect(reasoning).toEqual([]);
+  });
 });

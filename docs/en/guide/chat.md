@@ -20,10 +20,10 @@ The chat view is where you talk to your characters. This guide covers all the wa
 
 The message input box is at the bottom of the chat view.
 
-| Action | How to do it |
-|---|---|
-| **Send a message** | Type your message and press **Enter** (or click the send button ➤). |
-| **Start a new line** | Press **Shift + Enter** to insert a line break without sending. |
+| Action                    | How to do it                                                              |
+| ------------------------- | ------------------------------------------------------------------------- |
+| **Send a message**        | Type your message and press **Enter** (or click the send button ➤).       |
+| **Start a new line**      | Press **Shift + Enter** to insert a line break without sending.           |
 | **Send an empty message** | Not possible — the send button will be disabled until you type something. |
 
 Once you send a message, Whale Play will start generating the AI's response. The character's reply will appear in a new message bubble.
@@ -51,9 +51,9 @@ Click the **copy icon** (two overlapping squares) on any message to copy its tex
 
 Click the **delete (trash) icon**. A dialog will ask what you want to delete:
 
-| Option | What it does |
-|---|---|
-| **Delete this message only** | Removes just the selected message. The conversation continues from the message before it. |
+| Option                                | What it does                                                                                                                           |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Delete this message only**          | Removes just the selected message. The conversation continues from the message before it.                                              |
 | **Delete this and the AI's response** | Removes the selected message **and** the character's reply to it. Useful if you want to rephrase what you said and get a new response. |
 
 > **Tip:** Deleting messages is the cleanest way to "rewind" a conversation. If you want to save a moment before making changes, use a [Savepoint](#savepoints-creating-and-loading-snapshots) first.
@@ -79,6 +79,22 @@ If the AI is still typing and you want to cut it off mid-response:
 - Click the **stop (square) icon** ⏹ that appears in the input area while the AI is generating.
 
 The partial message will be kept as-is. You can then delete it or ask the AI to regenerate.
+
+---
+
+## Generation Status And Notices
+
+While a reply is being generated, Whale Play reports important state in the footer or toast notifications:
+
+| State                       | Meaning                                                                                                          | What you can do                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Thinking / writing          | The model is generating. When reasoning display is disabled, reasoning deltas are shown as visible text instead. | Wait, stop, or regenerate later.                 |
+| Stopped                     | You manually stopped this generation.                                                                            | Delete the partial reply or regenerate.          |
+| Repeated output stopped     | Flood guard detected repeated or looping output.                                                                 | Regenerate, or adjust the prompt/model settings. |
+| Healthy mode blocked input  | Your input was blocked before being sent to the model.                                                           | Edit the input and try again.                    |
+| Healthy mode blocked output | The model reply was blocked after generation.                                                                    | Regenerate, or change the content mode.          |
+
+These notices use the app's shared notification system rather than a separate error box above the input.
 
 ---
 
@@ -147,11 +163,11 @@ This setting is per-chat and won't affect other conversations.
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|---|---|
-| `Enter` | Send message |
-| `Shift + Enter` | New line in message |
-| `Ctrl + Z` | Undo last action (if supported) |
+| Shortcut        | Action                          |
+| --------------- | ------------------------------- |
+| `Enter`         | Send message                    |
+| `Shift + Enter` | New line in message             |
+| `Ctrl + Z`      | Undo last action (if supported) |
 
 ---
 

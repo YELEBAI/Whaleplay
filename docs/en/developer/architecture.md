@@ -51,12 +51,12 @@ desktop (@neo-tavern/desktop)
 
 ### Packages
 
-| Package               | Dependencies               | Purpose                                                                                                                                                      |
-| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@neo-tavern/shared`  | —                          | Pure TypeScript types, interfaces, and small utilities. Zero runtime dependencies.                                                                           |
-| `@neo-tavern/core`    | `shared`                   | Prompt building, regex rule processing, worldbook resolution, long-term memory, token estimation. No DOM or UI dependencies. Testable with `vitest` in Node. |
-| `@neo-tavern/ui`      | `shared`, Radix primitives | Reusable component library: buttons, cards, dialogs, textareas, scroll areas, toasts.                                                                        |
-| `@neo-tavern/desktop` | `core`, `shared`, `ui`     | The Tauri application — React frontend wired to Tauri IPC, feature stores, page components, and repositories.                                                |
+| Package               | Dependencies               | Purpose                                                                                                                                                                                                 |
+| --------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@neo-tavern/shared`  | —                          | Pure TypeScript types, interfaces, and small utilities. Zero runtime dependencies.                                                                                                                      |
+| `@neo-tavern/core`    | `shared`                   | Prompt building, chat-engine, plugin registry, flood guard, regex rule processing, worldbook resolution, long-term memory, token estimation. No DOM or UI dependencies. Testable with `vitest` in Node. |
+| `@neo-tavern/ui`      | `shared`, Radix primitives | Reusable component library: buttons, cards, dialogs, textareas, scroll areas, toasts.                                                                                                                   |
+| `@neo-tavern/desktop` | `core`, `shared`, `ui`     | The Tauri application — React frontend wired to Tauri IPC, feature stores, page components, and repositories.                                                                                           |
 
 ### Key Rules
 
@@ -89,3 +89,47 @@ apps/desktop/src/db/repositories/
 ```
 
 Pages are thin components that compose feature stores and repository functions together.
+
+## Chat Feature Layering
+
+Chat is split into two layers:
+
+- `apps/desktop/src/pages/chat/`: page and UI components for layout, message rendering, input, side panels, image blocks, and Agentic choices.
+- `apps/desktop/src/features/chat/`: desktop chat logic for the store, message lifecycle, context assembly, generation, memory, image jobs, and worldbook adapters.
+
+Key files in `features/chat`:
+
+| File                       | Responsibility                                                                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `hooks/useSendMessage.ts`  | React facade. Handles send/regenerate commands, store callbacks, and UI entry params.                     |
+| `assistant-turn-runner.ts` | Shared lifecycle for one assistant reply: assemble context, create draft, generate, finalize.             |
+| `context-assembler.ts`     | Combines preset, memory, worldbook, Agentic state, healthy mode, and flood hooks into model context.      |
+| `generation-runner.ts`     | Normal/Agentic generation, stream/non-stream handling, debug prompts, empty-reply retry, usage recording. |
+| `memory-planner.ts`        | Long-term memory summaries and cache reuse; future RAG / compression strategies should attach here first. |
+| `auto-image-runner.ts`     | Automatic image planning and ComfyUI generation after assistant completion.                               |
+| `turn-finalizer.ts`        | Healthy-mode output blocking, notifications, auto-image trigger, error wording.                           |
+| `turn-runtime.ts`          | Per-chat generation exclusivity, abort, and Zustand generation state.                                     |
+| `worldbook-context.ts`     | Shared rule: character-bound worldbook wins over the global active worldbook.                             |
+
+The goal is: pages do not know model-call details, generation runners do not know React, and future RAG/compression/plugin work attaches to context, memory, or chat-engine layers instead of expanding `ChatPage` or `useSendMessage`.
+
+## Chat Engine And Plugin Skeleton
+
+`packages/core/src/chat-engine/` provides the cross-platform turn engine, events, strategy contracts, and plugin registry. Desktop still has an adapter layer, but core now includes a minimal built-in plugin shape:
+
+```typescript
+import { ChatPluginRegistry, createFloodGuardPlugin } from "@neo-tavern/core";
+
+const registry = new ChatPluginRegistry();
+registry.register(createFloodGuardPlugin());
+```
+
+Plugins can hook into:
+
+- `onBeforePromptBuild`: adjust turn context before prompt assembly.
+- `onContextBlocks`: append, filter, or reorder context blocks.
+- `onContentDelta` / `onReasoningDelta`: observe streaming output.
+- `inspectOutput`: inspect accumulated output; useful for terminating plugins such as flood guard.
+- `onAfterTurn`: run logging, metrics, or side effects after completion.
+
+For now, the plugin system is for structured built-in capabilities. It is not yet a third-party plugin marketplace or sandbox. `flood guard` is the first example plugin.

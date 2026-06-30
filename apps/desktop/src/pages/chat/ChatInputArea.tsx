@@ -66,7 +66,7 @@ export function ChatInputArea({
   previewText,
   wide = false,
 }: ChatInputAreaProps) {
-  const { t } = useTranslation("chat");
+  const { t } = useTranslation(["chat", "common"]);
 
   const contentWidthClass = wide ? "max-w-6xl" : "max-w-4xl";
   const previewWidthClass = wide ? "max-w-5xl" : "max-w-3xl";
@@ -78,7 +78,7 @@ export function ChatInputArea({
           <span className="truncate">{displayError}</span>
           <div className="flex shrink-0 gap-1">
             <Button variant="ghost" size="sm" onClick={onDismissError}>
-              {t("dismiss")}
+              {t("common:actions.dismiss")}
             </Button>
           </div>
         </div>

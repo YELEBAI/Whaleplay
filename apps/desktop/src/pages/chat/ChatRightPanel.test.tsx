@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ChatRightPanel } from "./ChatRightPanel";
-import type { BranchSummary } from "./hooks/useBranchNavigation";
+import type { BranchSummary } from "./hooks";
 
 const baseProps = {
   messagesCount: 3,

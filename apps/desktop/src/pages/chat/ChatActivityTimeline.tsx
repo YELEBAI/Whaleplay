@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Brain, CheckCircle2, ChevronDown, ChevronRight, CircleDashed } from "lucide-react";
 import type { Message } from "@neo-tavern/shared";
 import { formatDuration, getGenerationStatus } from "./utils";
@@ -12,6 +13,7 @@ export function ChatActivityTimeline({
   active: boolean;
   generationStatus: ReturnType<typeof getGenerationStatus>;
 }) {
+  const { t } = useTranslation("chat");
   const [now, setNow] = useState(() => Date.now());
   const [thinkingOpen, setThinkingOpen] = useState(false);
 
@@ -26,6 +28,8 @@ export function ChatActivityTimeline({
   const finalElapsed = message.generateDuration ?? message.thinkingDuration ?? null;
   const elapsed = activeElapsed ?? finalElapsed;
 
+  if (!active && !message.reasoningContent) return null;
+
   const reasoningLines = (message.reasoningContent ?? "")
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -33,15 +37,18 @@ export function ChatActivityTimeline({
   const reasoningPreview = reasoningLines.length
     ? reasoningLines[reasoningLines.length - 1]
     : active
-      ? generationStatus.detail
-      : "回复已生成";
+      ? t(generationStatus.detailKey, generationStatus.detail)
+      : t("activity.replyComplete");
+  const activityLabel = active ? t("activity.thinking") : t("activity.thinkingComplete");
 
   return (
     <div className="mb-3 min-w-0">
       {elapsed != null && (
         <div className="text-muted-foreground mb-3 grid grid-cols-[minmax(0,1fr)_6.5rem_minmax(0,1fr)] items-center gap-3 text-xs">
           <div className="bg-border h-px flex-1" />
-          <span className="shrink-0 text-center tabular-nums">任务耗时 {formatDuration(Math.max(0, elapsed))}</span>
+          <span className="shrink-0 text-center tabular-nums">
+            {t("activity.elapsed", { duration: formatDuration(Math.max(0, elapsed)) })}
+          </span>
           <div className="bg-border h-px flex-1" />
         </div>
       )}
@@ -60,9 +67,11 @@ export function ChatActivityTimeline({
             className="flex w-full max-w-full min-w-0 items-center gap-1 overflow-hidden text-left text-sm font-medium disabled:cursor-default"
             onClick={() => setThinkingOpen((open) => !open)}
             disabled={!message.reasoningContent}
+            title={message.reasoningContent ? t("messageActions.viewReasoning") : undefined}
+            aria-label={activityLabel}
           >
             <Brain className="h-3.5 w-3.5 shrink-0" />
-            <span className="shrink-0">{active ? "正在思考" : "已完成思考"}</span>
+            <span className="shrink-0">{activityLabel}</span>
             {!thinkingOpen && reasoningPreview ? (
               <span className="text-muted-foreground min-w-0 truncate">· {reasoningPreview}</span>
             ) : null}

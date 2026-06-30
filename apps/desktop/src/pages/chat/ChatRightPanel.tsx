@@ -22,7 +22,7 @@ import {
 import { cn, StatusMeter } from "@neo-tavern/ui";
 import type { AgenticGameState, DiceRollResult } from "@/features/agentic-play/agentic-play";
 import { resolveAgenticStatusMeters, type ResolvedAgenticStatusMeter } from "@/features/agentic-play/status-assets";
-import type { BranchSummary } from "./hooks/useBranchNavigation";
+import type { BranchSummary } from "./hooks";
 
 export interface ChatRightPanelProps {
   messagesCount: number;

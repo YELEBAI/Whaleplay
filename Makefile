@@ -30,10 +30,10 @@ deps:
 	pnpm install && cd apps/desktop/src-tauri && cargo fetch
 
 lint:
-	pnpm lint:fix && cd apps/desktop/src-tauri && cargo fmt
+	pnpm lint
 
-lint-tauri:
-	cd apps/desktop/src-tauri && cargo fmt
+format:
+	pnpm lint:fix && cd apps/desktop/src-tauri && cargo fmt
 
 test: test-core test-desktop
 

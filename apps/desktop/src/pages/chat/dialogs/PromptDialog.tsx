@@ -13,7 +13,7 @@ export function PromptDialog({
   onOpenChange: (open: boolean) => void;
   previewText: string;
 }) {
-  const { t } = useTranslation("chat");
+  const { t } = useTranslation(["chat", "common"]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -28,7 +28,7 @@ export function PromptDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("close")}
+            {t("common:actions.close")}
           </Button>
           <Button
             variant="outline"

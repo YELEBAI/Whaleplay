@@ -33,27 +33,27 @@ All contextual data that is not part of the core conversation is modeled as `Con
 
 ```typescript
 interface ContextBlock {
-  id: string
-  source: 'character' | 'worldbook' | 'memory' | 'agentic' | 'persona' | 'system' | 'safety'
-  title: string
-  content: string
-  priority: number
-  role?: 'system' | 'user' | 'assistant'
-  position?: 'beforeHistory' | 'afterHistory' | 'atDepth'
-  depth?: number
+  id: string;
+  source: "character" | "worldbook" | "memory" | "agentic" | "persona" | "system" | "safety";
+  title: string;
+  content: string;
+  priority: number;
+  role?: "system" | "user" | "assistant";
+  position?: "beforeHistory" | "afterHistory" | "atDepth";
+  depth?: number;
 }
 ```
 
 ### Source, Position & Priority
 
-| source          | meaning                 | typical position            | priority            |
-|-----------------|-------------------------|-----------------------------|---------------------|
-| `character`     | Character card info     | `beforeHistory`              | 0                   |
-| `worldbook`     | Worldbook entries       | `beforeHistory` / `afterHistory` | Entry priority |
-| `memory`        | Long-term memory digest | `beforeHistory`              | Low                 |
-| `persona`       | User persona            | `beforeHistory`              | —                   |
-| `agentic`       | Agentic Play scene state | `afterHistory`              | 20000               |
-| `system/safety` | System safety rules     | `beforeHistory`              | —                   |
+| source          | meaning                  | typical position                 | priority       |
+| --------------- | ------------------------ | -------------------------------- | -------------- |
+| `character`     | Character card info      | `beforeHistory`                  | 0              |
+| `worldbook`     | Worldbook entries        | `beforeHistory` / `afterHistory` | Entry priority |
+| `memory`        | Long-term memory digest  | `beforeHistory`                  | Low            |
+| `persona`       | User persona             | `beforeHistory`                  | —              |
+| `agentic`       | Agentic Play scene state | `afterHistory`                   | 20000          |
+| `system/safety` | System safety rules      | `beforeHistory`                  | —              |
 
 Priority determines sort order within the same position: higher-priority blocks come first. Worldbook entries carry their own per-entry priority value.
 
@@ -63,11 +63,11 @@ Preset items are user-configurable prompt snippets injected before the character
 
 Preset items can contain `<extra_preset_slot />` placeholders that are resolved at build time. Three built-in slots are available:
 
-| Slot name         | Resolved content                                          |
-|-------------------|-----------------------------------------------------------|
-| `chat history`    | Formatted chat history with atDepth blocks embedded       |
-| `前置世界书`      | Static worldbook entries (`position: "beforeHistory"`)    |
-| `召回世界书`      | Recalled worldbook entries (`position: "afterHistory"`)   |
+| Slot name      | Resolved content                                        |
+| -------------- | ------------------------------------------------------- |
+| `chat history` | Formatted chat history with atDepth blocks embedded     |
+| `前置世界书`   | Static worldbook entries (`position: "beforeHistory"`)  |
+| `召回世界书`   | Recalled worldbook entries (`position: "afterHistory"`) |
 
 This allows preset items to control exactly where history and worldbook content appear, rather than relying on the default injection order.
 
@@ -110,42 +110,67 @@ historyMessages.splice(index, 0, block);
 
 This is useful for injecting reminders or rules mid-conversation rather than at the beginning or end.
 
+## Chat Turns And Plugin Hooks
+
+Desktop currently runs one assistant reply through `apps/desktop/src/features/chat/assistant-turn-runner.ts`: assemble prompt context with `context-assembler`, generate with `generation-runner`, then hand completion to `turn-finalizer` for notifications, healthy-mode output blocking, and auto images.
+
+The cross-platform plugin skeleton lives in `packages/core/src/chat-engine/`:
+
+```typescript
+import { ChatPluginRegistry, createFloodGuardPlugin } from "@neo-tavern/core";
+
+const registry = new ChatPluginRegistry();
+registry.register(createFloodGuardPlugin());
+```
+
+Plugins do not change the core `buildChatPrompt` ordering directly. They provide extension points around the turn engine:
+
+| Hook                                  | Purpose                                                                        |
+| ------------------------------------- | ------------------------------------------------------------------------------ |
+| `onBeforePromptBuild`                 | inspect or adjust turn context before prompt assembly                          |
+| `onContextBlocks`                     | append, filter, or reorder context blocks, such as future RAG hits             |
+| `onContentDelta` / `onReasoningDelta` | observe streaming output                                                       |
+| `inspectOutput`                       | inspect accumulated output and optionally stop flooding or repeated generation |
+| `onAfterTurn`                         | record metrics, debug info, or side effects after completion                   |
+
+`flood guard` now has a built-in plugin factory, while desktop still wires `GenerationHooks.inspectOutput` directly through the adapter layer. When RAG, compression, or debug-save behavior becomes pluginized, keep the boundary clear: plugins declare hooks; desktop adapters inject storage and UI effects.
+
 ## `buildChatPrompt` Signature
 
 ```typescript
-function buildChatPrompt(input: BuildPromptInput): BuiltPrompt
+function buildChatPrompt(input: BuildPromptInput): BuiltPrompt;
 
 interface BuildPromptInput {
-  character: Character
-  recentMessages: Message[]
-  userInput: string
-  maxTotalTokens?: number
-  systemRules?: string
-  userPersona?: string
-  userName?: string
-  contextBlocks?: ContextBlock[]
-  presetItems?: { role, content, injectionOrder }[]
+  character: Character;
+  recentMessages: Message[];
+  userInput: string;
+  maxTotalTokens?: number;
+  systemRules?: string;
+  userPersona?: string;
+  userName?: string;
+  contextBlocks?: ContextBlock[];
+  presetItems?: { role; content; injectionOrder }[];
 }
 
 interface BuiltPrompt {
-  messages: GenerateMessage[]
-  previewText: string
-  tokenEstimate: number
-  includedContextBlocks: ContextBlock[]
+  messages: GenerateMessage[];
+  previewText: string;
+  tokenEstimate: number;
+  includedContextBlocks: ContextBlock[];
 }
 ```
 
 ## Injection Position Summary
 
-| Content                 | Injection method                              | Position in message list                          |
-|-------------------------|-----------------------------------------------|---------------------------------------------------|
-| System Rules            | `buildChatPrompt` `systemRules` param         | Message list, position 0                         |
-| Preset Items            | `buildChatPrompt` `presetItems` param         | After system rules, before character block        |
-| Character Block         | `buildChatPrompt` `character` param           | After preset items                                |
-| User Persona            | `buildChatPrompt` `userPersona` param         | After character block                             |
-| Worldbook (static)      | `ContextBlock`, `position: "beforeHistory"`   | After persona, before history                    |
-| Worldbook (recalled)    | `ContextBlock`, `position: "afterHistory"`    | After history, before user input                 |
-| Memory Summary          | `ContextBlock`, `position: "beforeHistory"`   | Sorted with static worldbook                     |
-| Agentic Play State      | `ContextBlock`, `position: "afterHistory"`    | After history, before user input                 |
-| Tools Definition        | OpenAI `tools` parameter                      | Sent with API request, not in prompt text        |
-| Tool Execution Results  | `role: "tool"` message                        | Inserted after the assistant message that called it |
+| Content                | Injection method                            | Position in message list                            |
+| ---------------------- | ------------------------------------------- | --------------------------------------------------- |
+| System Rules           | `buildChatPrompt` `systemRules` param       | Message list, position 0                            |
+| Preset Items           | `buildChatPrompt` `presetItems` param       | After system rules, before character block          |
+| Character Block        | `buildChatPrompt` `character` param         | After preset items                                  |
+| User Persona           | `buildChatPrompt` `userPersona` param       | After character block                               |
+| Worldbook (static)     | `ContextBlock`, `position: "beforeHistory"` | After persona, before history                       |
+| Worldbook (recalled)   | `ContextBlock`, `position: "afterHistory"`  | After history, before user input                    |
+| Memory Summary         | `ContextBlock`, `position: "beforeHistory"` | Sorted with static worldbook                        |
+| Agentic Play State     | `ContextBlock`, `position: "afterHistory"`  | After history, before user input                    |
+| Tools Definition       | OpenAI `tools` parameter                    | Sent with API request, not in prompt text           |
+| Tool Execution Results | `role: "tool"` message                      | Inserted after the assistant message that called it |

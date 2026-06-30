@@ -10,7 +10,7 @@ export function DeleteMessageDialog({
   onOpenChange: (open: boolean) => void;
   onDelete: () => void;
 }) {
-  const { t } = useTranslation("chat");
+  const { t } = useTranslation(["chat", "common"]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -21,10 +21,10 @@ export function DeleteMessageDialog({
         <p className="text-muted-foreground text-sm">{t("deleteMessage.description")}</p>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("cancel")}
+            {t("common:actions.cancel")}
           </Button>
           <Button variant="destructive" onClick={onDelete}>
-            {t("deleteBtn")}
+            {t("common:actions.delete")}
           </Button>
         </DialogFooter>
       </DialogContent>

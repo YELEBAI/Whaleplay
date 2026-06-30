@@ -2,7 +2,7 @@ import { createBrowserRouter } from "react-router";
 import { Layout } from "@/components";
 import { HomePage } from "@/pages/HomePage";
 import { CharacterPage } from "@/pages/character";
-import { ChatPage } from "@/pages/ChatPage";
+import { ChatPage } from "@/pages/chat";
 import { SettingsPage } from "@/pages/settings";
 import { PresetPage } from "@/pages/PresetPage";
 import { WorldbookPage } from "@/pages/WorldbookPage";

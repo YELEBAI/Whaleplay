@@ -30,7 +30,7 @@ export function SaveDialog({
   isSaving: boolean;
   hasCurrentChat: boolean;
 }) {
-  const { t } = useTranslation("chat");
+  const { t } = useTranslation(["chat", "common"]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -49,10 +49,10 @@ export function SaveDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
-            {t("cancel")}
+            {t("common:actions.cancel")}
           </Button>
           <Button onClick={onSave} disabled={isSaving || !hasCurrentChat}>
-            {isSaving ? t("saving") : t("save")}
+            {isSaving ? t("common:actions.saving") : t("common:actions.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

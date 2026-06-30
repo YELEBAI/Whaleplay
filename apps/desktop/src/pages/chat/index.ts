@@ -1,3 +1,4 @@
+export { ChatPage } from "./ChatPage";
 export { ChatSidebar } from "./ChatSidebar";
 export { ChatRightPanel } from "./ChatRightPanel";
 export { ChatInputArea } from "./ChatInputArea";
@@ -14,7 +15,6 @@ export {
   TokenDialog,
   DeleteMessageDialog,
   ThinkingDialog,
-  RegenerateDialog,
 } from "./dialogs";
 export type { TokenUsageView, PendingSendItem } from "./types";
 export {

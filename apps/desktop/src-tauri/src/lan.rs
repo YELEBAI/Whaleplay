@@ -371,18 +371,10 @@ pub(crate) fn try_start_lan_server(handle: tauri::AppHandle) {
 }
 
 fn random_password() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
     let chars: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&";
-    let mut pw = String::with_capacity(12);
-    for i in 0..12 {
-        let idx = ((seed >> (i * 4)) ^ (seed >> (i * 4 + 16))) as usize % chars.len();
-        pw.push(chars[idx] as char);
-    }
-    pw
+    (0..12)
+        .map(|_| chars[rand::random::<u8>() as usize % chars.len()] as char)
+        .collect()
 }
 
 fn resolve_web_dir(_handle: &tauri::AppHandle) -> String {

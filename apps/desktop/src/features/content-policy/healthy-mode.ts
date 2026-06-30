@@ -6,9 +6,8 @@
  * and AI output.
  *
  * NSFW preset visibility and the normal / healthy / adult-limited state live in
- * `features/content-policy`. Flood detection is a generation quality guard, not
- * a healthy-mode rule; keep it detached until a streaming-aware output hook can
- * abort SSE generation early.
+ * `features/content-policy`. Flood detection is a generation quality guard and
+ * lives in the core chat engine.
  */
 
 import type { ContextBlock } from "@neo-tavern/shared";
@@ -68,78 +67,6 @@ export function detectExplicitContent(text: string): string | null {
   if (!text) return null;
   const match = text.match(EXPLICIT_CONTENT_PATTERN);
   return match ? match[0] : null;
-}
-
-// ── Flood detection helper ───────────────────────────────────────────
-//
-// TODO: move this into an output-quality module when the generation pipeline
-// has a streaming-aware hook that can inspect chunks and abort SSE early.
-
-/**
- * Compute similarity between two strings using character-bigram Jaccard index.
- * Returns a value between 0 (completely different) and 1 (identical).
- */
-export function textSimilarity(a: string, b: string): number {
-  const normalize = (s: string) =>
-    s.replace(/\s+/g, "").replace(/[<>/[\]【】*#\-_~，。！？、；：”“‘’（）《》—…·]/g, "");
-  const na = normalize(a);
-  const nb = normalize(b);
-  if (!na || !nb) return 0;
-  if (na === nb) return 1;
-
-  const bigrams = (s: string): Set<string> => {
-    const set = new Set<string>();
-    for (let i = 0; i < s.length - 1; i++) {
-      set.add(s.slice(i, i + 2));
-    }
-    return set;
-  };
-
-  const sa = bigrams(na);
-  const sb = bigrams(nb);
-  let intersection = 0;
-  for (const bg of sa) {
-    if (sb.has(bg)) intersection++;
-  }
-  const union = sa.size + sb.size - intersection;
-  return union === 0 ? 0 : intersection / union;
-}
-
-export interface FloodDetectionConfig {
-  similarityThreshold: number;
-  maxOccurrences: number;
-}
-
-export const DEFAULT_FLOOD_CONFIG: FloodDetectionConfig = {
-  similarityThreshold: 0.9,
-  maxOccurrences: 5,
-};
-
-export interface FloodDetectionResult {
-  flooded: boolean;
-  count: number;
-}
-
-/**
- * Check if the new content is flooding (repeated too many times).
- *
- * @param recentContents Previous assistant message contents (most recent first or any order)
- * @param newContent The new assistant content to check
- * @param config Threshold and max occurrences
- */
-export function detectFlood(
-  recentContents: string[],
-  newContent: string,
-  config: FloodDetectionConfig = DEFAULT_FLOOD_CONFIG,
-): FloodDetectionResult {
-  if (!newContent.trim()) return { flooded: false, count: 0 };
-  let count = 0;
-  for (const content of recentContents) {
-    if (textSimilarity(content, newContent) >= config.similarityThreshold) {
-      count++;
-    }
-  }
-  return { flooded: count >= config.maxOccurrences, count };
 }
 
 // ── Result types ─────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronUp, CornerDownLeft, MessageSquare, X } from "lucide-react";
 import { Button } from "@neo-tavern/ui";
 
@@ -45,6 +46,7 @@ export function ChoiceInputPanel({
   onSubmit: (value: string, choice?: ChoiceInputPanelChoice, answers?: ChoiceInputPanelAnswer[]) => void;
   onCancel?: () => void;
 }) {
+  const { t } = useTranslation("common");
   const panelQuestions: ChoiceInputPanelQuestion[] = questions?.length
     ? questions.filter((question) => question.choices.length > 0)
     : [{ id: "question_1", title, choices: choices ?? [] }];
@@ -223,19 +225,21 @@ export function ChoiceInputPanel({
             className="hover:bg-muted flex h-7 w-7 items-center justify-center rounded disabled:opacity-40"
             disabled={disabled || questionIndex <= 0}
             onClick={goPrevious}
-            aria-label="上一个问题"
+            title={t("choiceInput.previousQuestion")}
+            aria-label={t("choiceInput.previousQuestion")}
           >
             <ChevronUp className="h-4 w-4" />
           </button>
           <span className="min-w-[3.5rem] text-center tabular-nums">
-            {currentQuestionNumber} of {totalQuestions}
+            {t("choiceInput.progress", { current: currentQuestionNumber, total: totalQuestions })}
           </span>
           <button
             type="button"
             className="hover:bg-muted flex h-7 w-7 items-center justify-center rounded disabled:opacity-40"
             disabled={disabled || isLastQuestion || !canSubmit}
             onClick={goNext}
-            aria-label="下一个问题"
+            title={t("choiceInput.nextQuestion")}
+            aria-label={t("choiceInput.nextQuestion")}
           >
             <ChevronDown className="h-4 w-4" />
           </button>
@@ -243,7 +247,8 @@ export function ChoiceInputPanel({
             type="button"
             className="hover:bg-muted hover:text-foreground ml-1 flex h-7 w-7 items-center justify-center rounded"
             onClick={onCancel}
-            aria-label="关闭选项"
+            title={t("choiceInput.close")}
+            aria-label={t("choiceInput.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -284,8 +289,9 @@ export function ChoiceInputPanel({
             type="button"
             className="shrink-0 text-sm font-semibold"
             onClick={() => setCurrentDraft({ selectedId: "custom" })}
+            title={t("choiceInput.custom")}
           >
-            其他
+            {t("choiceInput.custom")}
           </button>
           <input
             value={customText}
@@ -300,7 +306,7 @@ export function ChoiceInputPanel({
                 submit();
               }
             }}
-            placeholder="请输入"
+            placeholder={t("choiceInput.placeholder")}
             disabled={disabled}
             className="placeholder:text-muted-foreground focus:border-foreground min-w-0 flex-1 border-0 border-b bg-transparent px-0 py-1 text-sm outline-none disabled:opacity-60"
           />
@@ -310,10 +316,10 @@ export function ChoiceInputPanel({
 
       <div className="flex justify-end gap-2 border-t px-3 py-3">
         <Button type="button" variant="outline" onClick={onCancel}>
-          取消
+          {t("actions.cancel")}
         </Button>
         <Button type="button" onClick={submit} disabled={!canSubmit}>
-          下一步
+          {isLastQuestion ? t("choiceInput.submit") : t("choiceInput.next")}
         </Button>
       </div>
     </div>

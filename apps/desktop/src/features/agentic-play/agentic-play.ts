@@ -12,6 +12,7 @@ import type {
   ModelConfig,
   ModelProvider,
 } from "@neo-tavern/shared";
+import { createGenerationStreamAccumulator, type ReasoningDeltaMode } from "@neo-tavern/core";
 import { shouldOmitTemperatureForModel } from "@/features/settings/model-capabilities";
 import { AGENTIC_STATUS_ASSET_PROMPT, createAgenticStatusBarsFromCharacter } from "./status-assets";
 export type AgenticActionOption = {
@@ -730,32 +731,27 @@ async function generateAgenticStep(
   callbacks: {
     onContentDelta?: (delta: string) => void | Promise<void>;
     onReasoningDelta?: (delta: string) => void | Promise<void>;
+    reasoningDeltaMode?: ReasoningDeltaMode;
   } = {},
 ): Promise<GenerateResult> {
   if (!provider.streamGenerate) return provider.generate(input);
 
-  let content = "";
-  let reasoningContent = "";
   let finishReason: string | undefined;
-  let usage: MessageUsage | undefined;
   const raw: unknown[] = [];
   const toolParts = new Map<number, ToolCallPart>();
+  const stream = createGenerationStreamAccumulator({
+    reasoningDeltaMode: callbacks.reasoningDeltaMode,
+    onContentDelta: callbacks.onContentDelta,
+    onReasoningDelta: callbacks.onReasoningDelta,
+  });
 
   for await (const chunk of provider.streamGenerate(input)) {
     if (chunk.raw) raw.push(chunk.raw);
     if (chunk.finishReason) finishReason = chunk.finishReason;
-    if (chunk.contentDelta) {
-      content += chunk.contentDelta;
-      await callbacks.onContentDelta?.(chunk.contentDelta);
-    }
-    if (chunk.reasoningContentDelta) {
-      reasoningContent += chunk.reasoningContentDelta;
-      await callbacks.onReasoningDelta?.(chunk.reasoningContentDelta);
-    }
+    await stream.acceptChunk(chunk);
     for (const delta of chunk.toolCallDeltas ?? []) {
       appendToolCallDelta(toolParts, delta);
     }
-    usage = addUsage(usage, chunk.usage);
   }
 
   const toolCalls: GenerateToolCall[] = [...toolParts.entries()]
@@ -773,11 +769,11 @@ async function generateAgenticStep(
     .filter((call) => call.function.name);
 
   return {
-    content,
-    reasoningContent: reasoningContent || undefined,
+    content: stream.content,
+    reasoningContent: stream.reasoningContent || undefined,
     toolCalls: toolCalls.length ? toolCalls : undefined,
     finishReason,
-    usage,
+    usage: stream.usage,
     raw,
   };
 }
@@ -860,6 +856,7 @@ export interface GenerateAgenticPlayTurnOptions {
   onReasoningDelta?: (delta: string) => void | Promise<void>;
   onContentReset?: () => void | Promise<void>;
   requirePlayerOptions?: boolean;
+  captureReasoning?: boolean;
 }
 
 export async function generateAgenticPlayTurn(options: GenerateAgenticPlayTurnOptions): Promise<{
@@ -875,6 +872,7 @@ export async function generateAgenticPlayTurn(options: GenerateAgenticPlayTurnOp
   let usage: MessageUsage | undefined;
   let reasoningContent = "";
   let finishReason: string | undefined;
+  const captureReasoning = options.captureReasoning ?? true;
 
   const baseGenerateInput = {
     model: options.modelConfig.model,
@@ -896,12 +894,12 @@ export async function generateAgenticPlayTurn(options: GenerateAgenticPlayTurnOp
         toolChoice: "auto",
       },
       {
-        onReasoningDelta: options.onReasoningDelta,
+        onReasoningDelta: captureReasoning ? options.onReasoningDelta : undefined,
       },
     );
 
     usage = addUsage(usage, result.usage);
-    reasoningContent = appendReasoning(reasoningContent, result.reasoningContent);
+    if (captureReasoning) reasoningContent = appendReasoning(reasoningContent, result.reasoningContent);
     finishReason = result.finishReason;
 
     if (result.toolCalls?.length) {
@@ -963,7 +961,9 @@ export async function generateAgenticPlayTurn(options: GenerateAgenticPlayTurnOp
       continue;
     }
 
-    const visibleContent = sanitizeAgenticVisibleContent(result.content);
+    const visibleContent = sanitizeAgenticVisibleContent(
+      result.content || (!captureReasoning ? (result.reasoningContent ?? "") : ""),
+    );
     if (visibleContent) await options.onContentDelta?.(visibleContent);
     options.onFinalRound?.();
     return {
@@ -996,12 +996,13 @@ export async function generateAgenticPlayTurn(options: GenerateAgenticPlayTurnOp
     },
     {
       onContentDelta: options.onContentDelta,
-      onReasoningDelta: options.onReasoningDelta,
+      onReasoningDelta: captureReasoning ? options.onReasoningDelta : undefined,
+      reasoningDeltaMode: captureReasoning ? "reasoning" : "content",
     },
   );
 
   usage = addUsage(usage, finalResult.usage);
-  reasoningContent = appendReasoning(reasoningContent, finalResult.reasoningContent);
+  if (captureReasoning) reasoningContent = appendReasoning(reasoningContent, finalResult.reasoningContent);
 
   if (finalResult.toolCalls?.length) {
     messages.push({

@@ -43,7 +43,6 @@ export interface ContentPolicySnapshot {
   injectHealthyPrompt: boolean;
   filterNsfwPresetItems: boolean;
   checkExplicitOutput: boolean;
-  checkFloodOutput: boolean;
 }
 
 /**
@@ -61,8 +60,5 @@ export function createContentPolicySnapshot(mode: ContentMode): ContentPolicySna
     // Normal and healthy modes never send the built-in soft-NSFW prompt.
     filterNsfwPresetItems: mode !== "adultLimited",
     checkExplicitOutput: healthyMode,
-    // Flood detection is a quality guard, not a content-mode rule. Keep it off
-    // here until it has its own streaming-aware output hook.
-    checkFloodOutput: false,
   };
 }

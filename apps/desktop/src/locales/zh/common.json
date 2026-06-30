@@ -10,7 +10,11 @@
   },
   "actions": {
     "save": "保存",
+    "saving": "保存中...",
     "cancel": "取消",
+    "close": "关闭",
+    "dismiss": "关闭",
+    "copy": "复制",
     "delete": "删除",
     "confirm": "确认",
     "edit": "编辑",
@@ -18,5 +22,15 @@
     "import": "导入",
     "export": "导出",
     "back": "返回"
+  },
+  "choiceInput": {
+    "previousQuestion": "上一个问题",
+    "nextQuestion": "下一个问题",
+    "close": "关闭选项",
+    "progress": "{{current}} / {{total}}",
+    "custom": "其他",
+    "placeholder": "请输入",
+    "next": "下一步",
+    "submit": "提交"
   }
 }
