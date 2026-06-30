@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BuiltPrompt, Character, GenerateChunk, ModelConfig } from "@neo-tavern/shared";
 import type { AgenticGameState } from "@/features/agentic-play/agentic-play";
-import { generateAgenticAssistantWithRetry, generateNormalAssistantWithRetry } from "./desktop-generation-runner";
+import {
+  generateAgenticAssistantWithRetry,
+  generateAssistantWithRetry,
+  generateNormalAssistantWithRetry,
+} from "./generation-runner";
 
 const providerMocks = vi.hoisted(() => ({
   createModelProvider: vi.fn(),
@@ -98,7 +102,7 @@ async function* streamChunks(chunks: GenerateChunk[]) {
   }
 }
 
-describe("desktop generation runner", () => {
+describe("generation runner", () => {
   beforeEach(() => {
     providerMocks.createModelProvider.mockReset();
     agenticMocks.generateAgenticPlayTurn.mockReset();
@@ -132,6 +136,34 @@ describe("desktop generation runner", () => {
       "assistant-1",
       expect.objectContaining({
         content: "Visible narration.",
+        reasoningContent: undefined,
+      }),
+    );
+  });
+
+  it("uses non-stream reasoning content as visible content when reasoning capture is disabled", async () => {
+    providerMocks.createModelProvider.mockReturnValue({
+      generate: vi.fn(async () => ({
+        content: "",
+        reasoningContent: "Visible non-stream narration.",
+      })),
+    });
+    const effects = createEffects();
+
+    const content = await generateNormalAssistantWithRetry({
+      chatId: "chat-1",
+      assistantId: "assistant-1",
+      built: createBuiltPrompt(),
+      modelConfig: createModelConfig({ streamingEnabled: false, reasoningEffort: undefined }),
+      controller: new AbortController(),
+      effects,
+    });
+
+    expect(content).toBe("Visible non-stream narration.");
+    expect(effects.patchMessage).toHaveBeenLastCalledWith(
+      "assistant-1",
+      expect.objectContaining({
+        content: "Visible non-stream narration.",
         reasoningContent: undefined,
       }),
     );
@@ -194,5 +226,53 @@ describe("desktop generation runner", () => {
       }),
       { persist: false },
     );
+  });
+
+  it("uses the normal generation path when no agentic params are provided", async () => {
+    const generate = vi.fn(async () => ({
+      content: "Normal reply.",
+      usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+    }));
+    providerMocks.createModelProvider.mockReturnValue({ generate });
+
+    const content = await generateAssistantWithRetry({
+      chatId: "chat-1",
+      assistantId: "assistant-1",
+      built: createBuiltPrompt(),
+      modelConfig: createModelConfig({ streamingEnabled: false }),
+      controller: new AbortController(),
+      effects: createEffects(),
+    });
+
+    expect(content).toBe("Normal reply.");
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(agenticMocks.generateAgenticPlayTurn).not.toHaveBeenCalled();
+  });
+
+  it("uses the agentic generation path when agentic params are provided", async () => {
+    providerMocks.createModelProvider.mockReturnValue({});
+    agenticMocks.generateAgenticPlayTurn.mockResolvedValue({
+      content: "Agentic reply.",
+      reasoningContent: "",
+      usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
+      agenticOptions: [],
+      gameState: createGameState(),
+    });
+
+    const content = await generateAssistantWithRetry({
+      chatId: "chat-1",
+      assistantId: "assistant-1",
+      built: createBuiltPrompt(),
+      modelConfig: createModelConfig(),
+      controller: new AbortController(),
+      effects: createEffects(),
+      agentic: {
+        character: createCharacter(),
+        initialGameState: createGameState(),
+      },
+    });
+
+    expect(content).toBe("Agentic reply.");
+    expect(agenticMocks.generateAgenticPlayTurn).toHaveBeenCalledTimes(1);
   });
 });

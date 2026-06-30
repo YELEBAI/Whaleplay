@@ -1,9 +1,9 @@
 import { generationTaskRunner, type GenerationTaskContext } from "@/app/generation-task-runner";
 import { useChatStore } from "./chat.store";
 
-export type DesktopChatTurnContext = GenerationTaskContext;
+export type ChatTurnContext = GenerationTaskContext;
 
-type DesktopChatTurnRunner<T> = (context: DesktopChatTurnContext) => Promise<T>;
+type ChatTurnRunner<T> = (context: ChatTurnContext) => Promise<T>;
 
 function chatTaskKey(chatId: string) {
   return `chat:${chatId}`;
@@ -15,7 +15,7 @@ function chatTaskKey(chatId: string) {
  * It owns task exclusivity, abort wiring, and store lifecycle state. Prompt
  * building and generation should keep moving toward core strategies.
  */
-export function startDesktopChatTurn<T>(chatId: string, runner: DesktopChatTurnRunner<T>): Promise<T> {
+export function startChatTurn<T>(chatId: string, runner: ChatTurnRunner<T>): Promise<T> {
   return generationTaskRunner.startExclusive(chatTaskKey(chatId), async (context) => {
     const store = useChatStore.getState();
     store.beginSending(chatId);
@@ -28,7 +28,7 @@ export function startDesktopChatTurn<T>(chatId: string, runner: DesktopChatTurnR
   });
 }
 
-export function abortDesktopChatTurn(chatId: string) {
+export function abortChatTurn(chatId: string) {
   generationTaskRunner.abort(chatTaskKey(chatId));
   useChatStore.getState().finishSending(chatId);
 }

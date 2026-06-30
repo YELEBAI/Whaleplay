@@ -17,7 +17,7 @@ export type MemoryPromptPlan = {
   memoryBlock: ContextBlock | null;
 };
 
-export interface AssembleDesktopChatContextParams {
+export interface AssembleChatContextParams {
   chatId: string;
   character: Character;
   userInput: string;
@@ -30,7 +30,7 @@ export interface AssembleDesktopChatContextParams {
   stripMessages: (messages: Message[]) => Message[];
 }
 
-export interface DesktopChatContextAssembly {
+export interface ChatContextAssembly {
   built: BuiltPrompt;
   modelConfig: ModelConfig;
   contextTokens: number;
@@ -59,7 +59,7 @@ export function createOutputQualityHooks(sourceMessages: Message[]): Pick<Genera
   };
 }
 
-export async function assembleDesktopChatContext({
+export async function assembleChatContext({
   chatId,
   character,
   userInput,
@@ -70,7 +70,7 @@ export async function assembleDesktopChatContext({
   getMemoryPromptPlan,
   getWorldbookContextBlocks,
   stripMessages,
-}: AssembleDesktopChatContextParams): Promise<DesktopChatContextAssembly> {
+}: AssembleChatContextParams): Promise<ChatContextAssembly> {
   const settings = useSettingsStore.getState();
   const contextTokens = settings.contextTokens ?? 64000;
   const historyMessages = promptMessages.slice(0, -1);

@@ -292,7 +292,7 @@ export function ChatPage() {
             <AgenticGeneratingFooter generationStatus={generationStatus} onAbort={normal.abort} />
           ) : (
             <NormalChatFooter
-              displayError={normal.sendError || chatError}
+              displayError={chatError}
               onDismissError={() => {
                 normal.clearSendError();
                 clearError();

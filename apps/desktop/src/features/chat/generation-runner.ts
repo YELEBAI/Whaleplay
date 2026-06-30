@@ -7,7 +7,15 @@ import {
   isReasoningCaptureEnabled,
   type GenerationHooks,
 } from "@neo-tavern/core";
-import type { BuiltPrompt, Character, GenerateMessage, Message, ModelConfig } from "@neo-tavern/shared";
+import type {
+  BuiltPrompt,
+  Character,
+  GenerateInput,
+  GenerateMessage,
+  Message,
+  ModelConfig,
+  ModelProvider,
+} from "@neo-tavern/shared";
 import { agenticPlayStateRepository } from "@/db/repositories";
 import { recordUsageCostAndWarn } from "@/features/billing/usage-cost";
 import { withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
@@ -60,7 +68,7 @@ type AssistantPatch = Partial<
   >
 >;
 
-export interface DesktopGenerationEffects {
+export interface GenerationEffects {
   patchMessage: (id: string, patch: AssistantPatch, options?: { persist?: boolean }) => Promise<void>;
   deleteMessage: (id: string) => Promise<void>;
   setStreamingMessageId: (chatId: string, id: string | null) => void;
@@ -76,7 +84,7 @@ interface BaseGenerationParams {
   controller: AbortController;
   debugContext?: DebugPromptContext;
   generationHooks?: Pick<GenerationHooks, "inspectOutput">;
-  effects: DesktopGenerationEffects;
+  effects: GenerationEffects;
 }
 
 interface GenerateOnceResult {
@@ -90,6 +98,33 @@ interface GenerateOnceResult {
 
 interface GenerateAgenticOnceResult extends GenerateOnceResult {
   gameState: AgenticGameState;
+}
+
+interface NormalGenerationState {
+  content: string;
+  reasoningContent: string;
+  usage?: Message["usage"];
+  thinkingDuration?: number;
+}
+
+type NormalGenerationStream = ReturnType<typeof createGenerationStreamAccumulator>;
+
+interface AgenticGenerationParams {
+  character: Character;
+  initialGameState: AgenticGameState;
+}
+
+type AssistantGenerationParams = BaseGenerationParams & {
+  agentic?: AgenticGenerationParams;
+};
+
+interface SaveDebugPromptFileParams {
+  debugContext: DebugPromptContext;
+  built: BuiltPrompt;
+  messages: GenerateMessage[];
+  trigger: DebugPromptTrigger;
+  attempt: number;
+  userId?: string;
 }
 
 function sanitizeDebugPathPart(value: string, fallback: string) {
@@ -154,14 +189,14 @@ function withDebugUsage(
   };
 }
 
-async function saveDebugPromptFile(
-  debugContext: DebugPromptContext,
-  built: BuiltPrompt,
-  messages: GenerateMessage[],
-  trigger: DebugPromptTrigger,
-  attempt: number,
-  userId?: string,
-): Promise<SavedDebugPrompt> {
+async function saveDebugPromptFile({
+  attempt,
+  built,
+  debugContext,
+  messages,
+  trigger,
+  userId,
+}: SaveDebugPromptFileParams): Promise<SavedDebugPrompt> {
   const characterFolder = sanitizeDebugPathPart(debugContext.characterName, "character");
   const folder = `${characterFolder}_${shortDebugId(debugContext.chatId)}`;
   const roundStr = String(debugContext.round).padStart(4, "0");
@@ -224,6 +259,40 @@ function getAttemptMessages(built: BuiltPrompt, retrying: boolean) {
   return [...built.messages, { role: "system" as const, content: EMPTY_ASSISTANT_RETRY_MESSAGE }];
 }
 
+function buildProviderGenerateInput(params: {
+  messages: GenerateMessage[];
+  modelConfig: ModelConfig;
+  chatId: string;
+  signal: AbortSignal;
+}): GenerateInput {
+  const { chatId, messages, modelConfig, signal } = params;
+  return {
+    messages,
+    model: modelConfig.model,
+    omitTemperature: shouldOmitTemperatureForModel(modelConfig),
+    temperature: modelConfig.temperature,
+    maxTokens: modelConfig.maxTokens,
+    reasoningEffort: modelConfig.reasoningEffort || undefined,
+    userId: getChatScopedDeepSeekUserId(modelConfig, chatId),
+    signal,
+  };
+}
+
+async function resetAssistantDraft(effects: GenerationEffects, assistantId: string) {
+  await effects.patchMessage(
+    assistantId,
+    {
+      content: "",
+      reasoningContent: undefined,
+      generateDuration: undefined,
+      thinkingDuration: undefined,
+      usage: undefined,
+      agenticOptions: undefined,
+    },
+    { persist: false },
+  );
+}
+
 function hasVisibleAssistantBody(content: string) {
   if (!content.trim()) return false;
   const rules = useSettingsStore.getState().getActiveRegexRules();
@@ -233,6 +302,125 @@ function hasVisibleAssistantBody(content: string) {
   } catch {
     return content.trim().length > 0;
   }
+}
+
+function createNormalGenerationState(): NormalGenerationState {
+  return {
+    content: "",
+    reasoningContent: "",
+  };
+}
+
+function createNormalGenerationStream(params: {
+  chatId: string;
+  retrying: boolean;
+  genStart: number;
+  captureReasoning: boolean;
+  effects: GenerationEffects;
+  state: NormalGenerationState;
+}) {
+  const { captureReasoning, chatId, effects, genStart, retrying, state } = params;
+  return createGenerationStreamAccumulator({
+    reasoningDeltaMode: captureReasoning ? "reasoning" : "content",
+    onContentDelta: (_delta, accumulated) => {
+      state.thinkingDuration ??= Date.now() - genStart;
+      state.content = accumulated;
+      effects.setGenerationPhase(chatId, "writing");
+    },
+    onReasoningDelta: (_delta, accumulated) => {
+      state.reasoningContent = accumulated;
+      if (useChatStore.getState().activeGenerations[chatId]?.generationPhase !== "writing") {
+        effects.setGenerationPhase(chatId, retrying ? "retrying" : "thinking");
+      }
+    },
+    onUsage: (usage) => {
+      state.usage = usage;
+    },
+  });
+}
+
+async function runStreamingNormalGeneration(params: {
+  assistantId: string;
+  controller: AbortController;
+  effects: GenerationEffects;
+  generationHooks?: Pick<GenerationHooks, "inspectOutput">;
+  generateInput: GenerateInput;
+  provider: ModelProvider;
+  showLiveText: boolean;
+  stream: NormalGenerationStream;
+  state: NormalGenerationState;
+}) {
+  const { assistantId, controller, effects, generationHooks, generateInput, provider, showLiveText, stream, state } =
+    params;
+  if (!provider.streamGenerate) return false;
+
+  for await (const chunk of provider.streamGenerate(generateInput)) {
+    if (!isGenerationActive(controller)) throwGenerationStopped();
+    await stream.acceptChunk(chunk);
+    inspectGeneratedOutput(generationHooks, stream.content, controller);
+    if (chunk.reasoningContentDelta || chunk.contentDelta || chunk.usage) {
+      await effects.patchMessage(
+        assistantId,
+        {
+          content: showLiveText ? stream.content : "",
+          reasoningContent: stream.reasoningContent || undefined,
+          thinkingDuration: state.thinkingDuration,
+          usage: stream.usage,
+        },
+        { persist: false },
+      );
+    }
+  }
+
+  return true;
+}
+
+async function runNonStreamingNormalGeneration(params: {
+  assistantId: string;
+  chatId: string;
+  captureReasoning: boolean;
+  controller: AbortController;
+  effects: GenerationEffects;
+  generationHooks?: Pick<GenerationHooks, "inspectOutput">;
+  genStart: number;
+  generateInput: GenerateInput;
+  provider: ModelProvider;
+  state: NormalGenerationState;
+}) {
+  const {
+    assistantId,
+    captureReasoning,
+    chatId,
+    controller,
+    effects,
+    generationHooks,
+    genStart,
+    generateInput,
+    provider,
+    state,
+  } = params;
+  const result = await provider.generate(generateInput);
+  if (!isGenerationActive(controller)) throwGenerationStopped();
+
+  state.thinkingDuration = Date.now() - genStart;
+  effects.setGenerationPhase(chatId, "writing");
+  const resultContent =
+    !captureReasoning && result.reasoningContent && !result.content.trim() ? result.reasoningContent : result.content;
+  const resultReasoningContent = captureReasoning ? (result.reasoningContent ?? "") : "";
+  inspectGeneratedOutput(generationHooks, resultContent, controller);
+  await effects.patchMessage(
+    assistantId,
+    {
+      content: "",
+      reasoningContent: resultReasoningContent || undefined,
+      thinkingDuration: state.thinkingDuration,
+      usage: result.usage,
+    },
+    { persist: false },
+  );
+  state.content = resultContent;
+  state.reasoningContent = resultReasoningContent;
+  state.usage = result.usage;
 }
 
 async function generateNormalAssistantOnce(
@@ -255,129 +443,70 @@ async function generateNormalAssistantOnce(
   } = params;
   const provider = createModelProvider(modelConfig);
   const genStart = Date.now();
-  let nextContent = "";
-  let nextReasoningContent = "";
-  let nextUsage: Message["usage"] | undefined;
-  let thinkingDuration: number | undefined;
+  const state = createNormalGenerationState();
   const showLiveText = modelConfig.streamingEnabled !== false;
   const captureReasoning = isReasoningCaptureEnabled(modelConfig);
   const attemptMessages = getAttemptMessages(built, retrying);
-  const userId = getChatScopedDeepSeekUserId(modelConfig, chatId);
-  let debugPrompt: SavedDebugPrompt | undefined;
-  const stream = createGenerationStreamAccumulator({
-    reasoningDeltaMode: captureReasoning ? "reasoning" : "content",
-    onContentDelta: (_delta, accumulated) => {
-      thinkingDuration ??= Date.now() - genStart;
-      nextContent = accumulated;
-      effects.setGenerationPhase(chatId, "writing");
-    },
-    onReasoningDelta: (_delta, accumulated) => {
-      nextReasoningContent = accumulated;
-      if (useChatStore.getState().activeGenerations[chatId]?.generationPhase !== "writing") {
-        effects.setGenerationPhase(chatId, retrying ? "retrying" : "thinking");
-      }
-    },
-    onUsage: (usage) => {
-      nextUsage = usage;
-    },
+  const generateInput = buildProviderGenerateInput({
+    chatId,
+    messages: attemptMessages,
+    modelConfig,
+    signal: controller.signal,
   });
+  let debugPrompt: SavedDebugPrompt | undefined;
+  const stream = createNormalGenerationStream({ captureReasoning, chatId, effects, genStart, retrying, state });
 
   if (debugContext) {
     try {
-      debugPrompt = await saveDebugPromptFile(
-        debugContext,
-        built,
-        attemptMessages,
-        retrying ? "retry" : debugContext.baseTrigger,
+      debugPrompt = await saveDebugPromptFile({
         attempt,
-        userId,
-      );
+        built,
+        debugContext,
+        messages: attemptMessages,
+        trigger: retrying ? "retry" : debugContext.baseTrigger,
+        userId: generateInput.userId,
+      });
     } catch (err) {
       notifyDebugPromptSaveFailed(err);
     }
   }
 
   effects.setGenerationPhase(chatId, retrying ? "retrying" : "thinking");
-  await effects.patchMessage(
-    assistantId,
-    {
-      content: "",
-      reasoningContent: undefined,
-      generateDuration: undefined,
-      thinkingDuration: undefined,
-      usage: undefined,
-      agenticOptions: undefined,
-    },
-    { persist: false },
-  );
+  await resetAssistantDraft(effects, assistantId);
 
-  if (provider.streamGenerate) {
-    for await (const chunk of provider.streamGenerate({
-      messages: attemptMessages,
-      model: modelConfig.model,
-      omitTemperature: shouldOmitTemperatureForModel(modelConfig),
-      temperature: modelConfig.temperature,
-      maxTokens: modelConfig.maxTokens,
-      reasoningEffort: modelConfig.reasoningEffort || undefined,
-      userId,
-      signal: controller.signal,
-    })) {
-      if (!isGenerationActive(controller)) throwGenerationStopped();
-      await stream.acceptChunk(chunk);
-      inspectGeneratedOutput(generationHooks, stream.content, controller);
-      if (chunk.reasoningContentDelta || chunk.contentDelta || chunk.usage) {
-        await effects.patchMessage(
-          assistantId,
-          {
-            content: showLiveText ? stream.content : "",
-            reasoningContent: stream.reasoningContent || undefined,
-            thinkingDuration,
-            usage: stream.usage,
-          },
-          { persist: false },
-        );
-      }
-    }
-  } else {
-    const result = await provider.generate({
-      messages: attemptMessages,
-      model: modelConfig.model,
-      omitTemperature: shouldOmitTemperatureForModel(modelConfig),
-      temperature: modelConfig.temperature,
-      maxTokens: modelConfig.maxTokens,
-      reasoningEffort: modelConfig.reasoningEffort || undefined,
-      userId,
-      signal: controller.signal,
-    });
-    if (!isGenerationActive(controller)) throwGenerationStopped();
-    thinkingDuration = Date.now() - genStart;
-    effects.setGenerationPhase(chatId, "writing");
-    const resultContent =
-      !captureReasoning && result.reasoningContent && !result.content.trim() ? result.reasoningContent : result.content;
-    const resultReasoningContent = captureReasoning ? (result.reasoningContent ?? "") : "";
-    inspectGeneratedOutput(generationHooks, resultContent, controller);
-    await effects.patchMessage(
+  const streamed = await runStreamingNormalGeneration({
+    assistantId,
+    controller,
+    effects,
+    generationHooks,
+    generateInput,
+    provider,
+    showLiveText,
+    stream,
+    state,
+  });
+  if (!streamed) {
+    await runNonStreamingNormalGeneration({
       assistantId,
-      {
-        content: "",
-        reasoningContent: resultReasoningContent || undefined,
-        thinkingDuration,
-        usage: result.usage,
-      },
-      { persist: false },
-    );
-    nextContent = resultContent;
-    nextReasoningContent = resultReasoningContent;
-    nextUsage = result.usage;
+      captureReasoning,
+      chatId,
+      controller,
+      effects,
+      generationHooks,
+      genStart,
+      generateInput,
+      provider,
+      state,
+    });
   }
 
-  thinkingDuration ??= Date.now() - genStart;
+  state.thinkingDuration ??= Date.now() - genStart;
   return {
-    content: nextContent,
-    reasoningContent: nextReasoningContent,
-    usage: withDebugUsage(withDeepSeekUsageCost(nextUsage, modelConfig), debugPrompt),
+    content: state.content,
+    reasoningContent: state.reasoningContent,
+    usage: withDebugUsage(withDeepSeekUsageCost(state.usage, modelConfig), debugPrompt),
     generateDuration: Date.now() - genStart,
-    thinkingDuration,
+    thinkingDuration: state.thinkingDuration,
   };
 }
 
@@ -405,6 +534,7 @@ async function generateAgenticAssistantOnce(
   } = params;
   const provider = createModelProvider(modelConfig);
   const genStart = Date.now();
+  const attemptMessages = getAttemptMessages(built, retrying);
   const userId = getChatScopedDeepSeekUserId(modelConfig, chatId);
   let thinkingDuration: number | undefined;
   const showLiveText = modelConfig.streamingEnabled !== false;
@@ -420,39 +550,28 @@ async function generateAgenticAssistantOnce(
 
   if (debugContext) {
     try {
-      debugPrompt = await saveDebugPromptFile(
-        debugContext,
-        built,
-        getAttemptMessages(built, retrying),
-        retrying ? "retry" : debugContext.baseTrigger,
+      debugPrompt = await saveDebugPromptFile({
         attempt,
+        built,
+        debugContext,
+        messages: attemptMessages,
+        trigger: retrying ? "retry" : debugContext.baseTrigger,
         userId,
-      );
+      });
     } catch (err) {
       notifyDebugPromptSaveFailed(err);
     }
   }
 
   effects.setGenerationPhase(chatId, retrying ? "retrying" : "thinking");
-  await effects.patchMessage(
-    assistantId,
-    {
-      content: "",
-      reasoningContent: undefined,
-      generateDuration: undefined,
-      thinkingDuration: undefined,
-      usage: undefined,
-      agenticOptions: undefined,
-    },
-    { persist: false },
-  );
+  await resetAssistantDraft(effects, assistantId);
 
   const result = await generateAgenticPlayTurn({
     provider,
     modelConfig,
     builtPrompt: {
       ...built,
-      messages: getAttemptMessages(built, retrying),
+      messages: attemptMessages,
     },
     character,
     gameState: initialGameState,
@@ -625,4 +744,16 @@ export async function generateAgenticAssistantWithRetry(
     throw new Error("Agentic Play returned an empty body after automatic retry.");
   }
   return "";
+}
+
+export async function generateAssistantWithRetry(params: AssistantGenerationParams): Promise<string> {
+  if (params.agentic) {
+    return generateAgenticAssistantWithRetry({
+      ...params,
+      character: params.agentic.character,
+      initialGameState: params.agentic.initialGameState,
+    });
+  }
+
+  return generateNormalAssistantWithRetry(params);
 }

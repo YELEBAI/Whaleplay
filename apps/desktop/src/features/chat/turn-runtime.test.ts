@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { abortDesktopChatTurn, startDesktopChatTurn } from "./desktop-turn-runtime";
+import { abortChatTurn, startChatTurn } from "./turn-runtime";
 import { useChatStore } from "./chat.store";
 
 function resetGenerationState() {
@@ -13,7 +13,7 @@ function resetGenerationState() {
   });
 }
 
-describe("desktop turn runtime", () => {
+describe("turn runtime", () => {
   beforeEach(() => {
     resetGenerationState();
   });
@@ -21,7 +21,7 @@ describe("desktop turn runtime", () => {
   it("wraps a chat turn with begin and finish state", async () => {
     const snapshots: boolean[] = [];
 
-    const result = await startDesktopChatTurn("chat-1", async () => {
+    const result = await startChatTurn("chat-1", async () => {
       snapshots.push(!!useChatStore.getState().activeGenerations["chat-1"]);
       return "done";
     });
@@ -33,7 +33,7 @@ describe("desktop turn runtime", () => {
 
   it("aborts the active chat turn and clears generation state", async () => {
     let observedAbort = false;
-    const run = startDesktopChatTurn(
+    const run = startChatTurn(
       "chat-1",
       (context) =>
         new Promise<void>((resolve) => {
@@ -46,7 +46,7 @@ describe("desktop turn runtime", () => {
     await Promise.resolve();
 
     expect(useChatStore.getState().activeGenerations["chat-1"]).toBeTruthy();
-    abortDesktopChatTurn("chat-1");
+    abortChatTurn("chat-1");
     await run;
 
     expect(observedAbort).toBe(true);

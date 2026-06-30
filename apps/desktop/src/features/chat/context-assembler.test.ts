@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Character, ContextBlock, Message, ModelConfig, PresetItem } from "@neo-tavern/shared";
 import { NSFW_ITEM_KIND, createContentPolicySnapshot } from "@/features/content-policy/content-policy";
 import { useSettingsStore } from "@/features/settings/settings.store";
-import { assembleDesktopChatContext, buildPolicyPresetItems } from "./desktop-context-assembler";
+import { assembleChatContext, buildPolicyPresetItems } from "./context-assembler";
 
 const repositoryMocks = vi.hoisted(() => ({
   activePresetId: null as string | null,
@@ -136,7 +136,7 @@ function createAgenticRecord() {
   };
 }
 
-describe("desktop context assembler", () => {
+describe("context assembler", () => {
   beforeEach(() => {
     useSettingsStore.setState(initialSettings, true);
     useSettingsStore.setState({
@@ -197,7 +197,7 @@ describe("desktop context assembler", () => {
     const getWorldbookContextBlocks = vi.fn(async () => [worldbookBlock]);
     const stripMessages = vi.fn((messages: Message[]) => messages);
 
-    const result = await assembleDesktopChatContext({
+    const result = await assembleChatContext({
       chatId: "chat-1",
       character: createCharacter(),
       userInput: "Open the hidden drawer.",
@@ -231,7 +231,7 @@ describe("desktop context assembler", () => {
     };
     repositoryMocks.agenticRecord = createAgenticRecord();
 
-    const result = await assembleDesktopChatContext({
+    const result = await assembleChatContext({
       chatId: "chat-1",
       character: createCharacter(),
       userInput: "Start",
@@ -258,7 +258,7 @@ describe("desktop context assembler", () => {
     useSettingsStore.setState({ modelConfig: null });
 
     await expect(
-      assembleDesktopChatContext({
+      assembleChatContext({
         chatId: "chat-1",
         character: createCharacter(),
         userInput: "Hello",

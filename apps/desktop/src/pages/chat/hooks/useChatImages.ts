@@ -13,11 +13,11 @@ import { withDeepSeekUsageCost } from "@/features/billing/deepseek-billing";
 import { recordUsageCostAndWarn } from "@/features/billing/usage-cost";
 import { getChatScopedDeepSeekUserId } from "@/features/settings/model-capabilities";
 import { secondaryApiUsageRepository } from "@/db/repositories";
-import { resolveWorldbookEntries } from "@neo-tavern/core";
 import { useSettingsStore } from "@/features/settings/settings.store";
 import { useWorldbookStore } from "@/features/settings/worldbook.store";
+import { getImagePlannerWorldbookReferences as getChatImagePlannerWorldbookReferences } from "@/features/chat/worldbook-context";
 import { toast } from "@/utils/toast";
-import { clipImageReference, ensureImageSlots, resolveImagePlannerConfig } from "../ImageBlocks";
+import { ensureImageSlots, resolveImagePlannerConfig } from "../ImageBlocks";
 
 interface UseChatImagesParams {
   currentChat: Chat | null;
@@ -86,16 +86,13 @@ export function useChatImages({
       if (!settings.worldbookReferenceEnabled || !character) return [];
 
       const { worldbooks, activeWorldbookId } = useWorldbookStore.getState();
-      if (!activeWorldbookId) return [];
-
-      const wb = worldbooks.find((w) => w.id === activeWorldbookId);
-      if (!wb || wb.entries.length === 0) return [];
-
-      const { matched } = resolveWorldbookEntries(wb.entries, content, messages);
-      return matched.slice(0, 8).map((entry) => ({
-        title: entry.title,
-        content: clipImageReference(entry.content, 1200),
-      }));
+      return getChatImagePlannerWorldbookReferences({
+        activeWorldbookId,
+        character,
+        content,
+        recentMessages: messages,
+        worldbooks,
+      });
     },
     [character, messages],
   );
